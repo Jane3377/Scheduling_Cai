@@ -26,6 +26,7 @@
         <button class="nav-item" data-view="worktypes">工作管理</button>
         <button class="nav-item" data-view="schedule">排班管理</button>
         <button class="nav-item" data-view="availabilitySettings">可排時間設定</button>
+        <button class="nav-item" data-view="storeSettings">店家設定</button>
               </nav>
       <div class="sidebar-note">
         <strong>原型版本 v0.1</strong>
@@ -160,7 +161,19 @@
         <div id="availabilityWindowCards" class="window-card-grid"></div>
       </section>
 
-    </main>
+    
+<section class="view" id="storeSettingsView">
+<h2>店家設定</h2>
+<div class="panel">
+<label>營業開始 <input type="time" id="storeOpen" value="08:30"></label><br>
+<label>營業結束 <input type="time" id="storeClose" value="21:00"></label><br>
+<label>時間間隔
+<select id="storeStep"><option selected>30</option><option>60</option></select> 分鐘
+</label>
+<p>公休日：星期一（v0.4.1 先固定，可於下一版改成多選）</p>
+</div>
+</section>
+</main>
   </div>
 
   <div class="modal-backdrop hidden" id="modalBackdrop">
