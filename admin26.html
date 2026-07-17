@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#b94b2f" />
-  <title>蔡叔叔智慧排班｜主管後台</title>
+  <title>排班管理系統｜主管後台</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/icon-192.svg" />
   <link rel="icon" href="icons/icon-192.svg" />
@@ -14,10 +14,10 @@
   <div id="app">
     <aside class="sidebar" id="sidebar">
       <div class="brand">
-        <div class="brand-mark">蔡</div>
+        <div class="brand-mark" id="brandMark">蔡</div>
         <div>
-          <strong>智慧排班</strong>
-          <span>Smart Scheduler</span>
+          <strong id="brandName">排班管理系統</strong>
+          <span>排班管理系統</span>
         </div>
       </div>
       <nav class="nav">
@@ -28,7 +28,7 @@
         <button class="nav-item" data-view="hours">工時總覽</button>
         <button class="nav-item" data-view="availabilitySettings">可排時間設定</button>
         <button class="nav-item" data-view="availabilityOverview">可排時間總覽</button>
-        <button class="nav-item" data-view="storeSettings">店家設定</button>
+        <button class="nav-item" data-view="storeSettings">系統維護</button>
               </nav>
       <div class="sidebar-note">
         <strong>原型版本 v0.1</strong>
@@ -50,15 +50,6 @@
       </header>
 
       <section class="view active" id="dashboardView">
-        <div class="hero-card">
-          <div>
-            <span class="eyebrow">2026 年 7 月</span>
-            <h2>先把排班變簡單，再逐步變聰明。</h2>
-            <p>這一版先讓業主能建立員工、設定工作、排班，並讓員工用編號查看班表與填寫可排時間。</p>
-          </div>
-          <button class="primary-btn large" data-view-target="schedule">開始排班</button>
-        </div>
-
         <div class="stats-grid" id="dashboardStats"></div>
 
         <div class="two-col">
@@ -77,11 +68,7 @@
       </section>
 
       <section class="view" id="employeesView">
-        <div class="section-toolbar">
-          <div>
-            <h2>員工管理</h2>
-            <p>設定員工編號、可做工作與工時上限。</p>
-          </div>
+        <div class="section-toolbar end">
           <button class="primary-btn" id="addEmployeeBtn">＋ 新增員工</button>
         </div>
         <div class="panel table-panel">
@@ -103,22 +90,14 @@
       </section>
 
       <section class="view" id="worktypesView">
-        <div class="section-toolbar">
-          <div>
-            <h2>工作管理</h2>
-            <p>工作不綁固定班別，時間由每筆班次個別設定。</p>
-          </div>
+        <div class="section-toolbar end">
           <button class="primary-btn" id="addWorktypeBtn">＋ 新增工作</button>
         </div>
         <div id="worktypeCards" class="card-grid"></div>
       </section>
 
       <section class="view" id="scheduleView">
-        <div class="section-toolbar schedule-toolbar">
-          <div>
-            <h2>排班管理</h2>
-            <p>左側選日期，右側以時間軸查看與編輯班次。</p>
-          </div>
+        <div class="section-toolbar schedule-toolbar end">
           <button class="primary-btn" data-quick="add-shift">＋ 新增班次</button>
         </div>
         <div class="schedule-layout">
@@ -144,11 +123,7 @@
       </section>
 
       <section class="view" id="availabilitySettingsView">
-        <div class="section-toolbar">
-          <div>
-            <h2>可排時間開放設定</h2>
-            <p>設定員工何時可以填寫，以及可填寫哪一段日期的可排班時間。</p>
-          </div>
+        <div class="section-toolbar end">
           <button class="primary-btn" id="addAvailabilityWindowBtn">＋ 新增開放區段</button>
         </div>
 
@@ -164,11 +139,7 @@
       </section>
 
       <section class="view" id="hoursView">
-        <div class="section-toolbar">
-          <div>
-            <h2>工時總覽</h2>
-            <p>每位員工每週的計薪工時（草稿與已發布班次皆即時試算）。</p>
-          </div>
+        <div class="section-toolbar end">
           <div class="topbar-actions">
             <button class="icon-btn" id="prevWeekBtn">‹</button>
             <button class="ghost-btn" id="thisWeekBtn">本週</button>
@@ -186,12 +157,6 @@
       </section>
 
       <section class="view" id="availabilityOverviewView">
-        <div class="section-toolbar">
-          <div>
-            <h2>可排時間總覽</h2>
-            <p>檢視員工填寫的可排時間，支援月曆、日期、員工三種模式。</p>
-          </div>
-        </div>
         <div id="availOverviewSummary"></div>
         <div class="staff-tabs" id="availModeTabs">
           <button class="staff-tab active" data-mode="month">月曆模式</button>
@@ -202,12 +167,6 @@
       </section>
 
       <section class="view" id="storeSettingsView">
-        <div class="section-toolbar">
-          <div>
-            <h2>店家設定</h2>
-            <p>營業時間、時間間隔、公休日與休息時段；所有排班與可排時間依此設定。</p>
-          </div>
-        </div>
         <form class="panel" id="storeSettingsForm" style="padding:22px"></form>
       </section>
 </main>

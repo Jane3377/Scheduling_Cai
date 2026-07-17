@@ -144,13 +144,20 @@ function setView(view){
     hours:["工時總覽","查看每位員工每週的計薪工時"],
     availabilitySettings:["可排時間設定","設定開放填寫期間與可填寫的排班日期區段"],
     availabilityOverview:["可排時間總覽","以月曆／日期／員工三種模式檢視員工填寫狀況"],
-    storeSettings:["店家設定","營業時間、時間間隔、公休日與休息時段"],
+    storeSettings:["系統維護","店名、營業時間、時間間隔、公休日與休息時段"],
   }[view];
   byId("pageTitle").textContent=meta[0];byId("pageSubtitle").textContent=meta[1];
   byId("sidebar").classList.remove("open");
   renderAll();
 }
-function renderAll(){renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderTimeline();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();renderStoreSettings()}
+function applyBranding(){
+  const name=(settings().storeName||"").trim();
+  const full=name?`${name}排班管理系統`:"排班管理系統";
+  const bn=byId("brandName");if(bn)bn.textContent=name||"排班管理系統";
+  const bm=byId("brandMark");if(bm&&name)bm.textContent=name.slice(0,1);
+  document.title=`${full}｜主管後台`;
+}
+function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderTimeline();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();renderStoreSettings()}
 function renderDashboard(){
   const active=state.data.employees.filter(e=>e.active).length, month="2026-07";
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
