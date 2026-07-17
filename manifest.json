@@ -1,7 +1,7 @@
 {
-  "name": "蔡叔叔智慧排班",
-  "short_name": "智慧排班",
-  "start_url": "./",
+  "name": "蔡叔叔排班員工專區",
+  "short_name": "員工排班",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f6f3f0",
   "theme_color": "#b94b2f",

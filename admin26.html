@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#b94b2f" />
+  <title>蔡叔叔智慧排班｜主管後台</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.svg" />
+  <link rel="icon" href="icons/icon-192.svg" />
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">蔡</div>
+        <div>
+          <strong>智慧排班</strong>
+          <span>Smart Scheduler</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboard">總覽</button>
+        <button class="nav-item" data-view="employees">員工管理</button>
+        <button class="nav-item" data-view="worktypes">工作管理</button>
+        <button class="nav-item" data-view="schedule">排班管理</button>
+              </nav>
+      <div class="sidebar-note">
+        <strong>原型版本 v0.1</strong>
+        <span>資料暫存在此裝置瀏覽器</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn mobile-only" id="menuBtn" aria-label="開啟選單">☰</button>
+        <div>
+          <h1 id="pageTitle">營運總覽</h1>
+          <p id="pageSubtitle">快速掌握本月排班與人力狀況</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-btn" id="resetDemoBtn">重置示範資料</button>
+          <button class="primary-btn" data-quick="add-shift">＋ 新增班次</button>
+        </div>
+      </header>
+
+      <section class="view active" id="dashboardView">
+        <div class="hero-card">
+          <div>
+            <span class="eyebrow">2026 年 7 月</span>
+            <h2>先把排班變簡單，再逐步變聰明。</h2>
+            <p>這一版先讓業主能建立員工、設定工作、排班，並讓員工用編號查看班表與填寫可排時間。</p>
+          </div>
+          <button class="primary-btn large" data-view-target="schedule">開始排班</button>
+        </div>
+
+        <div class="stats-grid" id="dashboardStats"></div>
+
+        <div class="two-col">
+          <section class="panel">
+            <div class="panel-head">
+              <div><h3>今日班表</h3><p id="todayLabel"></p></div>
+              <button class="text-btn" data-view-target="schedule">查看排班</button>
+            </div>
+            <div id="todayShifts" class="stack-list"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><h3>排班提醒</h3><p>系統依目前資料自動提示</p></div></div>
+            <div id="dashboardWarnings" class="stack-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="employeesView">
+        <div class="section-toolbar">
+          <div>
+            <h2>員工管理</h2>
+            <p>設定員工編號、可做工作與工時上限。</p>
+          </div>
+          <button class="primary-btn" id="addEmployeeBtn">＋ 新增員工</button>
+        </div>
+        <div class="panel table-panel">
+          <div class="filter-row">
+            <input id="employeeSearch" class="input" placeholder="搜尋姓名或員工編號" />
+            <select id="employeeStatusFilter" class="select">
+              <option value="all">全部員工</option>
+              <option value="active">在職</option>
+              <option value="inactive">停用</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>員工</th><th>員工編號</th><th>可做工作</th><th>每週上限</th><th>狀態</th><th></th></tr></thead>
+              <tbody id="employeesTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="worktypesView">
+        <div class="section-toolbar">
+          <div>
+            <h2>工作管理</h2>
+            <p>工作不綁固定班別，時間由每筆班次個別設定。</p>
+          </div>
+          <button class="primary-btn" id="addWorktypeBtn">＋ 新增工作</button>
+        </div>
+        <div id="worktypeCards" class="card-grid"></div>
+      </section>
+
+      <section class="view" id="scheduleView">
+        <div class="section-toolbar schedule-toolbar">
+          <div>
+            <h2>排班管理</h2>
+            <p>左側選日期，右側以時間軸查看與編輯班次。</p>
+          </div>
+          <button class="primary-btn" data-quick="add-shift">＋ 新增班次</button>
+        </div>
+        <div class="schedule-layout">
+          <section class="panel calendar-panel">
+            <div class="calendar-head">
+              <button class="icon-btn" id="prevMonthBtn">‹</button>
+              <strong id="calendarMonthLabel"></strong>
+              <button class="icon-btn" id="nextMonthBtn">›</button>
+            </div>
+            <div class="weekdays"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+            <div id="calendarGrid" class="calendar-grid"></div>
+          </section>
+
+          <section class="panel timeline-panel">
+            <div class="panel-head timeline-head">
+              <div><h3 id="selectedDateTitle"></h3><p id="selectedDateSummary"></p></div>
+              <button class="secondary-btn" data-quick="add-shift">＋ 班次</button>
+            </div>
+            <div class="timeline-scale" id="timelineScale"></div>
+            <div id="timelineRows" class="timeline-rows"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="modalBackdrop">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <div><h3 id="modalTitle"></h3><p id="modalSubtitle"></p></div>
+        <button class="icon-btn" id="modalCloseBtn">✕</button>
+      </div>
+      <form id="modalForm" class="modal-body"></form>
+    </div>
+  </div>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>
