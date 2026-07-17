@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#b94b2f" />
-  <title>蔡叔叔排班｜員工專區</title>
+  <title>員工班表系統</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/icon-192.svg" />
   <link rel="icon" href="icons/icon-192.svg" />
@@ -14,10 +14,9 @@
   <main class="staff-page-main">
     <header class="staff-brandbar">
       <div class="brand">
-        <div class="brand-mark">蔡</div>
+        <div class="brand-mark" id="staffBrandMark">蔡</div>
         <div>
-          <strong>蔡叔叔排班</strong>
-          <span>員工專區</span>
+          <strong id="staffBrandName">員工班表系統</strong>
         </div>
       </div>
     </header>
@@ -40,10 +39,9 @@
       <div id="staffPortal" class="staff-portal hidden">
         <div class="staff-portal-head">
           <div>
-            <span class="eyebrow">員工專區</span>
             <h1 id="staffWelcome"></h1>
           </div>
-          <button class="ghost-btn" id="staffLogoutBtn">切換員工</button>
+          <button class="ghost-btn" id="staffLogoutBtn">登出</button>
         </div>
 
         <div class="next-shift-card" id="nextShiftCard"></div>
@@ -72,10 +70,12 @@
               </div>
             </div>
 
+            <div class="avail-disclaimer">※ 填寫可上班時間僅為調查意願，實際排班依最後公布的班表為準。</div>
+
             <div id="availabilityClosedMessage" class="closed-message hidden"></div>
 
             <div id="availabilityCalendarArea">
-              <div class="quick-week">
+              <div class="quick-week" id="quickWeekBlock">
                 <div class="quick-week-row">
                   <span class="quick-week-label">快速設定・每週</span>
                   <div class="quick-week-days" id="quickWeekDays"></div>
@@ -101,7 +101,7 @@
                 <span><i class="legend-dot pending"></i>尚未填寫</span>
               </div>
 
-              <div class="selected-day-editor">
+              <div class="selected-day-editor" id="selectedDayEditor">
                 <div class="selected-day-head">
                   <div>
                     <span class="eyebrow">選取日期</span>

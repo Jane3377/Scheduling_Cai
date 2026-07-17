@@ -11,6 +11,7 @@ let data=null, staffEmployeeId=sessionStorage.getItem("smartSchedulerStaffId");
 let activeWindow=null;
 let calendarDate=new Date();
 let selectedAvailabilityDate=null;
+let availEditable=true;
 
 function load(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))}catch{return null}}
 function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(data));renderStaff()}
@@ -26,9 +27,29 @@ function timeOptions(selected=""){
   for(let m=s;m<=e;m+=step){const h=Math.floor(m/60)%24,t=`${pad(h)}:${pad(m%60)}`;out+=`<option ${t===selected?"selected":""}>${t}</option>`}
   return out
 }
-function durationHours(s){return Math.max(0,(mins(s.end)-mins(s.start)-Number(s.breakMinutes||0))/60)}
+// 依「工作是否套用休息」與店家休息時段，計算此班的休息（不計薪）
+function shiftBreakMin(s){
+  const w=worktype(s.workTypeId);if(!w||!w.applyBreak)return 0;
+  const bs=storeCfg().breakStart,be=storeCfg().breakEnd;if(!bs||!be)return 0;
+  return Math.max(0,Math.min(mins(s.end),mins(be))-Math.max(mins(s.start),mins(bs)));
+}
+function shiftBreakLabel(s){
+  const w=worktype(s.workTypeId);if(!w||!w.applyBreak)return "";
+  const bs=storeCfg().breakStart,be=storeCfg().breakEnd;if(!bs||!be)return "";
+  const st=Math.max(mins(s.start),mins(bs)),en=Math.min(mins(s.end),mins(be));
+  if(en<=st)return "";
+  return `${pad(Math.floor(st/60))}:${pad(st%60)}～${pad(Math.floor(en/60))}:${pad(en%60)}`;
+}
+function durationHours(s){return Math.max(0,(mins(s.end)-mins(s.start)-shiftBreakMin(s))/60)}
 function employee(id){return data.employees.find(x=>x.id===id)}
 function worktype(id){return data.workTypes.find(x=>x.id===id)}
+function applyStaffBranding(){
+  const name=(storeCfg().storeName||"").trim();
+  const full=name?`${name} 員工班表系統`:"員工班表系統";
+  const bn=byId("staffBrandName");if(bn)bn.textContent=full;
+  const bm=byId("staffBrandMark");if(bm&&name)bm.textContent=name.slice(0,1);
+  document.title=full;
+}
 function getWindows(){return data?.settings?.availabilityWindows||[]}
 function getActiveWindow(){
   const today=toDateKey(new Date());
@@ -60,6 +81,7 @@ function renderStaff(){
   if(!e){logout();return}
   byId("staffLoginCard").classList.add("hidden");
   byId("staffPortal").classList.remove("hidden");
+  applyStaffBranding();
   byId("staffWelcome").textContent=`${e.name}，你好`;
 
   const today=toDateKey(new Date());
@@ -80,7 +102,7 @@ function renderStaff(){
     <div class="next-shift-time">${next.start}</div>
   `:`<div><span class="eyebrow">下一班</span><h2>目前尚未排班</h2><p>完成排班後會顯示在這裡。</p></div>`;
 
-  const shiftItem=s=>{const w=worktype(s.workTypeId),c=w?.color||"#999";return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||"未命名工作"}</strong><span>${s.start}～${s.end}・${fmtHours(durationHours(s))}</span>${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}</div></div>`};
+  const shiftItem=s=>{const w=worktype(s.workTypeId),c=w?.color||"#999",br=shiftBreakLabel(s);return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||"未命名工作"}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span>${br?`<span class="shift-break">休息 ${br}（不計薪）</span>`:""}${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}</div></div>`};
   const group=(title,arr,empty)=>`<div class="shift-group"><div class="shift-group-head">${title}<span>${arr.length}</span></div>${arr.length?arr.map(shiftItem).join(""):`<div class="empty-state">${empty}</div>`}</div>`;
   byId("staffShiftList").innerHTML=group("即將到來",upcoming,"目前沒有即將到來的班表")+group("已結束",ended,"近三個月沒有已結束的班表");
 
@@ -88,12 +110,15 @@ function renderStaff(){
   const nextWindow=getNextWindow();
   const banner=byId("availabilityWindowBanner");
   const closed=byId("availabilityClosedMessage");
-  const area=byId("availabilityCalendarArea");
+  const quickBlock=byId("quickWeekBlock");
+  const editor=byId("selectedDayEditor");
 
   if(activeWindow){
+    availEditable=true;
     banner.className="availability-window-banner open";
     banner.innerHTML=`<strong>${activeWindow.name}已開放填寫可上班時間囉</strong><span>開放填寫：${formatDate(activeWindow.openStart)}～${formatDate(activeWindow.openEnd)}</span><span>可填日期：${formatDate(activeWindow.targetStart)}～${formatDate(activeWindow.targetEnd)}</span>${activeWindow.note?`<small>${activeWindow.note}</small>`:""}`;
-    closed.classList.add("hidden");area.classList.remove("hidden");
+    closed.classList.add("hidden");
+    quickBlock.classList.remove("hidden");editor.classList.remove("hidden");
     if(!selectedAvailabilityDate||!canFill(selectedAvailabilityDate)){
       // 預設選第一個非公休的可填日期
       let pick=activeWindow.targetStart;
@@ -108,29 +133,38 @@ function renderStaff(){
     renderAvailabilityCalendar();
     loadSelectedDay();
   }else{
+    // 非開放期間：仍顯示月曆，供檢視近期填寫紀錄（唯讀）
+    availEditable=false;
     banner.className="availability-window-banner closed";
     banner.innerHTML=nextWindow?`<strong>目前尚未開放填寫</strong><span>下一次開放：${formatDate(nextWindow.openStart)}～${formatDate(nextWindow.openEnd)}，填寫 ${formatDate(nextWindow.targetStart)}～${formatDate(nextWindow.targetEnd)} 的可上班時間。</span>`:`<strong>目前尚未開放填寫</strong><span>請等待主管公告下一次填寫期間。</span>`;
-    closed.classList.remove("hidden");area.classList.add("hidden");
-    closed.innerHTML="目前不在可上班時間填寫期間內，因此暫時無法新增或修改。";
+    closed.classList.remove("hidden");
+    closed.innerHTML="目前非開放填寫期間，以下為你近三個月填寫的紀錄（僅供檢視，無法修改）。";
+    quickBlock.classList.add("hidden");editor.classList.add("hidden");
+    renderAvailabilityCalendar();
   }
 }
 function renderAvailabilityCalendar(){
-  if(!activeWindow)return;
+  const editable=availEditable;
   const y=calendarDate.getFullYear(),m=calendarDate.getMonth();
   byId("staffCalendarMonthLabel").textContent=`${y} 年 ${m+1} 月`;
   const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
   let html="";
   for(let i=0;i<42;i++){
     const day=new Date(start);day.setDate(start.getDate()+i);
-    const key=toDateKey(day),inMonth=day.getMonth()===m,inRange=inTargetRange(key),closed=isClosedDay(key),allowed=inRange&&!closed;
+    const key=toDateKey(day),inMonth=day.getMonth()===m,closed=isClosedDay(key);
+    const inRange=editable&&inTargetRange(key),allowed=editable&&inRange&&!closed;
     const record=data.availability.find(a=>a.employeeId===staffEmployeeId&&a.date===key);
     let cls="pending",summary="";
-    if(closed&&inRange){cls="closed";summary="公休"}
+    if(closed&&(inRange||!editable)){cls="closed";summary="公休"}
     else if(record?.unavailable){cls="unavailable";summary="不可排"}
-    else if(record){cls="available";summary=`${record.start}起`}
-    html+=`<button class="employee-cal-day ${!inMonth?"muted":""} ${!allowed?"disabled":""} ${key===selectedAvailabilityDate?"selected":""} ${cls}" ${allowed?`onclick="selectAvailabilityDate('${key}')"`:"disabled"}>
+    else if(record){cls="available";summary=`${record.start}～${record.end}`}
+    else if(inRange){summary="未填"}
+    const showSummary=editable?inRange:(!!record||closed);
+    const dim=editable&&!allowed;
+    const clickAttr=allowed?`onclick="selectAvailabilityDate('${key}')"`:(editable?"disabled":"");
+    html+=`<button class="employee-cal-day ${!inMonth?"muted":""} ${dim?"disabled":""} ${(editable&&key===selectedAvailabilityDate)?"selected":""} ${cls}" ${clickAttr}>
       <span class="day-number">${day.getDate()}</span>
-      ${inRange?`<small>${summary||"未填"}</small>`:""}
+      ${showSummary?`<small>${summary}</small>`:""}
     </button>`
   }
   byId("staffAvailabilityCalendar").innerHTML=html;
@@ -199,6 +233,7 @@ function saveSelectedDay(){
 }
 document.addEventListener("DOMContentLoaded",()=>{
   data=load();
+  applyStaffBranding();
   if(!data){byId("staffLoginError").textContent="目前尚未建立示範資料，請先開啟主管後台 admin26.html。"}
   byId("staffLoginBtn").onclick=login;
   byId("staffNoInput").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
