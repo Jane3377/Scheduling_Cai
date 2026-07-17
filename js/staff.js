@@ -32,6 +32,9 @@ function getNextWindow(){
   return getWindows().filter(w=>w.enabled&&w.openStart>today).sort((a,b)=>a.openStart.localeCompare(b.openStart))[0]||null
 }
 function inTargetRange(date){return activeWindow&&date>=activeWindow.targetStart&&date<=activeWindow.targetEnd}
+function closedDays(){return data?.settings?.closedDays||[]}
+function isClosedDay(key){return closedDays().includes(new Date(key+"T00:00:00").getDay())}
+function canFill(key){return inTargetRange(key)&&!isClosedDay(key)}
 function login(){
   const no=byId("staffNoInput").value.trim().toUpperCase();
   const e=data?.employees?.find(x=>x.active&&x.employeeNo.toUpperCase()===no);
@@ -76,8 +79,14 @@ function renderStaff(){
     banner.className="availability-window-banner open";
     banner.innerHTML=`<strong>${activeWindow.name}</strong><span>開放填寫：${formatDate(activeWindow.openStart)}～${formatDate(activeWindow.openEnd)}｜可填日期：${formatDate(activeWindow.targetStart)}～${formatDate(activeWindow.targetEnd)}</span>${activeWindow.note?`<small>${activeWindow.note}</small>`:""}`;
     closed.classList.add("hidden");area.classList.remove("hidden");
-    if(!selectedAvailabilityDate||!inTargetRange(selectedAvailabilityDate)){
-      selectedAvailabilityDate=activeWindow.targetStart;
+    if(!selectedAvailabilityDate||!canFill(selectedAvailabilityDate)){
+      // 預設選第一個非公休的可填日期
+      let pick=activeWindow.targetStart;
+      const end=new Date(activeWindow.targetEnd+"T00:00:00");
+      for(let d=new Date(activeWindow.targetStart+"T00:00:00");d<=end;d.setDate(d.getDate()+1)){
+        if(!isClosedDay(toDateKey(d))){pick=toDateKey(d);break}
+      }
+      selectedAvailabilityDate=pick;
       const d=new Date(selectedAvailabilityDate+"T00:00:00");
       calendarDate=new Date(d.getFullYear(),d.getMonth(),1);
     }
@@ -98,20 +107,21 @@ function renderAvailabilityCalendar(){
   let html="";
   for(let i=0;i<42;i++){
     const day=new Date(start);day.setDate(start.getDate()+i);
-    const key=toDateKey(day),inMonth=day.getMonth()===m,allowed=inTargetRange(key);
+    const key=toDateKey(day),inMonth=day.getMonth()===m,inRange=inTargetRange(key),closed=isClosedDay(key),allowed=inRange&&!closed;
     const record=data.availability.find(a=>a.employeeId===staffEmployeeId&&a.date===key);
     let cls="pending",summary="";
-    if(record?.unavailable){cls="unavailable";summary="不可排"}
+    if(closed&&inRange){cls="closed";summary="公休"}
+    else if(record?.unavailable){cls="unavailable";summary="不可排"}
     else if(record){cls="available";summary=`${record.start}起`}
     html+=`<button class="employee-cal-day ${!inMonth?"muted":""} ${!allowed?"disabled":""} ${key===selectedAvailabilityDate?"selected":""} ${cls}" ${allowed?`onclick="selectAvailabilityDate('${key}')"`:"disabled"}>
       <span class="day-number">${day.getDate()}</span>
-      ${allowed?`<small>${summary||"未填"}</small>`:""}
+      ${inRange?`<small>${summary||"未填"}</small>`:""}
     </button>`
   }
   byId("staffAvailabilityCalendar").innerHTML=html;
 }
 function selectAvailabilityDate(key){
-  if(!inTargetRange(key))return;
+  if(!canFill(key))return;
   selectedAvailabilityDate=key;renderAvailabilityCalendar();loadSelectedDay()
 }
 function loadSelectedDay(){
@@ -130,7 +140,7 @@ function loadSelectedDay(){
   else{badge.textContent="尚未填寫";badge.className="badge"}
 }
 function saveSelectedDay(){
-  if(!activeWindow||!selectedAvailabilityDate||!inTargetRange(selectedAvailabilityDate))return;
+  if(!activeWindow||!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
   const unavailable=byId("availabilityUnavailable").checked,start=byId("availabilityStart").value,end=byId("availabilityEnd").value;
   if(!unavailable&&mins(end)<=mins(start)){alert("結束時間必須晚於開始時間");return}
   let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);

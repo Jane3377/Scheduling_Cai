@@ -206,8 +206,8 @@ function renderCalendar(){
   byId("calendarMonthLabel").textContent=`${y} 年 ${m+1} 月`;
   const first=new Date(y,m,1),start=new Date(y,m,1-first.getDay());
   let html="";
-  for(let i=0;i<42;i++){const day=new Date(start);day.setDate(start.getDate()+i);const key=toDateKey(day);const count=state.data.shifts.filter(s=>s.date===key).length;
-    html+=`<button class="cal-day ${day.getMonth()!==m?"muted":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" onclick="selectDate('${key}')"><span>${day.getDate()}</span>${count?`<span class="cal-dot"></span>`:""}</button>`
+  for(let i=0;i<42;i++){const day=new Date(start);day.setDate(start.getDate()+i);const key=toDateKey(day);const count=state.data.shifts.filter(s=>s.date===key).length;const closed=isClosedDay(key);
+    html+=`<button class="cal-day ${day.getMonth()!==m?"muted":""} ${closed?"closed":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" ${closed?"disabled title=\"公休日\"":`onclick="selectDate('${key}')"`}><span>${day.getDate()}</span>${closed?`<span class="cal-closed">休</span>`:count?`<span class="cal-dot"></span>`:""}</button>`
   }
   byId("calendarGrid").innerHTML=html;
 }
@@ -439,6 +439,7 @@ function openShiftModal(id=null){
   function updateWarnings(){
     const fd=new FormData(form),eid=fd.get("employeeId"),date=fd.get("date"),start=fd.get("start"),end=fd.get("end"),e=employee(eid),warnings=[];
     if(mins(end)<=mins(start))warnings.push("結束時間必須晚於開始時間");
+    if(isClosedDay(date))warnings.push("這一天是公休日，不建議排班");
     if(e){
       const result=getEmployeeEligibility(e,date,start,end,fd.get("workTypeId"),id);
       warnings.push(...result.reasons);
@@ -453,6 +454,7 @@ function openShiftModal(id=null){
   });
   form.elements.employeeId.addEventListener("change",updateWarnings);
   form.onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);if(!fd.get("employeeId")){alert("請選擇員工");return}
+    if(isClosedDay(fd.get("date"))&&!confirm("這一天是公休日，確定仍要排班？")){return}
     Object.assign(s,{date:fd.get("date"),workTypeId:fd.get("workTypeId"),employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end"),breakMinutes:breakForShift({workTypeId:fd.get("workTypeId"),start:fd.get("start"),end:fd.get("end")}),prepRole:fd.get("prepRole")==="on",note:fd.get("note").trim()});
     if(mins(s.end)<=mins(s.start)){alert("結束時間必須晚於開始時間");return}
     if(!id)state.data.shifts.push(s);state.selectedDate=s.date;save();closeModal()
@@ -581,9 +583,11 @@ function availMonthView(w){
   for(let i=0;i<42;i++){
     const day=new Date(start);day.setDate(start.getDate()+i);const key=toDateKey(day);
     const inTarget=key>=w.targetStart&&key<=w.targetEnd;
+    const closed=isClosedDay(key);
     const recs=actives.map(e=>availAt(e.id,key)).filter(Boolean);
     const yes=recs.filter(a=>!a.unavailable).length;
-    cells+=`<div class="ov-cell ${day.getMonth()!==m?"muted":""} ${inTarget?"":"disabled"}"><div class="ov-day">${day.getDate()}</div>${inTarget?`<div class="ov-count">${yes} 可排</div>`:""}</div>`;
+    const badge=inTarget?(closed?`<div class="ov-closed">公休</div>`:`<div class="ov-count">${yes} 可排</div>`):"";
+    cells+=`<div class="ov-cell ${day.getMonth()!==m?"muted":""} ${inTarget&&!closed?"":"disabled"}"><div class="ov-day">${day.getDate()}</div>${badge}</div>`;
   }
   return `<div class="ov-cal-head"><button class="icon-btn" onclick="availMonthNav(-1)">‹</button><strong>${y} 年 ${m+1} 月</strong><button class="icon-btn" onclick="availMonthNav(1)">›</button></div>
     <div class="weekdays"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>

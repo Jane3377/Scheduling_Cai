@@ -58,6 +58,12 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .ov-toolbar{display:flex;align-items:center;gap:12px;margin:6px 0 14px}
 .ov-toolbar span{color:var(--muted);font-size:13px}
 #availabilityOverviewBody .stack-list.panel{padding:8px 18px}
+.ov-closed{font-size:12px;color:var(--muted);background:#ece7e3;border-radius:999px;padding:2px 8px;align-self:flex-start}
+/* 公休日反灰 */
+.cal-day.closed{background:repeating-linear-gradient(135deg,#f1ece8 0,#f1ece8 6px,#e7e0da 6px,#e7e0da 12px);color:#b3aaa3;cursor:not-allowed}
+.cal-day .cal-closed{font-size:10px;color:#a89f98}
+.employee-cal-day.closed{background:repeating-linear-gradient(135deg,#f1ece8 0,#f1ece8 6px,#e7e0da 6px,#e7e0da 12px);border-color:#ddd4cd;color:#b3aaa3;cursor:not-allowed}
+.legend-dot.closed{background:#c9bfb7}
 .employee-smart-select optgroup{font-weight:800;color:var(--ink)}
 .staff-page{background:linear-gradient(180deg,#fff8f4 0,#f6f3f0 45%)}
 .staff-page-main{min-height:100vh;padding:0 20px 50px}
