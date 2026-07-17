@@ -9,6 +9,7 @@ const state = {
   view:"dashboard",
   calendarDate:new Date(2026,6,1),
   selectedDate:"2026-07-18",
+  scheduleMode:"day",
   hoursWeek:"2026-07-18",
   availPage:"settings",
   availMode:"month",
@@ -162,7 +163,7 @@ function syncAvailPage(){
   byId("availSettingsPanel")?.classList.toggle("hidden",state.availPage!=="settings");
   byId("availOverviewPanel")?.classList.toggle("hidden",state.availPage!=="overview");
 }
-function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderTimeline();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings()}
+function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderSchedule();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings()}
 function renderDashboard(){
   const active=state.data.employees.filter(e=>e.active).length, month="2026-07";
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
@@ -223,19 +224,93 @@ function renderCalendar(){
   }
   byId("calendarGrid").innerHTML=html;
 }
-function renderTimeline(){
-  byId("selectedDateTitle").textContent=formatDate(state.selectedDate);
-  const dayShifts=state.data.shifts.filter(s=>s.date===state.selectedDate);
-  byId("selectedDateSummary").textContent=`${dayShifts.length} 個班次・共 ${fmtHours(dayShifts.reduce((n,s)=>n+durationHours(s),0))}`;
-  byId("timelineScale").innerHTML=`<span>工作</span>`+Array.from({length:16},(_,i)=>`<span>${pad(8+i)}</span>`).join("");
-  const works=state.data.workTypes.filter(w=>w.active).sort((a,b)=>a.sort-b.sort);
-  byId("timelineRows").innerHTML=works.map(w=>{
-    const shifts=dayShifts.filter(s=>s.workTypeId===w.id);
-    const bars=shifts.map(s=>{const left=((mins(s.start)-8*60)/(16*60))*100,width=((mins(s.end)-mins(s.start))/(16*60))*100,e=employee(s.employeeId);
-      return `<button class="shift-bar" onclick="openShiftModal('${s.id}')" style="left:${Math.max(0,left)}%;width:${Math.max(5,width)}%;background:${w.color}"><strong>${e?.name||"未知"}</strong><span>${s.start}–${s.end}${s.prepRole?"・前置":""}</span></button>`
+/* ---------- 排班：直式時間軸（日／週） ---------- */
+const SLOT_H=34;   // 每個時間間隔的像素高度
+const HEAD_H=52;   // 欄位表頭高度
+function timeAxis(){
+  const cfg=settings();
+  const startM=mins(cfg.businessStart),endM=mins(cfg.businessEnd),step=cfg.timeStep||30;
+  const slots=Math.max(1,Math.round((endM-startM)/step));
+  return {startM,endM,step,slots,total:endM-startM,height:Math.max(1,Math.round((endM-startM)/step))*SLOT_H};
+}
+function timeGutter(axis){
+  let ticks="";
+  for(let i=0;i<=axis.slots;i++){const t=axis.startM+i*axis.step;ticks+=`<div class="dg-tick" style="top:${i*SLOT_H}px">${pad(Math.floor(t/60))}:${pad(t%60)}</div>`}
+  return `<div class="dg-gutter-wrap"><div class="dg-corner"></div><div class="dg-gutter" style="height:${axis.height}px">${ticks}</div></div>`;
+}
+// 將同一欄中時間重疊的班次分配到並排的「軌道」，避免互相遮住。
+function layoutBlocks(shifts){
+  const items=shifts.map(s=>({s,st:mins(s.start),en:mins(s.end)})).sort((a,b)=>a.st-b.st||a.en-b.en);
+  const res=[];let cluster=[],clusterEnd=-1;
+  const flush=()=>{
+    const laneEnds=[];
+    cluster.forEach(it=>{let lane=laneEnds.findIndex(e=>e<=it.st);if(lane===-1){lane=laneEnds.length;laneEnds.push(it.en)}else laneEnds[lane]=it.en;it.lane=lane});
+    const lanes=laneEnds.length;
+    cluster.forEach(it=>res.push({s:it.s,lane:it.lane,lanes}));
+    cluster=[];clusterEnd=-1;
+  };
+  items.forEach(it=>{if(cluster.length&&it.st>=clusterEnd)flush();cluster.push(it);clusterEnd=Math.max(clusterEnd,it.en)});
+  flush();
+  return res;
+}
+function shiftBlock(s,axis,showWork,lane=0,lanes=1){
+  const w=worktype(s.workTypeId),e=employee(s.employeeId);
+  const top=((mins(s.start)-axis.startM)/axis.total)*axis.height;
+  const h=Math.max(20,((mins(s.end)-mins(s.start))/axis.total)*axis.height);
+  const width=100/lanes,left=lane*width;
+  const label=showWork&&w?`${w.name}・${s.start}`:`${s.start}–${s.end}`;
+  return `<button class="dg-block" onclick="event.stopPropagation();openShiftModal('${s.id}')" style="top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}"><strong>${e?.name||"未知"}</strong><span>${label}${s.prepRole?"・前置":""}</span></button>`;
+}
+function renderSchedule(){
+  const grid=byId("scheduleGrid");if(!grid)return;
+  document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.smode===state.scheduleMode));
+  const axis=timeAxis();
+  if(state.scheduleMode==="week"){
+    const [a,b]=weekRange(state.selectedDate),days=datesInRange(a,b);
+    byId("selectedDateTitle").textContent=`${formatDate(a)} ～ ${formatDate(b)}`;
+    const ws=state.data.shifts.filter(s=>s.date>=a&&s.date<=b);
+    byId("selectedDateSummary").textContent=`本週 ${ws.length} 個班次・共 ${fmtHours(ws.reduce((n,s)=>n+durationHours(s),0))}`;
+    const cols=days.map(key=>{
+      const d=new Date(key+"T00:00:00"),closed=isClosedDay(key);
+      const blocks=layoutBlocks(state.data.shifts.filter(s=>s.date===key)).map(b=>shiftBlock(b.s,axis,true,b.lane,b.lanes)).join("");
+      return `<div class="dg-col"><div class="dg-col-head clickable ${key===state.selectedDate?"sel":""} ${key===toDateKey(today)?"today":""}" onclick="selectDate('${key}')"><strong>${d.getMonth()+1}/${d.getDate()}</strong><span>${"日一二三四五六"[d.getDay()]}</span></div><div class="dg-track ${closed?"closed":""}" data-date="${key}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
     }).join("");
-    return `<div class="timeline-row"><div class="timeline-label"><strong>${w.name}</strong><span>${shifts.length} 人</span></div><div class="timeline-track">${bars}</div></div>`
-  }).join("");
+    grid.innerHTML=`<div class="dg">${timeGutter(axis)}${cols}</div>`;
+  }else{
+    byId("selectedDateTitle").textContent=formatDate(state.selectedDate);
+    const dayShifts=state.data.shifts.filter(s=>s.date===state.selectedDate);
+    byId("selectedDateSummary").textContent=`${dayShifts.length} 個班次・共 ${fmtHours(dayShifts.reduce((n,s)=>n+durationHours(s),0))}`;
+    const works=state.data.workTypes.filter(w=>w.active).sort((a,b)=>a.sort-b.sort);
+    const closed=isClosedDay(state.selectedDate);
+    const cols=works.map(w=>{
+      const shifts=dayShifts.filter(s=>s.workTypeId===w.id);
+      const blocks=layoutBlocks(shifts).map(b=>shiftBlock(b.s,axis,false,b.lane,b.lanes)).join("");
+      return `<div class="dg-col"><div class="dg-col-head" style="border-top-color:${w.color}"><strong>${w.name}</strong><span>${shifts.length} 人</span></div><div class="dg-track ${closed?"closed":""}" data-date="${state.selectedDate}" data-work="${w.id}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
+    }).join("");
+    grid.innerHTML=`<div class="dg">${timeGutter(axis)}${cols||`<div class="empty-state">尚未設定任何工作</div>`}</div>`;
+  }
+  wireScheduleGrid(axis);
+}
+function wireScheduleGrid(axis){
+  document.querySelectorAll("#scheduleGrid .dg-track").forEach(track=>{
+    track.addEventListener("click",ev=>{
+      if(ev.target.closest(".dg-block"))return;
+      const date=track.dataset.date;
+      const rect=track.getBoundingClientRect();
+      const frac=Math.max(0,Math.min(1,(ev.clientY-rect.top)/rect.height));
+      let m=axis.startM+Math.round((frac*axis.total)/axis.step)*axis.step;
+      m=Math.max(axis.startM,Math.min(m,axis.endM-axis.step)); // 保留至少一格
+      const start=`${pad(Math.floor(m/60))}:${pad(m%60)}`;
+      if(isClosedDay(date)&&!confirm("這一天是公休日，確定要排班？"))return;
+      const workId=track.dataset.work||state.data.workTypes.find(w=>w.active)?.id||"";
+      openShiftModal(null,{date,workTypeId:workId,start});
+    });
+  });
+}
+function shiftSchedule(delta){
+  const d=new Date(state.selectedDate+"T00:00:00");
+  d.setDate(d.getDate()+delta*(state.scheduleMode==="week"?7:1));
+  selectDate(toDateKey(d));
 }
 
 
@@ -425,8 +500,15 @@ function employeeSelectOptions(date,start,end,workTypeId,selectedId="",excludeSh
   if(unavailable.length) html+=`<optgroup label="不可排班／需確認">${unavailable.map(opt).join("")}</optgroup>`;
   return html||`<option value="">目前沒有可選員工</option>`;
 }
-function openShiftModal(id=null){
-  const s=id?state.data.shifts.find(x=>x.id===id):{id:uid("s"),date:state.selectedDate,employeeId:"",workTypeId:state.data.workTypes.find(w=>w.active)?.id||"",start:"09:00",end:"17:00",breakMinutes:0,note:"",prepRole:false,status:"draft"};
+function openShiftModal(id=null,prefill=null){
+  let defStart="09:00",defEnd="17:00";
+  if(prefill&&prefill.start){
+    defStart=prefill.start;
+    const cfg=settings();
+    const endM=Math.min(mins(defStart)+240,mins(cfg.businessEnd)); // 預設 4 小時，不超過最晚下班
+    defEnd=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
+  }
+  const s=id?state.data.shifts.find(x=>x.id===id):{id:uid("s"),date:(prefill&&prefill.date)||state.selectedDate,employeeId:"",workTypeId:(prefill&&prefill.workTypeId)||state.data.workTypes.find(w=>w.active)?.id||"",start:defStart,end:defEnd,breakMinutes:0,note:"",prepRole:false,status:"draft"};
   openModal(id?"編輯班次":"新增班次","先設定日期、工作與時間，最後再選擇系統整理好的員工",`
   <div class="form-grid">
     <label class="field"><span>日期</span><input class="input" type="date" name="date" value="${s.date}"></label>
@@ -656,6 +738,10 @@ function init(){
   document.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>setView(b.dataset.view));
   document.querySelectorAll("[data-view-target]").forEach(b=>b.onclick=()=>setView(b.dataset.viewTarget));
   document.querySelectorAll("[data-quick='add-shift']").forEach(b=>b.onclick=()=>openShiftModal());
+  byId("schedAddBtn").onclick=()=>openShiftModal();
+  byId("schedPrev").onclick=()=>shiftSchedule(-1);
+  byId("schedNext").onclick=()=>shiftSchedule(1);
+  document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.onclick=()=>{state.scheduleMode=b.dataset.smode;renderSchedule()});
   byId("menuBtn").onclick=()=>byId("sidebar").classList.toggle("open");
   byId("modalCloseBtn").onclick=closeModal;byId("modalBackdrop").onclick=e=>{if(e.target===byId("modalBackdrop"))closeModal()};
   byId("addEmployeeBtn").onclick=()=>openEmployeeModal();byId("addWorktypeBtn").onclick=()=>openWorktypeModal();
