@@ -22,14 +22,15 @@
       </div>
       <nav class="nav">
         <button class="nav-item active" data-view="dashboard">總覽</button>
-        <button class="nav-item" data-view="employees">員工管理</button>
-        <button class="nav-item" data-view="worktypes">工作管理</button>
+        <div class="nav-group">作業</div>
+        <button class="nav-item" data-view="availability">可上班時間</button>
         <button class="nav-item" data-view="schedule">排班管理</button>
         <button class="nav-item" data-view="hours">工時總覽</button>
-        <button class="nav-item" data-view="availabilitySettings">可排時間設定</button>
-        <button class="nav-item" data-view="availabilityOverview">可排時間總覽</button>
-        <button class="nav-item" data-view="storeSettings">系統維護</button>
-              </nav>
+        <div class="nav-group">設定</div>
+        <button class="nav-item" data-view="employees">員工管理</button>
+        <button class="nav-item" data-view="worktypes">工作管理</button>
+        <button class="nav-item" data-view="storeSettings">設定與維護</button>
+      </nav>
       <div class="sidebar-note">
         <strong>原型版本 v0.1</strong>
         <span>資料暫存在此裝置瀏覽器</span>
@@ -44,7 +45,6 @@
           <p id="pageSubtitle">快速掌握本月排班與人力狀況</p>
         </div>
         <div class="topbar-actions">
-          <button class="ghost-btn" id="resetDemoBtn">重置示範資料</button>
           <button class="primary-btn" data-quick="add-shift">＋ 新增班次</button>
         </div>
       </header>
@@ -122,20 +122,35 @@
         </div>
       </section>
 
-      <section class="view" id="availabilitySettingsView">
-        <div class="section-toolbar end">
-          <button class="primary-btn" id="addAvailabilityWindowBtn">＋ 新增開放區段</button>
+      <section class="view" id="availabilityView">
+        <div class="staff-tabs" id="availPageTabs">
+          <button class="staff-tab active" data-atab="settings">開放設定</button>
+          <button class="staff-tab" data-atab="overview">填寫狀況</button>
         </div>
 
-        <div class="info-banner">
-          <div class="list-icon">說</div>
-          <div>
-            <strong>設定範例</strong>
-            <span>7/17～7/20 開放填寫，員工填寫 8/1～8/15 的可排班時間。</span>
+        <div class="avail-tab-panel" id="availSettingsPanel">
+          <div class="section-toolbar end">
+            <button class="primary-btn" id="addAvailabilityWindowBtn">＋ 新增開放區段</button>
           </div>
+          <div class="info-banner">
+            <div class="list-icon">說</div>
+            <div>
+              <strong>設定範例</strong>
+              <span>7/17～7/20 開放填寫，員工填寫 8/1～8/15 的可上班時間。</span>
+            </div>
+          </div>
+          <div id="availabilityWindowCards" class="window-card-grid"></div>
         </div>
 
-        <div id="availabilityWindowCards" class="window-card-grid"></div>
+        <div class="avail-tab-panel hidden" id="availOverviewPanel">
+          <div id="availOverviewSummary"></div>
+          <div class="staff-tabs" id="availModeTabs">
+            <button class="staff-tab active" data-mode="month">月曆模式</button>
+            <button class="staff-tab" data-mode="date">日期模式</button>
+            <button class="staff-tab" data-mode="employee">員工模式</button>
+          </div>
+          <div id="availabilityOverviewBody"></div>
+        </div>
       </section>
 
       <section class="view" id="hoursView">
@@ -156,18 +171,13 @@
         <div class="panel table-panel"><div class="table-wrap" id="hoursTable"></div></div>
       </section>
 
-      <section class="view" id="availabilityOverviewView">
-        <div id="availOverviewSummary"></div>
-        <div class="staff-tabs" id="availModeTabs">
-          <button class="staff-tab active" data-mode="month">月曆模式</button>
-          <button class="staff-tab" data-mode="date">日期模式</button>
-          <button class="staff-tab" data-mode="employee">員工模式</button>
-        </div>
-        <div id="availabilityOverviewBody"></div>
-      </section>
-
       <section class="view" id="storeSettingsView">
         <form class="panel" id="storeSettingsForm" style="padding:22px"></form>
+        <div class="panel maintenance-card">
+          <h3>資料維護</h3>
+          <p>將所有資料還原為示範內容。測試階段使用，會清除目前的員工、班次與員工填寫的可上班時間紀錄。</p>
+          <button type="button" class="ghost-btn" id="resetDemoBtn">重置示範資料</button>
+        </div>
       </section>
 </main>
   </div>

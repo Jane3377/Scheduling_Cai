@@ -94,9 +94,9 @@ function renderStaff(){
     loadSelectedDay();
   }else{
     banner.className="availability-window-banner closed";
-    banner.innerHTML=nextWindow?`<strong>目前尚未開放填寫</strong><span>下一次開放：${formatDate(nextWindow.openStart)}～${formatDate(nextWindow.openEnd)}，填寫 ${formatDate(nextWindow.targetStart)}～${formatDate(nextWindow.targetEnd)} 的可排時間。</span>`:`<strong>目前尚未開放填寫</strong><span>請等待主管公告下一次填寫期間。</span>`;
+    banner.innerHTML=nextWindow?`<strong>目前尚未開放填寫</strong><span>下一次開放：${formatDate(nextWindow.openStart)}～${formatDate(nextWindow.openEnd)}，填寫 ${formatDate(nextWindow.targetStart)}～${formatDate(nextWindow.targetEnd)} 的可上班時間。</span>`:`<strong>目前尚未開放填寫</strong><span>請等待主管公告下一次填寫期間。</span>`;
     closed.classList.remove("hidden");area.classList.add("hidden");
-    closed.innerHTML="目前不在可排時間填寫期間內，因此暫時無法新增或修改。";
+    closed.innerHTML="目前不在可上班時間填寫期間內，因此暫時無法新增或修改。";
   }
 }
 function renderAvailabilityCalendar(){

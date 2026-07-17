@@ -8,7 +8,8 @@
 body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}
 #app{min-height:100vh}.sidebar{position:fixed;inset:0 auto 0 0;width:250px;background:#241f1c;color:#fff;padding:28px 20px;display:flex;flex-direction:column;z-index:20}
 .brand{display:flex;gap:12px;align-items:center}.brand-mark{width:44px;height:44px;border-radius:14px;background:var(--brand);display:grid;place-items:center;color:#fff;font-weight:800;font-size:21px}.brand span{display:block;color:#bdb5b0;font-size:12px;margin-top:3px}
-.nav{display:grid;gap:8px;margin-top:34px}.nav-item{border:0;background:transparent;color:#d7d0cc;padding:13px 14px;border-radius:12px;text-align:left}.nav-item:hover,.nav-item.active{background:#3a322e;color:#fff}
+.nav{display:grid;gap:6px;margin-top:30px}.nav-item{border:0;background:transparent;color:#d7d0cc;padding:12px 14px;border-radius:12px;text-align:left}.nav-item:hover,.nav-item.active{background:#3a322e;color:#fff}
+.nav-group{color:#8a817b;font-size:11px;font-weight:800;letter-spacing:.12em;padding:14px 14px 4px}
 .sidebar-note{margin-top:auto;padding:14px;border:1px solid #453b36;border-radius:14px}.sidebar-note span{display:block;color:#bdb5b0;font-size:12px;margin-top:5px}
 .main{margin-left:250px;padding:0 32px 40px}.topbar{min-height:104px;display:flex;align-items:center;justify-content:space-between;gap:20px}.topbar h1{font-size:25px;margin:0}.topbar p,.section-toolbar p,.panel-head p{margin:5px 0 0;color:var(--muted);font-size:14px}.topbar-actions{display:flex;gap:10px}
 .primary-btn,.secondary-btn,.ghost-btn,.text-btn,.icon-btn{border:0;border-radius:12px;padding:11px 16px}.primary-btn{background:var(--brand);color:#fff;font-weight:700}.primary-btn:hover{background:var(--brand-dark)}.secondary-btn{background:var(--brand-soft);color:var(--brand-dark);font-weight:700}.ghost-btn{background:#fff;border:1px solid var(--line);color:var(--ink)}.text-btn{background:transparent;color:var(--brand);padding:8px}.icon-btn{padding:8px 11px;background:#fff;border:1px solid var(--line)}.large{padding:14px 20px}.full{width:100%}.view{display:none}.view.active{display:block}
@@ -64,6 +65,10 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .cal-day .cal-closed{font-size:10px;color:#a89f98}
 .employee-cal-day.closed{background:repeating-linear-gradient(135deg,#f1ece8 0,#f1ece8 6px,#e7e0da 6px,#e7e0da 12px);border-color:#ddd4cd;color:#b3aaa3;cursor:not-allowed}
 .legend-dot.closed{background:#c9bfb7}
+.avail-tab-panel .section-toolbar.end{margin-top:4px}
+.maintenance-card{padding:22px;margin-top:16px}
+.maintenance-card h3{margin:0 0 6px}
+.maintenance-card p{color:var(--muted);font-size:13px;margin:0 0 14px;line-height:1.6}
 .employee-smart-select optgroup{font-weight:800;color:var(--ink)}
 .staff-page{background:linear-gradient(180deg,#fff8f4 0,#f6f3f0 45%)}
 .staff-page-main{min-height:100vh;padding:0 20px 50px}

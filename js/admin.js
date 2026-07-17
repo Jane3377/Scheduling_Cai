@@ -10,6 +10,7 @@ const state = {
   calendarDate:new Date(2026,6,1),
   selectedDate:"2026-07-18",
   hoursWeek:"2026-07-18",
+  availPage:"settings",
   availMode:"month",
   availCalDate:new Date(2026,7,1),
   availDate:"2026-08-05",
@@ -55,7 +56,7 @@ function defaultData(){
       availabilityWindows:[
         {
           id:"aw1",
-          name:"8月上半月可排時間",
+          name:"8月上半月可上班時間",
           openStart:"2026-07-17",
           openEnd:"2026-07-20",
           targetStart:"2026-08-01",
@@ -142,9 +143,8 @@ function setView(view){
     worktypes:["工作管理","設定工作、休息與前置作業規則"],
     schedule:["排班管理","以月曆與日時間軸快速完成排班"],
     hours:["工時總覽","查看每位員工每週的計薪工時"],
-    availabilitySettings:["可排時間設定","設定開放填寫期間與可填寫的排班日期區段"],
-    availabilityOverview:["可排時間總覽","以月曆／日期／員工三種模式檢視員工填寫狀況"],
-    storeSettings:["系統維護","店名、營業時間、時間間隔、公休日與休息時段"],
+    availability:["可上班時間","開放員工填寫，並檢視每個人填寫的可上班時間"],
+    storeSettings:["設定與維護","店名、營業時間、公休、休息時段與資料維護"],
   }[view];
   byId("pageTitle").textContent=meta[0];byId("pageSubtitle").textContent=meta[1];
   byId("sidebar").classList.remove("open");
@@ -157,7 +157,12 @@ function applyBranding(){
   const bm=byId("brandMark");if(bm&&name)bm.textContent=name.slice(0,1);
   document.title=`${full}｜主管後台`;
 }
-function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderTimeline();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();renderStoreSettings()}
+function syncAvailPage(){
+  document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.classList.toggle("active",b.dataset.atab===state.availPage));
+  byId("availSettingsPanel")?.classList.toggle("hidden",state.availPage!=="settings");
+  byId("availOverviewPanel")?.classList.toggle("hidden",state.availPage!=="overview");
+}
+function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderTimeline();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings()}
 function renderDashboard(){
   const active=state.data.employees.filter(e=>e.active).length, month="2026-07";
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
@@ -168,16 +173,16 @@ function renderDashboard(){
     ["在職員工",active,"可安排人力"],
     ["本月班次",shifts.length,"目前已建立"],
     ["本月計薪工時",fmtHours(hours),"依班次自動計算"],
-    ["可排時間填寫",fill?`${fill.filled.length}／${fill.total}`:avail+" 筆",fill?`${fill.unfilled.length} 人未填`:"員工提交紀錄"]
+    ["可上班時間填寫",fill?`${fill.filled.length}／${fill.total}`:avail+" 筆",fill?`${fill.unfilled.length} 人未填`:"員工提交紀錄"]
   ].map(x=>`<div class="stat-card"><span>${x[0]}</span><strong>${x[1]}</strong><small>${x[2]}</small></div>`).join("");
   byId("todayLabel").textContent=formatDate(state.selectedDate);
   const selected=state.data.shifts.filter(s=>s.date===state.selectedDate);
   byId("todayShifts").innerHTML=selected.length?selected.map(shiftListItem).join(""):`<div class="empty-state">這一天尚未排班</div>`;
   const warns=[];
-  if(fill&&fill.unfilled.length)warns.push({t:`${fill.unfilled.length} 人尚未填寫可排時間`,d:fill.unfilled.map(e=>e.name).join("、")});
+  if(fill&&fill.unfilled.length)warns.push({t:`${fill.unfilled.length} 人尚未填寫可上班時間`,d:fill.unfilled.map(e=>e.name).join("、")});
   selected.forEach(s=>{
     const e=employee(s.employeeId),a=state.data.availability.find(x=>x.employeeId===s.employeeId&&x.date===s.date);
-    if(a&&!a.unavailable&&(s.start<a.start||s.end>a.end))warns.push({t:`${e.name} 的班次超出可排時間`,d:"請於排班頁確認"});
+    if(a&&!a.unavailable&&(s.start<a.start||s.end>a.end))warns.push({t:`${e.name} 的班次超出可上班時間`,d:"請於排班頁確認"});
     if(weeklyHours(e.id,s.date)>e.weeklyLimit)warns.push({t:`${e.name} 本週已超過 ${e.weeklyLimit} 小時`,d:"請於排班頁確認"});
   });
   state.data.employees.filter(e=>e.active&&e.employmentType==="外籍學生").forEach(e=>{
@@ -279,7 +284,7 @@ function openAvailabilityWindowModal(id=null){
   };
   openModal(id?"編輯開放區段":"新增開放區段","設定員工可進入填寫的期間，以及實際要填寫的排班日期",`
     <div class="form-grid">
-      <label class="field span-2"><span>區段名稱</span><input class="input" name="name" required value="${w.name}" placeholder="例如 8月上半月可排時間"></label>
+      <label class="field span-2"><span>區段名稱</span><input class="input" name="name" required value="${w.name}" placeholder="例如 8月上半月可上班時間"></label>
       <label class="field"><span>開放填寫起日</span><input class="input" type="date" name="openStart" required value="${w.openStart}"></label>
       <label class="field"><span>開放填寫迄日</span><input class="input" type="date" name="openEnd" required value="${w.openEnd}"></label>
       <label class="field"><span>可填寫排班起日</span><input class="input" type="date" name="targetStart" required value="${w.targetStart}"></label>
@@ -379,7 +384,7 @@ function getEmployeeEligibility(e,date,start,end,workTypeId,excludeShiftId=null)
   const canDo=e.allowedWorkTypeIds.includes(workTypeId);
   const primary=isPrimaryWork(e,date,workTypeId);
   if(!canDo) reasons.push("未設定可做此工作");
-  if(!a) reasons.push("尚未填可排時間");
+  if(!a) reasons.push("尚未填可上班時間");
   else if(a.unavailable) reasons.push("當天不可排班");
   else if(start<a.start||end>a.end) reasons.push(`可排 ${a.start}～${a.end}`);
   const overlap=state.data.shifts.some(x=>x.id!==excludeShiftId&&x.employeeId===e.id&&x.date===date&&mins(start)<mins(x.end)&&mins(end)>mins(x.start));
@@ -389,7 +394,7 @@ function getEmployeeEligibility(e,date,start,end,workTypeId,excludeShiftId=null)
   const foreign=e.employmentType==="外籍學生";
   if(e.weeklyLimit&&projected>e.weeklyLimit) reasons.push(`排入後 ${fmtHours(projected)}，超過每週 ${e.weeklyLimit} 小時${foreign?"（外籍上限）":""}`);
   const remaining=e.weeklyLimit?Math.max(0,e.weeklyLimit-already):999;
-  // 推薦排序分數：主要工作 > 可做工作 > 剩餘工時多 > 有填可排時間
+  // 推薦排序分數：主要工作 > 可做工作 > 剩餘工時多 > 有填可上班時間
   let score=0;
   if(primary) score+=1000;
   if(canDo) score+=200;
@@ -420,7 +425,7 @@ function openShiftModal(id=null){
     <label class="field"><span>結束時間</span><select class="select" name="end">${timeOptions(s.end)}</select></label>
     <div class="field span-2"><span>休息與計薪</span><div class="calc-box" id="shiftCalc"></div></div>
     <label class="check-row"><input type="checkbox" name="prepRole" ${s.prepRole?"checked":""}> 此班次負責前置作業</label>
-    <label class="field span-2"><span>選擇員工</span><select class="select employee-smart-select" name="employeeId" id="shiftEmployeeSelect"></select><small class="field-help">名單會依主要負責、可做工作、可排時間、重疊班次及每週工時自動排序分組。</small></label>
+    <label class="field span-2"><span>選擇員工</span><select class="select employee-smart-select" name="employeeId" id="shiftEmployeeSelect"></select><small class="field-help">名單會依主要負責、可做工作、可上班時間、重疊班次及每週工時自動排序分組。</small></label>
     <label class="field span-2"><span>備註</span><textarea name="note" rows="3">${s.note||""}</textarea></label>
     <div id="shiftWarnings" class="span-2"></div>
     <div class="modal-actions span-2">${id?`<button type="button" class="danger-btn" onclick="deleteShift('${s.id}')">刪除</button>`:""}<button type="button" class="ghost-btn" onclick="closeModal()">取消</button><button class="primary-btn">儲存班次</button></div>
@@ -469,7 +474,7 @@ function openShiftModal(id=null){
 }
 function deleteShift(id){if(confirm("確定刪除這個班次？")){state.data.shifts=state.data.shifts.filter(x=>x.id!==id);save();closeModal()}}
 
-/* ---------- 可排時間填寫狀態 ---------- */
+/* ---------- 可上班時間填寫狀態 ---------- */
 function currentWindow(){
   const windows=getAvailabilityWindows().filter(w=>w.enabled);
   if(!windows.length)return null;
@@ -486,7 +491,7 @@ function datesInRange(startKey,endKey){
   while(d<=end){out.push(toDateKey(d));d.setDate(d.getDate()+1)}
   return out;
 }
-// 某員工在某填寫區段是否已填（在目標日期範圍內有任一筆可排時間紀錄即視為已填）
+// 某員工在某填寫區段是否已填（在目標日期範圍內有任一筆可上班時間紀錄即視為已填）
 function hasFilled(employeeId,w){
   if(!w)return false;
   return state.data.availability.some(a=>a.employeeId===employeeId&&a.date>=w.targetStart&&a.date<=w.targetEnd);
@@ -561,7 +566,7 @@ function renderHours(){
 }
 function fmtNum(n){return Number.isInteger(n)?String(n):n.toFixed(1)}
 
-/* ---------- 可排時間總覽（月曆／日期／員工） ---------- */
+/* ---------- 可上班時間總覽（月曆／日期／員工） ---------- */
 function renderAvailabilityOverview(){
   const root=byId("availabilityOverviewBody");if(!root)return;
   const w=currentWindow();
@@ -574,7 +579,7 @@ function renderAvailabilityOverview(){
         <strong>${w.name}｜可填寫 ${formatDate(w.targetStart)} ～ ${formatDate(w.targetEnd)}</strong>
         <span>已填 ${fill.filled.length} 人・未填 ${fill.unfilled.length} 人（共 ${fill.total} 位在職員工）</span>
         ${fill.unfilled.length?`<span>未填：${fill.unfilled.map(e=>e.name).join("、")}</span>`:""}
-      </div></div>`:`<div class="empty-state">尚未建立開放填寫區段，請先到「可排時間設定」新增。</div>`;
+      </div></div>`:`<div class="empty-state">尚未建立開放填寫區段，請先到「開放設定」分頁新增。</div>`;
   }
   if(!w){root.innerHTML="";return}
   if(state.availMode==="month")root.innerHTML=availMonthView(w);
@@ -653,6 +658,7 @@ function init(){
   byId("nextWeekBtn")?.addEventListener("click",()=>shiftWeek(1));
   byId("thisWeekBtn")?.addEventListener("click",()=>{state.hoursWeek=toDateKey(new Date());renderHours()});
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availMode=b.dataset.mode;renderAvailabilityOverview()});
+  document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availPage=b.dataset.atab;syncAvailPage()});
   byId("resetDemoBtn").onclick=()=>{if(confirm("確定重置為示範資料？")){state.data=defaultData();save()}};
   if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
   renderAll()
