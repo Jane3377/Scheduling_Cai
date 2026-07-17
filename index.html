@@ -80,11 +80,15 @@
                   <span class="quick-week-label">快速設定・每週</span>
                   <div class="quick-week-days" id="quickWeekDays"></div>
                 </div>
-                <div class="quick-week-actions">
-                  <button class="secondary-btn" id="quickWeekAvailable">整週設為可上班</button>
-                  <button class="ghost-btn" id="quickWeekUnavailable">整週設為不可排</button>
+                <div class="quick-week-time time-pair">
+                  <label class="field"><span>最早可上班</span><select id="quickWeekStart" class="select"></select></label>
+                  <label class="field"><span>最晚可下班</span><select id="quickWeekEnd" class="select"></select></label>
                 </div>
-                <small class="field-help">先勾要套用的星期（可多選），例如每週二不行；套用後仍可點個別日期修改。</small>
+                <div class="quick-week-actions">
+                  <button class="qw-btn-yes" id="quickWeekAvailable">設為可上班</button>
+                  <button class="qw-btn-no" id="quickWeekUnavailable">設為不可上班</button>
+                </div>
+                <small class="field-help">先勾星期（可多選）與時間，例如每週一～五 12:00～18:00 都可上班；套用後仍可點個別日期修改。</small>
               </div>
 
               <div class="employee-calendar-toolbar">

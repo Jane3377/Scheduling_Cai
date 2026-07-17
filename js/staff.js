@@ -189,6 +189,12 @@ function loadSelectedDay(){
   else{badge.textContent="尚未填寫";badge.className="badge"}
 }
 function flashSaved(msg){byId("availabilitySaved").textContent=msg;setTimeout(()=>byId("availabilitySaved").textContent="",1600)}
+function showToast(msg){
+  let t=byId("staffToast");
+  if(!t){t=document.createElement("div");t.id="staffToast";t.className="toast";document.body.appendChild(t)}
+  t.textContent=msg;t.classList.add("show");
+  clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.remove("show"),1900);
+}
 function upsertAvailability(key,fields){
   let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===key);
   if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:key};data.availability.push(a)}
@@ -205,19 +211,24 @@ function renderQuickWeekDays(){
   el.innerHTML=[1,2,3,4,5,6,0].map(d=>`<button type="button" class="qw-day" data-d="${d}">${"日一二三四五六"[d]}</button>`).join("");
   el.querySelectorAll(".qw-day").forEach(b=>b.onclick=()=>b.classList.toggle("on"));
 }
-// 整週快速套用：把選定星期在本次可填範圍內的每一天設為可上班或不可排
+// 整週快速套用：把選定星期在本次可填範圍內的每一天設為可上班或不可上班
 function quickWeekApply(type){
   if(!activeWindow)return;
   const days=[...document.querySelectorAll("#quickWeekDays .qw-day.on")].map(b=>Number(b.dataset.d));
   if(!days.length){alert("請先勾選要套用的星期");return}
-  const end=new Date(activeWindow.targetEnd+"T00:00:00");let count=0;
-  for(let d=new Date(activeWindow.targetStart+"T00:00:00");d<=end;d.setDate(d.getDate()+1)){
+  const start=byId("quickWeekStart").value,end=byId("quickWeekEnd").value;
+  if(type==="available"&&mins(end)<=mins(start)){alert("最晚可下班必須晚於最早可上班");return}
+  const endD=new Date(activeWindow.targetEnd+"T00:00:00");let count=0;
+  for(let d=new Date(activeWindow.targetStart+"T00:00:00");d<=endD;d.setDate(d.getDate()+1)){
     const key=toDateKey(d);
     if(!canFill(key)||!days.includes(d.getDay()))continue;
-    upsertAvailability(key,type==="available"?{unavailable:false,start:bizStart(),end:bizEnd()}:{unavailable:true,start:bizStart(),end:bizEnd()});
+    upsertAvailability(key,type==="available"?{unavailable:false,start,end}:{unavailable:true,start,end});
     count++;
   }
-  persist();renderAvailabilityCalendar();loadSelectedDay();flashSaved(`已套用 ${count} 天`);
+  persist();renderAvailabilityCalendar();loadSelectedDay();
+  // 恢復每週預設：清除星期選取
+  document.querySelectorAll("#quickWeekDays .qw-day.on").forEach(b=>b.classList.remove("on"));
+  showToast(`已設定 ${count} 天${type==="available"?"可上班":"不可上班"}`);
 }
 function saveSelectedDay(){
   if(!activeWindow||!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
@@ -246,6 +257,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("staffPrevMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);renderAvailabilityCalendar()};
   byId("staffNextMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);renderAvailabilityCalendar()};
   renderQuickWeekDays();
+  byId("quickWeekStart").innerHTML=timeOptions(bizStart());
+  byId("quickWeekEnd").innerHTML=timeOptions(bizEnd());
   byId("quickDayYes").onclick=()=>quickDaySet("yes");
   byId("quickDayNo").onclick=()=>quickDaySet("no");
   byId("quickWeekAvailable").onclick=()=>quickWeekApply("available");

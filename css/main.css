@@ -115,7 +115,13 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .quick-week-days{display:flex;gap:6px;flex-wrap:wrap}
 .qw-day{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:#fff;font-weight:700;color:var(--ink)}
 .qw-day.on{background:var(--brand);border-color:var(--brand);color:#fff}
-.quick-week-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.quick-week-time{margin-top:12px}
+.quick-week-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.qw-btn-yes,.qw-btn-no{border:0;border-radius:11px;padding:12px;font-weight:800;font-size:14px}
+.qw-btn-yes{background:#e8f5ed;color:var(--ok)}
+.qw-btn-no{background:#fdeaee;color:var(--danger)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:#241f1c;color:#fff;padding:12px 20px;border-radius:999px;font-weight:700;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.28);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:80}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .quick-day-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
 .quick-yes,.quick-no{border:0;border-radius:12px;padding:14px;font-weight:800;font-size:15px}
 .quick-yes{background:#e8f5ed;color:var(--ok)}
