@@ -36,7 +36,23 @@ function defaultData(){
       {id:"s2",date:"2026-07-18",employeeId:"e2",workTypeId:"w2",start:"16:00",end:"22:00",breakMinutes:0,note:"",prepRole:false,status:"draft"},
       {id:"s3",date:"2026-07-18",employeeId:"e3",workTypeId:"w3",start:"09:30",end:"18:00",breakMinutes:90,note:"週六前置作業",prepRole:true,status:"draft"}
     ],
-    settings:{storeName:"蔡叔叔比薩屋",defaultBreak:90,weekStartsOn:1}
+    settings:{
+      storeName:"蔡叔叔比薩屋",
+      defaultBreak:90,
+      weekStartsOn:1,
+      availabilityWindows:[
+        {
+          id:"aw1",
+          name:"8月上半月可排時間",
+          openStart:"2026-07-17",
+          openEnd:"2026-07-20",
+          targetStart:"2026-08-01",
+          targetEnd:"2026-08-15",
+          enabled:true,
+          note:"請於期限內完成填寫"
+        }
+      ]
+    }
   }
 }
 function load(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||defaultData()}catch{return defaultData()} }
@@ -72,12 +88,13 @@ function setView(view){
     employees:["員工管理","設定員工編號、可做工作與工時上限"],
     worktypes:["工作管理","設定工作、休息與前置作業規則"],
     schedule:["排班管理","以月曆與日時間軸快速完成排班"],
+    availabilitySettings:["可排時間設定","設定開放填寫期間與可填寫的排班日期區段"],
   }[view];
   byId("pageTitle").textContent=meta[0];byId("pageSubtitle").textContent=meta[1];
   byId("sidebar").classList.remove("open");
   renderAll();
 }
-function renderAll(){renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderTimeline()}
+function renderAll(){renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderTimeline();renderAvailabilityWindows()}
 function renderDashboard(){
   const active=state.data.employees.filter(e=>e.active).length, month="2026-07";
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
@@ -141,6 +158,88 @@ function renderTimeline(){
     }).join("");
     return `<div class="timeline-row"><div class="timeline-label"><strong>${w.name}</strong><span>${shifts.length} 人</span></div><div class="timeline-track">${bars}</div></div>`
   }).join("");
+}
+
+
+function getAvailabilityWindows(){
+  state.data.settings=state.data.settings||{};
+  state.data.settings.availabilityWindows=state.data.settings.availabilityWindows||[];
+  return state.data.settings.availabilityWindows;
+}
+function windowStatus(w){
+  const now=toDateKey(new Date());
+  if(!w.enabled)return {label:"停用",cls:"inactive"};
+  if(now<w.openStart)return {label:"尚未開放",cls:"warn"};
+  if(now>w.openEnd)return {label:"已截止",cls:"inactive"};
+  return {label:"開放中",cls:"ok"};
+}
+function renderAvailabilityWindows(){
+  const el=byId("availabilityWindowCards");
+  if(!el)return;
+  const windows=getAvailabilityWindows().slice().sort((a,b)=>a.openStart.localeCompare(b.openStart));
+  el.innerHTML=windows.length?windows.map(w=>{
+    const st=windowStatus(w);
+    return `<article class="window-card">
+      <div class="window-card-head">
+        <div>
+          <span class="eyebrow">填寫區段</span>
+          <h3>${w.name}</h3>
+        </div>
+        <span class="badge ${st.cls}">${st.label}</span>
+      </div>
+      <div class="window-flow">
+        <div><span>開放填寫期間</span><strong>${formatDate(w.openStart)} ～ ${formatDate(w.openEnd)}</strong></div>
+        <div class="flow-arrow">→</div>
+        <div><span>可填寫排班日期</span><strong>${formatDate(w.targetStart)} ～ ${formatDate(w.targetEnd)}</strong></div>
+      </div>
+      ${w.note?`<p class="window-note">${w.note}</p>`:""}
+      <div class="work-card-actions">
+        <button class="secondary-btn" onclick="openAvailabilityWindowModal('${w.id}')">編輯設定</button>
+      </div>
+    </article>`
+  }).join(""):`<div class="panel empty-state">尚未建立開放填寫區段</div>`;
+}
+function openAvailabilityWindowModal(id=null){
+  const windows=getAvailabilityWindows();
+  const w=id?windows.find(x=>x.id===id):{
+    id:uid("aw"),name:"",openStart:"",openEnd:"",targetStart:"",targetEnd:"",enabled:true,note:""
+  };
+  openModal(id?"編輯開放區段":"新增開放區段","設定員工可進入填寫的期間，以及實際要填寫的排班日期",`
+    <div class="form-grid">
+      <label class="field span-2"><span>區段名稱</span><input class="input" name="name" required value="${w.name}" placeholder="例如 8月上半月可排時間"></label>
+      <label class="field"><span>開放填寫起日</span><input class="input" type="date" name="openStart" required value="${w.openStart}"></label>
+      <label class="field"><span>開放填寫迄日</span><input class="input" type="date" name="openEnd" required value="${w.openEnd}"></label>
+      <label class="field"><span>可填寫排班起日</span><input class="input" type="date" name="targetStart" required value="${w.targetStart}"></label>
+      <label class="field"><span>可填寫排班迄日</span><input class="input" type="date" name="targetEnd" required value="${w.targetEnd}"></label>
+      <label class="field span-2"><span>員工提示文字</span><textarea name="note" rows="3" placeholder="例如：請於期限內完成填寫">${w.note||""}</textarea></label>
+      <label class="check-row span-2"><input type="checkbox" name="enabled" ${w.enabled?"checked":""}> 啟用此填寫區段</label>
+      <div class="modal-actions span-2">
+        ${id?`<button type="button" class="danger-btn" onclick="deleteAvailabilityWindow('${w.id}')">刪除</button>`:""}
+        <button type="button" class="ghost-btn" onclick="closeModal()">取消</button>
+        <button class="primary-btn">儲存</button>
+      </div>
+    </div>`);
+  byId("modalForm").onsubmit=ev=>{
+    ev.preventDefault();
+    const fd=new FormData(ev.target);
+    const openStart=fd.get("openStart"),openEnd=fd.get("openEnd"),targetStart=fd.get("targetStart"),targetEnd=fd.get("targetEnd");
+    if(openEnd<openStart){alert("開放填寫迄日不可早於起日");return}
+    if(targetEnd<targetStart){alert("可填寫排班迄日不可早於起日");return}
+    Object.assign(w,{
+      name:fd.get("name").trim(),
+      openStart,openEnd,targetStart,targetEnd,
+      enabled:fd.get("enabled")==="on",
+      note:fd.get("note").trim()
+    });
+    if(!id)windows.push(w);
+    save();closeModal()
+  }
+}
+function deleteAvailabilityWindow(id){
+  if(confirm("確定刪除這個開放填寫區段？")){
+    state.data.settings.availabilityWindows=getAvailabilityWindows().filter(x=>x.id!==id);
+    save();closeModal()
+  }
 }
 
 function selectDate(key){state.selectedDate=key;const d=new Date(key+"T00:00:00");state.calendarDate=new Date(d.getFullYear(),d.getMonth(),1);renderAll()}
@@ -266,6 +365,7 @@ function init(){
   byId("menuBtn").onclick=()=>byId("sidebar").classList.toggle("open");
   byId("modalCloseBtn").onclick=closeModal;byId("modalBackdrop").onclick=e=>{if(e.target===byId("modalBackdrop"))closeModal()};
   byId("addEmployeeBtn").onclick=()=>openEmployeeModal();byId("addWorktypeBtn").onclick=()=>openWorktypeModal();
+  byId("addAvailabilityWindowBtn").onclick=()=>openAvailabilityWindowModal();
   byId("employeeSearch").oninput=renderEmployees;byId("employeeStatusFilter").onchange=renderEmployees;
   byId("prevMonthBtn").onclick=()=>{state.calendarDate.setMonth(state.calendarDate.getMonth()-1);renderCalendar()};
   byId("nextMonthBtn").onclick=()=>{state.calendarDate.setMonth(state.calendarDate.getMonth()+1);renderCalendar()};
@@ -275,3 +375,5 @@ function init(){
 }
 window.openEmployeeModal=openEmployeeModal;window.deleteEmployee=deleteEmployee;window.openWorktypeModal=openWorktypeModal;window.deleteWorktype=deleteWorktype;window.openShiftModal=openShiftModal;window.deleteShift=deleteShift;window.closeModal=closeModal;window.selectDate=selectDate;
 document.addEventListener("DOMContentLoaded",init);
+
+window.openAvailabilityWindowModal=openAvailabilityWindowModal;window.deleteAvailabilityWindow=deleteAvailabilityWindow;

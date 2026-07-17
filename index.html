@@ -46,7 +46,8 @@
           <button class="ghost-btn" id="staffLogoutBtn">切換員工</button>
         </div>
 
-        <div class="staff-summary-grid" id="staffSummary"></div>
+        <div class="next-shift-card" id="nextShiftCard"></div>
+        <div class="availability-window-banner" id="availabilityWindowBanner"></div>
 
         <div class="staff-tabs">
           <button class="staff-tab active" data-staff-tab="mySchedule">我的班表</button>
@@ -65,20 +66,46 @@
         <div class="staff-tab-panel" id="availabilityPanel">
           <div class="panel">
             <div class="panel-head">
-              <div><h3>填寫可排時間</h3><p>時間以 30 分鐘為單位，可填寫 4 點後才能上班等情況。</p></div>
-            </div>
-            <div class="availability-form">
-              <label class="field"><span>日期</span><input type="date" id="availabilityDate" class="input" /></label>
-              <label class="check-row"><input type="checkbox" id="availabilityUnavailable" /> 這一天整天不可排班</label>
-              <div class="time-pair">
-                <label class="field"><span>最早可上班</span><select id="availabilityStart" class="select"></select></label>
-                <label class="field"><span>最晚可下班</span><select id="availabilityEnd" class="select"></select></label>
+              <div>
+                <h3>可排時間日曆</h3>
+                <p>點選日期後輸入可排時間，已填日期會直接顯示在月曆上。</p>
               </div>
-              <button id="saveAvailabilityBtn" class="primary-btn">儲存可排時間</button>
-              <div id="availabilitySaved" class="success-note"></div>
             </div>
-            <div class="divider"></div>
-            <div id="availabilityList" class="stack-list"></div>
+
+            <div id="availabilityClosedMessage" class="closed-message hidden"></div>
+
+            <div id="availabilityCalendarArea">
+              <div class="employee-calendar-toolbar">
+                <button class="icon-btn" id="staffPrevMonthBtn">‹</button>
+                <strong id="staffCalendarMonthLabel"></strong>
+                <button class="icon-btn" id="staffNextMonthBtn">›</button>
+              </div>
+              <div class="weekdays"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+              <div id="staffAvailabilityCalendar" class="employee-calendar-grid"></div>
+
+              <div class="calendar-legend">
+                <span><i class="legend-dot available"></i>已填可排</span>
+                <span><i class="legend-dot unavailable"></i>不可排班</span>
+                <span><i class="legend-dot pending"></i>尚未填寫</span>
+              </div>
+
+              <div class="selected-day-editor">
+                <div class="selected-day-head">
+                  <div>
+                    <span class="eyebrow">選取日期</span>
+                    <h3 id="availabilitySelectedDateTitle"></h3>
+                  </div>
+                  <span id="availabilityDayStatus" class="badge"></span>
+                </div>
+                <label class="check-row"><input type="checkbox" id="availabilityUnavailable" /> 這一天整天不可排班</label>
+                <div class="time-pair">
+                  <label class="field"><span>最早可上班</span><select id="availabilityStart" class="select"></select></label>
+                  <label class="field"><span>最晚可下班</span><select id="availabilityEnd" class="select"></select></label>
+                </div>
+                <button id="saveAvailabilityBtn" class="primary-btn">儲存這一天</button>
+                <div id="availabilitySaved" class="success-note"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

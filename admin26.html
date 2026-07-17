@@ -25,6 +25,7 @@
         <button class="nav-item" data-view="employees">員工管理</button>
         <button class="nav-item" data-view="worktypes">工作管理</button>
         <button class="nav-item" data-view="schedule">排班管理</button>
+        <button class="nav-item" data-view="availabilitySettings">可排時間設定</button>
               </nav>
       <div class="sidebar-note">
         <strong>原型版本 v0.1</strong>
@@ -138,6 +139,27 @@
           </section>
         </div>
       </section>
+
+      <section class="view" id="availabilitySettingsView">
+        <div class="section-toolbar">
+          <div>
+            <h2>可排時間開放設定</h2>
+            <p>設定員工何時可以填寫，以及可填寫哪一段日期的可排班時間。</p>
+          </div>
+          <button class="primary-btn" id="addAvailabilityWindowBtn">＋ 新增開放區段</button>
+        </div>
+
+        <div class="info-banner">
+          <div class="list-icon">說</div>
+          <div>
+            <strong>設定範例</strong>
+            <span>7/17～7/20 開放填寫，員工填寫 8/1～8/15 的可排班時間。</span>
+          </div>
+        </div>
+
+        <div id="availabilityWindowCards" class="window-card-grid"></div>
+      </section>
+
     </main>
   </div>
 
