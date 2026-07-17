@@ -96,6 +96,7 @@
 
       <section class="view" id="scheduleView">
         <div class="section-toolbar end">
+          <button class="ghost-btn" id="applyDemandBtn">套用需求</button>
           <button class="primary-btn" id="schedAddBtn">＋ 班次</button>
         </div>
         <div class="schedule-stack">
@@ -178,6 +179,14 @@
 
       <section class="view" id="storeSettingsView">
         <form class="panel" id="storeSettingsForm" style="padding:22px"></form>
+        <div class="panel demand-card" style="padding:22px">
+          <div class="demand-head">
+            <div><h3>每日需求模板</h3><p>設定每個星期各工作需要幾人；排班頁按「套用需求」即可依此自動建立班次並指派最適人選。</p></div>
+            <button type="button" class="secondary-btn" id="addDemandBtn">＋ 新增需求</button>
+          </div>
+          <div class="seg demand-weektabs" id="demandWeekTabs"></div>
+          <div id="demandList" class="demand-list"></div>
+        </div>
         <div class="panel maintenance-card">
           <h3>資料維護</h3>
           <p>將所有資料還原為示範內容。測試階段使用，會清除目前的員工、班次與員工填寫的可上班時間紀錄。</p>

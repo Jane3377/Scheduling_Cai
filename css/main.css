@@ -101,6 +101,18 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .dg-block{position:absolute;border:0;border-radius:9px;color:#fff;padding:5px 8px;text-align:left;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,.16)}
 .dg-block strong{display:block;font-size:12px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dg-block span{display:block;font-size:10px;opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dg-block.unassigned{background:#8a817b!important;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0,rgba(255,255,255,.18) 6px,transparent 6px,transparent 12px)!important}
+/* 每日需求模板 */
+.demand-card{margin-top:16px}
+.demand-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.demand-head h3{margin:0}
+.demand-head p{margin:5px 0 0;color:var(--muted);font-size:13px;max-width:520px}
+.demand-weektabs{flex-wrap:wrap}
+.demand-list{margin-top:14px;display:grid;gap:8px}
+.demand-row{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px}
+.demand-row .list-main{flex:1}
+.demand-row .list-main strong{display:block}
+.demand-row .list-main span{display:block;color:var(--muted);font-size:13px;margin-top:3px}
 /* 員工端：我的班表分組 */
 .shift-group{padding:6px 4px 12px}
 .shift-group-head{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--ink);padding:8px 4px}
