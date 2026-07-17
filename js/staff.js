@@ -14,8 +14,17 @@ let selectedAvailabilityDate=null;
 
 function load(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))}catch{return null}}
 function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(data));renderStaff()}
+function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(data))}
+function storeCfg(){return data?.settings||{}}
+function bizStart(){return storeCfg().businessStart||"08:30"}
+function bizEnd(){return storeCfg().businessEnd||"21:00"}
+function bizStep(){return Number(storeCfg().timeStep)||30}
 function timeOptions(selected=""){
-  let out="";for(let m=7*60;m<=24*60;m+=30){const h=Math.floor(m/60)%24,t=`${pad(h)}:${pad(m%60)}`;out+=`<option ${t===selected?"selected":""}>${t}</option>`}return out
+  const s=mins(bizStart()),e=mins(bizEnd()),step=bizStep();
+  let out="";
+  if(selected&&(mins(selected)<s||mins(selected)>e))out+=`<option selected>${selected}</option>`;
+  for(let m=s;m<=e;m+=step){const h=Math.floor(m/60)%24,t=`${pad(h)}:${pad(m%60)}`;out+=`<option ${t===selected?"selected":""}>${t}</option>`}
+  return out
 }
 function durationHours(s){return Math.max(0,(mins(s.end)-mins(s.start)-Number(s.breakMinutes||0))/60)}
 function employee(id){return data.employees.find(x=>x.id===id)}
@@ -54,9 +63,13 @@ function renderStaff(){
   byId("staffWelcome").textContent=`${e.name}，你好`;
 
   const today=toDateKey(new Date());
-  const shifts=data.shifts.filter(s=>s.employeeId===e.id).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
-  const futureShifts=shifts.filter(s=>s.date>=today);
-  const next=futureShifts[0]||shifts[0];
+  // 顯示前後約三個月的班表
+  const lo=new Date();lo.setMonth(lo.getMonth()-3);const loKey=toDateKey(lo);
+  const hi=new Date();hi.setMonth(hi.getMonth()+3);const hiKey=toDateKey(hi);
+  const mine=data.shifts.filter(s=>s.employeeId===e.id&&s.date>=loKey&&s.date<=hiKey);
+  const upcoming=mine.filter(s=>s.date>=today).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
+  const ended=mine.filter(s=>s.date<today).sort((a,b)=>(b.date+b.start).localeCompare(a.date+a.start));
+  const next=upcoming[0];
 
   byId("nextShiftCard").innerHTML=next?`
     <div>
@@ -67,7 +80,9 @@ function renderStaff(){
     <div class="next-shift-time">${next.start}</div>
   `:`<div><span class="eyebrow">下一班</span><h2>目前尚未排班</h2><p>完成排班後會顯示在這裡。</p></div>`;
 
-  byId("staffShiftList").innerHTML=shifts.length?shifts.map(s=>`<div class="list-item"><div class="list-icon" style="background:${worktype(s.workTypeId)?.color||"#999"}22;color:${worktype(s.workTypeId)?.color||"#999"}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${worktype(s.workTypeId)?.name||"未命名工作"}</strong><span>${s.start}～${s.end}</span></div></div>`).join(""):`<div class="empty-state">目前沒有班表</div>`;
+  const shiftItem=s=>{const w=worktype(s.workTypeId),c=w?.color||"#999";return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||"未命名工作"}</strong><span>${s.start}～${s.end}・${fmtHours(durationHours(s))}</span>${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}</div></div>`};
+  const group=(title,arr,empty)=>`<div class="shift-group"><div class="shift-group-head">${title}<span>${arr.length}</span></div>${arr.length?arr.map(shiftItem).join(""):`<div class="empty-state">${empty}</div>`}</div>`;
+  byId("staffShiftList").innerHTML=group("即將到來",upcoming,"目前沒有即將到來的班表")+group("已結束",ended,"近三個月沒有已結束的班表");
 
   activeWindow=getActiveWindow();
   const nextWindow=getNextWindow();
@@ -77,7 +92,7 @@ function renderStaff(){
 
   if(activeWindow){
     banner.className="availability-window-banner open";
-    banner.innerHTML=`<strong>${activeWindow.name}</strong><span>開放填寫：${formatDate(activeWindow.openStart)}～${formatDate(activeWindow.openEnd)}｜可填日期：${formatDate(activeWindow.targetStart)}～${formatDate(activeWindow.targetEnd)}</span>${activeWindow.note?`<small>${activeWindow.note}</small>`:""}`;
+    banner.innerHTML=`<strong>${activeWindow.name}已開放填寫可上班時間囉</strong><span>開放填寫：${formatDate(activeWindow.openStart)}～${formatDate(activeWindow.openEnd)}</span><span>可填日期：${formatDate(activeWindow.targetStart)}～${formatDate(activeWindow.targetEnd)}</span>${activeWindow.note?`<small>${activeWindow.note}</small>`:""}`;
     closed.classList.add("hidden");area.classList.remove("hidden");
     if(!selectedAvailabilityDate||!canFill(selectedAvailabilityDate)){
       // 預設選第一個非公休的可填日期
@@ -130,14 +145,45 @@ function loadSelectedDay(){
   const a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
   const unavailable=!!a?.unavailable;
   byId("availabilityUnavailable").checked=unavailable;
-  byId("availabilityStart").innerHTML=timeOptions(a?.start||"16:00");
-  byId("availabilityEnd").innerHTML=timeOptions(a?.end||"22:00");
+  byId("availabilityStart").innerHTML=timeOptions(a?.start||bizStart());
+  byId("availabilityEnd").innerHTML=timeOptions(a?.end||bizEnd());
   byId("availabilityStart").disabled=unavailable;
   byId("availabilityEnd").disabled=unavailable;
   const badge=byId("availabilityDayStatus");
   if(a?.unavailable){badge.textContent="不可排班";badge.className="badge warn"}
   else if(a){badge.textContent="已填寫";badge.className="badge ok"}
   else{badge.textContent="尚未填寫";badge.className="badge"}
+}
+function flashSaved(msg){byId("availabilitySaved").textContent=msg;setTimeout(()=>byId("availabilitySaved").textContent="",1600)}
+function upsertAvailability(key,fields){
+  let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===key);
+  if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:key};data.availability.push(a)}
+  Object.assign(a,fields);
+}
+// 單日快速：整天可上班（帶入店家最早上班~最晚下班）或整天不行
+function quickDaySet(type){
+  if(!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
+  upsertAvailability(selectedAvailabilityDate,type==="yes"?{unavailable:false,start:bizStart(),end:bizEnd()}:{unavailable:true,start:bizStart(),end:bizEnd()});
+  persist();renderAvailabilityCalendar();loadSelectedDay();flashSaved("已儲存");
+}
+function renderQuickWeekDays(){
+  const el=byId("quickWeekDays");if(!el)return;
+  el.innerHTML=[1,2,3,4,5,6,0].map(d=>`<button type="button" class="qw-day" data-d="${d}">${"日一二三四五六"[d]}</button>`).join("");
+  el.querySelectorAll(".qw-day").forEach(b=>b.onclick=()=>b.classList.toggle("on"));
+}
+// 整週快速套用：把選定星期在本次可填範圍內的每一天設為可上班或不可排
+function quickWeekApply(type){
+  if(!activeWindow)return;
+  const days=[...document.querySelectorAll("#quickWeekDays .qw-day.on")].map(b=>Number(b.dataset.d));
+  if(!days.length){alert("請先勾選要套用的星期");return}
+  const end=new Date(activeWindow.targetEnd+"T00:00:00");let count=0;
+  for(let d=new Date(activeWindow.targetStart+"T00:00:00");d<=end;d.setDate(d.getDate()+1)){
+    const key=toDateKey(d);
+    if(!canFill(key)||!days.includes(d.getDay()))continue;
+    upsertAvailability(key,type==="available"?{unavailable:false,start:bizStart(),end:bizEnd()}:{unavailable:true,start:bizStart(),end:bizEnd()});
+    count++;
+  }
+  persist();renderAvailabilityCalendar();loadSelectedDay();flashSaved(`已套用 ${count} 天`);
 }
 function saveSelectedDay(){
   if(!activeWindow||!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
@@ -164,6 +210,11 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("saveAvailabilityBtn").onclick=saveSelectedDay;
   byId("staffPrevMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);renderAvailabilityCalendar()};
   byId("staffNextMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);renderAvailabilityCalendar()};
+  renderQuickWeekDays();
+  byId("quickDayYes").onclick=()=>quickDaySet("yes");
+  byId("quickDayNo").onclick=()=>quickDaySet("no");
+  byId("quickWeekAvailable").onclick=()=>quickWeekApply("available");
+  byId("quickWeekUnavailable").onclick=()=>quickWeekApply("unavailable");
   if(staffEmployeeId)renderStaff();
 });
 window.selectAvailabilityDate=selectAvailabilityDate;
