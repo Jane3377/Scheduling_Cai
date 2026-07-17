@@ -69,6 +69,11 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .maintenance-card{padding:22px;margin-top:16px}
 .maintenance-card h3{margin:0 0 6px}
 .maintenance-card p{color:var(--muted);font-size:13px;margin:0 0 14px;line-height:1.6}
+.color-picker{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.color-swatches{display:flex;flex-wrap:wrap;gap:8px}
+.swatch{width:32px;height:32px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.swatch.active{border-color:var(--ink);box-shadow:0 0 0 2px #fff inset,0 1px 3px rgba(0,0,0,.15)}
+.color-picker input[type=color]{width:44px;height:38px;padding:2px;border:1px solid var(--line);border-radius:10px;background:#fff}
 .employee-smart-select optgroup{font-weight:800;color:var(--ink)}
 .staff-page{background:linear-gradient(180deg,#fff8f4 0,#f6f3f0 45%)}
 .staff-page-main{min-height:100vh;padding:0 20px 50px}

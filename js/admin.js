@@ -144,7 +144,7 @@ function setView(view){
     schedule:["排班管理","以月曆與日時間軸快速完成排班"],
     hours:["工時總覽","查看每位員工每週的計薪工時"],
     availability:["可上班時間","開放員工填寫，並檢視每個人填寫的可上班時間"],
-    storeSettings:["設定與維護","店名、營業時間、公休、休息時段與資料維護"],
+    storeSettings:["設定與維護","店名、上班時間、公休、休息時段與資料維護"],
   }[view];
   byId("pageTitle").textContent=meta[0];byId("pageSubtitle").textContent=meta[1];
   byId("sidebar").classList.remove("open");
@@ -216,7 +216,7 @@ function renderWorktypes(){
 function renderCalendar(){
   const d=state.calendarDate,y=d.getFullYear(),m=d.getMonth();
   byId("calendarMonthLabel").textContent=`${y} 年 ${m+1} 月`;
-  const first=new Date(y,m,1),start=new Date(y,m,1-first.getDay());
+  const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
   let html="";
   for(let i=0;i<42;i++){const day=new Date(start);day.setDate(start.getDate()+i);const key=toDateKey(day);const count=state.data.shifts.filter(s=>s.date===key).length;const closed=isClosedDay(key);
     html+=`<button class="cal-day ${day.getMonth()!==m?"muted":""} ${closed?"closed":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" ${closed?"disabled title=\"公休日\"":`onclick="selectDate('${key}')"`}><span>${day.getDate()}</span>${closed?`<span class="cal-closed">休</span>`:count?`<span class="cal-dot"></span>`:""}</button>`
@@ -363,14 +363,24 @@ function openWorktypeModal(id=null){
   openModal(id?"編輯工作":"新增工作","設定是否套用休息與特定星期前置作業",`
   <input type="hidden" name="id" value="${w.id}">
   <div class="form-grid">
-    <label class="field"><span>工作名稱</span><input class="input" name="name" required value="${w.name}"></label>
-    <label class="field"><span>顏色</span><input class="input" name="color" type="color" value="${w.color}"></label>
+    <label class="field span-2"><span>工作名稱</span><input class="input" name="name" required value="${w.name}"></label>
+    <div class="field span-2"><span>顏色</span>
+      <div class="color-picker">
+        <div class="color-swatches" id="workSwatches">${COLORS.map(c=>`<button type="button" class="swatch ${c.toLowerCase()===(w.color||"").toLowerCase()?"active":""}" style="background:${c}" data-color="${c}" aria-label="選擇顏色"></button>`).join("")}</div>
+        <input type="color" name="color" id="workColor" value="${w.color}" title="自訂顏色">
+      </div>
+      <small class="field-help">顏色會顯示在「排班管理」時間軸的班次色塊，方便一眼分辨不同工作。</small>
+    </div>
     <label class="check-row span-2"><input type="checkbox" name="applyBreak" ${w.applyBreak?"checked":""}> 套用店家休息時段（${cfg.breakStart}～${cfg.breakEnd}），班次涵蓋時自動扣除不計薪</label>
     <label class="field span-2"><span>需要前置作業的星期</span><div class="checkbox-grid">${[0,1,2,3,4,5,6].map(d=>`<label class="checkbox-card"><input type="checkbox" name="prepDays" value="${d}" ${w.prepDays.includes(d)?"checked":""}>星期${"日一二三四五六"[d]}</label>`).join("")}</div></label>
     <label class="field span-2"><span>前置提早（分鐘）</span><input class="input" name="prepMinutes" type="number" min="0" step="30" value="${w.prepMinutes||0}"></label>
     <label class="check-row span-2"><input type="checkbox" name="active" ${w.active?"checked":""}> 啟用</label>
     <div class="modal-actions span-2">${id?`<button type="button" class="danger-btn" onclick="deleteWorktype('${w.id}')">刪除</button>`:""}<button type="button" class="ghost-btn" onclick="closeModal()">取消</button><button class="primary-btn">儲存</button></div>
   </div>`);
+  const colorInput=byId("workColor");
+  const markActive=val=>document.querySelectorAll("#workSwatches .swatch").forEach(s=>s.classList.toggle("active",s.dataset.color.toLowerCase()===val.toLowerCase()));
+  document.querySelectorAll("#workSwatches .swatch").forEach(b=>b.onclick=()=>{colorInput.value=b.dataset.color;markActive(b.dataset.color)});
+  colorInput.oninput=()=>markActive(colorInput.value);
   byId("modalForm").onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);const applyBreak=fd.get("applyBreak")==="on";Object.assign(w,{name:fd.get("name").trim(),color:fd.get("color"),applyBreak,defaultBreak:applyBreak?(w.defaultBreak||90):0,prepMinutes:Number(fd.get("prepMinutes")||0),prepDays:fd.getAll("prepDays").map(Number),active:fd.get("active")==="on"});if(!id)state.data.workTypes.push(w);save();closeModal()}
 }
 function deleteWorktype(id){if(confirm("確定刪除這個工作？")){state.data.workTypes=state.data.workTypes.filter(x=>x.id!==id);save();closeModal()}}
@@ -514,8 +524,8 @@ function renderStoreSettings(){
     <div class="form-grid">
       <label class="field"><span>店名</span><input class="input" name="storeName" value="${cfg.storeName||""}"></label>
       <label class="field"><span>時間間隔（分鐘）</span><select class="select" name="timeStep">${[15,30,60].map(v=>`<option ${v===cfg.timeStep?"selected":""}>${v}</option>`).join("")}</select></label>
-      <label class="field"><span>營業開始時間</span><input class="input" type="time" name="businessStart" value="${cfg.businessStart}"></label>
-      <label class="field"><span>營業結束時間</span><input class="input" type="time" name="businessEnd" value="${cfg.businessEnd}"></label>
+      <label class="field"><span>最早上班時間</span><input class="input" type="time" name="businessStart" value="${cfg.businessStart}"></label>
+      <label class="field"><span>最晚下班時間</span><input class="input" type="time" name="businessEnd" value="${cfg.businessEnd}"></label>
       <label class="field"><span>休息開始時間</span><input class="input" type="time" name="breakStart" value="${cfg.breakStart}"></label>
       <label class="field"><span>休息結束時間</span><input class="input" type="time" name="breakEnd" value="${cfg.breakEnd}"></label>
       <label class="field"><span>外籍學生預設每週工時上限</span><input class="input" type="number" min="0" step="1" name="foreignDefaultLimit" value="${cfg.foreignDefaultLimit}"></label>
@@ -525,7 +535,7 @@ function renderStoreSettings(){
   box.onsubmit=ev=>{
     ev.preventDefault();const fd=new FormData(box);
     const bs=fd.get("businessStart"),be=fd.get("businessEnd");
-    if(mins(be)<=mins(bs)){alert("營業結束時間必須晚於開始時間");return}
+    if(mins(be)<=mins(bs)){alert("最晚下班時間必須晚於最早上班時間");return}
     const brs=fd.get("breakStart"),bre=fd.get("breakEnd");
     if(mins(bre)<=mins(brs)){alert("休息結束時間必須晚於開始時間");return}
     Object.assign(cfg,{
@@ -589,7 +599,7 @@ function renderAvailabilityOverview(){
 function availAt(employeeId,dateKey){return state.data.availability.find(a=>a.employeeId===employeeId&&a.date===dateKey)}
 function availMonthView(w){
   const d=state.availCalDate,y=d.getFullYear(),m=d.getMonth();
-  const first=new Date(y,m,1),start=new Date(y,m,1-first.getDay());
+  const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
   const actives=state.data.employees.filter(e=>e.active);
   let cells="";
   for(let i=0;i<42;i++){
@@ -602,7 +612,7 @@ function availMonthView(w){
     cells+=`<div class="ov-cell ${day.getMonth()!==m?"muted":""} ${inTarget&&!closed?"":"disabled"}"><div class="ov-day">${day.getDate()}</div>${badge}</div>`;
   }
   return `<div class="ov-cal-head"><button class="icon-btn" onclick="availMonthNav(-1)">‹</button><strong>${y} 年 ${m+1} 月</strong><button class="icon-btn" onclick="availMonthNav(1)">›</button></div>
-    <div class="weekdays"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+    <div class="weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
     <div class="ov-grid">${cells}</div>`;
 }
 function availMonthNav(delta){state.availCalDate.setMonth(state.availCalDate.getMonth()+delta);renderAvailabilityOverview()}

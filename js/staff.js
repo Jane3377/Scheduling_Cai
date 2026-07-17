@@ -103,7 +103,7 @@ function renderAvailabilityCalendar(){
   if(!activeWindow)return;
   const y=calendarDate.getFullYear(),m=calendarDate.getMonth();
   byId("staffCalendarMonthLabel").textContent=`${y} 年 ${m+1} 月`;
-  const first=new Date(y,m,1),start=new Date(y,m,1-first.getDay());
+  const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
   let html="";
   for(let i=0;i<42;i++){
     const day=new Date(start);day.setDate(start.getDate()+i);
