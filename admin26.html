@@ -25,7 +25,9 @@
         <button class="nav-item" data-view="employees">員工管理</button>
         <button class="nav-item" data-view="worktypes">工作管理</button>
         <button class="nav-item" data-view="schedule">排班管理</button>
+        <button class="nav-item" data-view="hours">工時總覽</button>
         <button class="nav-item" data-view="availabilitySettings">可排時間設定</button>
+        <button class="nav-item" data-view="availabilityOverview">可排時間總覽</button>
         <button class="nav-item" data-view="storeSettings">店家設定</button>
               </nav>
       <div class="sidebar-note">
@@ -161,18 +163,53 @@
         <div id="availabilityWindowCards" class="window-card-grid"></div>
       </section>
 
-    
-<section class="view" id="storeSettingsView">
-<h2>店家設定</h2>
-<div class="panel">
-<label>營業開始 <input type="time" id="storeOpen" value="08:30"></label><br>
-<label>營業結束 <input type="time" id="storeClose" value="21:00"></label><br>
-<label>時間間隔
-<select id="storeStep"><option selected>30</option><option>60</option></select> 分鐘
-</label>
-<p>公休日：星期一（v0.4.1 先固定，可於下一版改成多選）</p>
-</div>
-</section>
+      <section class="view" id="hoursView">
+        <div class="section-toolbar">
+          <div>
+            <h2>工時總覽</h2>
+            <p>每位員工每週的計薪工時（草稿與已發布班次皆即時試算）。</p>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-btn" id="prevWeekBtn">‹</button>
+            <button class="ghost-btn" id="thisWeekBtn">本週</button>
+            <button class="icon-btn" id="nextWeekBtn">›</button>
+          </div>
+        </div>
+        <div class="info-banner">
+          <div class="list-icon">週</div>
+          <div>
+            <strong id="hoursWeekLabel"></strong>
+            <span>黃底＝接近上限（達 90%）、紅底＝超過每週上限；外籍學生以「外籍」標示，僅提醒不阻擋排班。</span>
+          </div>
+        </div>
+        <div class="panel table-panel"><div class="table-wrap" id="hoursTable"></div></div>
+      </section>
+
+      <section class="view" id="availabilityOverviewView">
+        <div class="section-toolbar">
+          <div>
+            <h2>可排時間總覽</h2>
+            <p>檢視員工填寫的可排時間，支援月曆、日期、員工三種模式。</p>
+          </div>
+        </div>
+        <div id="availOverviewSummary"></div>
+        <div class="staff-tabs" id="availModeTabs">
+          <button class="staff-tab active" data-mode="month">月曆模式</button>
+          <button class="staff-tab" data-mode="date">日期模式</button>
+          <button class="staff-tab" data-mode="employee">員工模式</button>
+        </div>
+        <div id="availabilityOverviewBody"></div>
+      </section>
+
+      <section class="view" id="storeSettingsView">
+        <div class="section-toolbar">
+          <div>
+            <h2>店家設定</h2>
+            <p>營業時間、時間間隔、公休日與休息時段；所有排班與可排時間依此設定。</p>
+          </div>
+        </div>
+        <form class="panel" id="storeSettingsForm" style="padding:22px"></form>
+      </section>
 </main>
   </div>
 
