@@ -149,7 +149,6 @@
             <button class="primary-btn" id="addAvailabilityWindowBtn">＋ 新增開放區段</button>
           </div>
           <div class="info-banner">
-            <div class="list-icon">說</div>
             <div>
               <strong>設定範例</strong>
               <span>7/17～7/20 開放填寫，員工填寫 8/1～8/15 的可上班時間。</span>
@@ -178,7 +177,6 @@
           </div>
         </div>
         <div class="info-banner">
-          <div class="list-icon">週</div>
           <div>
             <strong id="hoursWeekLabel"></strong>
             <span>黃底＝接近上限（達 90%）、紅底＝超過每週上限；外籍學生以「外籍」標示，僅提醒不阻擋排班。</span>
@@ -188,8 +186,15 @@
       </section>
 
       <section class="view" id="storeSettingsView">
-        <form class="panel" id="storeSettingsForm" style="padding:22px"></form>
-        <div class="panel demand-card" style="padding:22px">
+        <div class="staff-tabs settings-tabs" id="settingsTabs">
+          <button class="staff-tab active" data-sec="store">店家設定</button>
+          <button class="staff-tab" data-sec="demand">每日需求</button>
+          <button class="staff-tab" data-sec="restday">特定休息日</button>
+          <button class="staff-tab" data-sec="holiday">國定假日</button>
+          <button class="staff-tab" data-sec="maintenance">資料維護</button>
+        </div>
+        <form class="panel settings-section" data-sec="store" id="storeSettingsForm" style="padding:22px"></form>
+        <div class="panel demand-card settings-section hidden" data-sec="demand" style="padding:22px">
           <div class="demand-head">
             <div><h3>每日需求模板</h3><p>設定每個星期各工作需要幾人；排班頁按「套用需求」即可依此自動建立班次並指派最適人選。</p></div>
             <button type="button" class="secondary-btn" id="addDemandBtn">＋ 新增需求</button>
@@ -197,7 +202,7 @@
           <div class="seg demand-weektabs" id="demandWeekTabs"></div>
           <div id="demandList" class="demand-list"></div>
         </div>
-        <div class="panel demand-card" style="padding:22px">
+        <div class="panel demand-card settings-section hidden" data-sec="restday" style="padding:22px">
           <div class="demand-head">
             <div><h3>特定休息日（臨時公休）</h3><p>指定單一日期整店休息（例如臨時公休、內部訓練），該日在排班與員工填寫都會鎖起來反灰。每週固定的公休請用上方店家設定的「每週公休日」；國定假日請用下方管理。</p></div>
           </div>
@@ -208,7 +213,7 @@
           </div>
           <div id="holidayList" class="demand-list"></div>
         </div>
-        <div class="panel demand-card" style="padding:22px">
+        <div class="panel demand-card settings-section hidden" data-sec="holiday" style="padding:22px">
           <div class="demand-head">
             <div><h3>國定假日</h3><p>匯入後只會在月曆上「標示」假日名稱，不會自動公休；是否公休由您在每個假日按「設為公休」決定。也可用下方欄位自行新增假日（新年度或補班補假調整時使用）。</p></div>
             <button type="button" class="secondary-btn" id="importHolidaysBtn">匯入台灣國定假日</button>
@@ -226,7 +231,7 @@
           </details>
           <div id="nationalHolidayList" class="demand-list"></div>
         </div>
-        <div class="panel maintenance-card">
+        <div class="panel maintenance-card settings-section hidden" data-sec="maintenance">
           <h3>資料維護</h3>
           <p>將所有資料還原為示範內容。測試階段使用，會清除目前的員工、班次與員工填寫的可上班時間紀錄。</p>
           <button type="button" class="ghost-btn" id="resetDemoBtn">重置示範資料</button>

@@ -12,6 +12,7 @@ const state = {
   selectedDate:"2026-07-18",
   scheduleMode:"day",
   calendarExpanded:false,
+  settingsTab:"store",
   demandWeekday:6,
   hoursWeek:"2026-07-18",
   availPage:"settings",
@@ -202,7 +203,11 @@ function syncAvailPage(){
   byId("availSettingsPanel")?.classList.toggle("hidden",state.availPage!=="settings");
   byId("availOverviewPanel")?.classList.toggle("hidden",state.availPage!=="overview");
 }
-function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderSchedule();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings();renderDemand();renderHolidays();renderNationalHolidays()}
+function syncSettingsTab(){
+  document.querySelectorAll("#settingsTabs .staff-tab").forEach(b=>b.classList.toggle("active",b.dataset.sec===state.settingsTab));
+  document.querySelectorAll("#storeSettingsView .settings-section").forEach(el=>el.classList.toggle("hidden",el.dataset.sec!==state.settingsTab));
+}
+function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderSchedule();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings();renderDemand();renderHolidays();renderNationalHolidays();syncSettingsTab()}
 function renderDashboard(){
   const active=state.data.employees.filter(e=>e.active).length, month="2026-07";
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
@@ -329,8 +334,8 @@ function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
   const who=e?e.name:"待指派";
   const style=`top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}`;
-  if(showWork){ // 週檢視：直式文字，盡量顯示 員工＋工作＋子工作
-    const txt=`${who}｜${w?w.name:""}${subTxt}`;
+  if(showWork){ // 週檢視：直式文字，先工作＋子工作、再員工
+    const txt=`${w?w.name:""}${subTxt}｜${who}`;
     return `<button class="dg-block dg-block-vert ${e?"":"unassigned"}" onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><span class="dg-vert">${txt}</span></button>`;
   }
   const label=`${s.start}–${s.end}${subTxt}`;
@@ -747,7 +752,7 @@ function renderAvailabilityOverview(){
   const summary=byId("availOverviewSummary");
   if(summary){
     summary.innerHTML=w?`
-      <div class="info-banner"><div class="list-icon">填</div><div>
+      <div class="info-banner"><div>
         <strong>${w.name}｜可填寫 ${formatDate(w.targetStart)} ～ ${formatDate(w.targetEnd)}</strong>
         <span>已填 ${fill.filled.length} 人・未填 ${fill.unfilled.length} 人（共 ${fill.total} 位在職員工）</span>
         ${fill.unfilled.length?`<span>未填：${fill.unfilled.map(e=>e.name).join("、")}</span>`:""}
@@ -840,7 +845,7 @@ function renderNationalHolidays(){
   el.innerHTML=list.length?list.map(h=>{
     const closed=holidays().some(x=>x.date===h.date);
     return `<div class="demand-row"><div class="list-icon nh-icon">假</div><div class="list-main"><strong>${formatDate(h.date)}｜${h.name}</strong><span>${closed?"已設為公休（當天休息）":"照常營業（僅標示假日）"}</span></div><div class="nh-actions"><button class="secondary-btn small-btn" onclick="toggleHolidayClosed('${h.date}','${h.name}')">${closed?"取消公休":"設為公休"}</button><button class="text-btn" onclick="deleteNationalHoliday('${h.date}')">移除</button></div></div>`;
-  }).join(""):`<div class="empty-state">尚未匯入國定假日，可按上方「匯入 2026 國定假日」。</div>`;
+  }).join(""):`<div class="empty-state">尚未匯入國定假日，可按上方「匯入台灣國定假日」。</div>`;
 }
 function importTaiwanHolidays(){
   const list=nationalHolidays();let added=0;
@@ -987,6 +992,7 @@ function init(){
   byId("thisWeekBtn")?.addEventListener("click",()=>{state.hoursWeek=toDateKey(new Date());renderHours()});
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availMode=b.dataset.mode;renderAvailabilityOverview()});
   document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availPage=b.dataset.atab;syncAvailPage()});
+  document.querySelectorAll("#settingsTabs .staff-tab").forEach(b=>b.onclick=()=>{state.settingsTab=b.dataset.sec;syncSettingsTab()});
   byId("resetDemoBtn").onclick=()=>{if(confirm("確定重置為示範資料？")){state.data=defaultData();save()}};
   if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
   renderAll()
