@@ -7,17 +7,24 @@
   function localGet(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))}catch{return null}}
   function localSet(d){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch{}}
   function setStatus(s){Cloud._status=s;if(statusCb)statusCb(s);}
+  // 同時支援 window.FIREBASE_CONFIG 或 Firebase 主控台原本的 firebaseConfig 變數，避免貼錯格式
+  function resolveConfig(){
+    const a=window.FIREBASE_CONFIG;
+    if(a&&a.apiKey&&a.projectId)return a;
+    try{ if(typeof firebaseConfig!=="undefined"&&firebaseConfig&&firebaseConfig.apiKey&&firebaseConfig.projectId)return firebaseConfig; }catch(e){}
+    return a||{};
+  }
   const Cloud={
     _status:"init",
     // 是否已填入 Firebase 設定
-    configured(){const c=window.FIREBASE_CONFIG||{};return !!(c.apiKey&&c.projectId);},
+    configured(){const c=resolveConfig();return !!(c.apiKey&&c.projectId);},
     online(){return !!docRef;},
     // onData(data, info) 會在首次載入與每次雲端更新時被呼叫；info.local 代表是自己剛寫入的回音
     init(onData,onStatus){
       dataCb=onData; statusCb=onStatus;
       if(this.configured()&&window.firebase){
         try{
-          if(!firebase.apps.length)firebase.initializeApp(window.FIREBASE_CONFIG);
+          if(!firebase.apps.length)firebase.initializeApp(resolveConfig());
           db=firebase.firestore();
           docRef=db.collection(COLL).doc(DOC);
           setStatus("connecting");
