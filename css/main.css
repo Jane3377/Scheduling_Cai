@@ -68,6 +68,11 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .nh-icon{background:#eef1fb!important;color:#5566aa!important}
 .nh-actions{display:flex;gap:6px;align-items:center}
 .small-btn{padding:7px 12px;font-size:13px}
+.nh-paste{margin:14px 0;border:1px solid var(--line);border-radius:12px;padding:0 14px}
+.nh-paste summary{padding:12px 0;cursor:pointer;color:var(--brand-dark);font-weight:700;font-size:14px}
+.nh-paste[open]{padding-bottom:14px}
+.nh-paste textarea{width:100%;min-height:120px;font-family:inherit;margin:6px 0 10px}
+.nh-paste code{background:#f0ebe7;padding:1px 6px;border-radius:6px;font-size:12px}
 .employee-cal-day.closed{background:repeating-linear-gradient(135deg,#f1ece8 0,#f1ece8 6px,#e7e0da 6px,#e7e0da 12px);border-color:#ddd4cd;color:#b3aaa3;cursor:not-allowed}
 .legend-dot.closed{background:#c9bfb7}
 .avail-tab-panel .section-toolbar.end{margin-top:4px}

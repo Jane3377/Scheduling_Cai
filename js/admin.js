@@ -821,6 +821,31 @@ function addNationalHoliday(){
   if(ex)ex.name=name;else list.push({date,name});
   byId("nhName").value="";save();
 }
+// 解析每行文字取出日期與名稱，支援 2028-01-01 / 2028/1/1 / 2028年1月1日 / 20280101 等格式
+function parseHolidayLines(text){
+  const out=[];
+  (text||"").split(/\r?\n/).forEach(line=>{
+    const t=line.trim();if(!t)return;
+    let m=t.match(/(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})/)||t.match(/(\d{4})(\d{2})(\d{2})/);
+    if(!m)return;
+    const date=`${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+    let name=t.replace(m[0],"");
+    name=name.replace(/^[日\s,，、|\t]+/,"");                                   // 去開頭的「日」與分隔符（如 2028年1月1日）
+    name=name.replace(/星期[一二三四五六日]|週[一二三四五六日]|[（(][一二三四五六日][）)]/g,""); // 去星期
+    name=name.replace(/[（）()]/g,"").replace(/[,\t，、|]+/g," ").trim();
+    if(!name)name="假日";
+    out.push({date,name});
+  });
+  return out;
+}
+function importPastedHolidays(){
+  const parsed=parseHolidayLines(byId("nhPasteText").value);
+  if(!parsed.length){alert("找不到可辨識的日期，請確認每行含有日期，例如「2028-01-01 元旦」。");return}
+  const list=nationalHolidays();let added=0,updated=0;
+  parsed.forEach(({date,name})=>{const ex=list.find(h=>h.date===date);if(ex){ex.name=name;updated++}else{list.push({date,name});added++}});
+  byId("nhPasteText").value="";save();
+  alert(`已匯入 ${added} 筆、更新 ${updated} 筆假日。`);
+}
 function toggleHolidayClosed(date,name){
   const list=holidays();const i=list.findIndex(h=>h.date===date);
   if(i>=0)list.splice(i,1);else list.push({date,note:name});
@@ -901,6 +926,7 @@ function init(){
   byId("addHolidayBtn").onclick=addHoliday;
   byId("importHolidaysBtn").onclick=importTaiwanHolidays;
   byId("addNationalHolidayBtn").onclick=addNationalHoliday;
+  byId("nhPasteBtn").onclick=importPastedHolidays;
   byId("schedPrev").onclick=()=>shiftSchedule(-1);
   byId("schedNext").onclick=()=>shiftSchedule(1);
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.onclick=()=>{state.scheduleMode=b.dataset.smode;renderSchedule()});

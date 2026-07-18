@@ -208,6 +208,12 @@
             <input type="text" id="nhName" class="input" placeholder="假日名稱（例如 補班日、公司紀念日）" />
             <button type="button" class="secondary-btn" id="addNationalHolidayBtn">新增假日</button>
           </div>
+          <details class="nh-paste">
+            <summary>批次貼上匯入（自行匯入其他年度，不用等更新）</summary>
+            <p class="field-help">每行一個假日，格式「日期 名稱」，例如 <code>2028-01-01 元旦</code>。可從政府「辦公日曆表」或 Excel 直接複製貼上，系統會自動辨識日期。</p>
+            <textarea id="nhPasteText" rows="6" placeholder="2028-01-01 元旦&#10;2028-02-15 春節&#10;2028-02-16 春節"></textarea>
+            <button type="button" class="secondary-btn" id="nhPasteBtn">匯入這些假日</button>
+          </details>
           <div id="nationalHolidayList" class="demand-list"></div>
         </div>
         <div class="panel maintenance-card">
