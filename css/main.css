@@ -115,6 +115,19 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .dg-block-vert .dg-vert{writing-mode:vertical-rl;text-orientation:mixed;white-space:nowrap;overflow:hidden;font-size:17px;font-weight:800;line-height:1.45;max-height:100%}
 .work-chip{display:inline-block;padding:8px 18px;border-radius:999px;color:#fff;font-weight:800;font-size:16px}
 .settings-tabs{flex-wrap:wrap;margin-bottom:18px}
+/* 後台 PIN 進入畫面 */
+.pin-gate{position:fixed;inset:0;z-index:100;background:linear-gradient(180deg,#fff8f4,#f2ece7);display:grid;place-items:center;padding:20px}
+.pin-card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:34px;max-width:360px;width:100%;text-align:center;box-shadow:var(--shadow)}
+.pin-card h1{font-size:24px;margin:16px 0 4px}
+.pin-card p{color:var(--muted);margin:0 0 16px}
+.pin-card .big-input{margin-bottom:12px}
+/* 同步狀態徽章 */
+.sync-badge{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;font-size:13px;font-weight:700;background:#eee8e4;color:#6b6259}
+.sync-badge.synced{background:#e8f5ed;color:var(--ok)}
+.sync-badge.saving,.sync-badge.connecting{background:#fff2dc;color:var(--warn)}
+.sync-badge.offline{background:#eef1fb;color:#4a4a94}
+.sync-badge.local{background:#efe9e5;color:#6b6259}
+.sync-badge.error{background:#fdeaea;color:var(--danger)}
 .dg-block.unassigned{background:#8a817b!important;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0,rgba(255,255,255,.18) 6px,transparent 6px,transparent 12px)!important}
 /* 每日需求模板 */
 .demand-card{margin-top:16px}

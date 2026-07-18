@@ -23,60 +23,17 @@ const state = {
   data:null
 };
 
+// 預設為空白，讓店家直接 key in 正式資料
 function defaultData(){
   return {
-    employees:[
-      {id:"e1",employeeNo:"A012",name:"青春",phone:"",employmentType:"正職",shiftClass:"平日早班",noBreak:true,allowedWorkTypeIds:["w1","w2","w3"],primaryWeekday:["w3"],primaryWeekend:["w1"],weeklyLimit:40,dailyLimit:8,active:true,pinEnabled:false,pinHash:null},
-      {id:"e2",employeeNo:"A018",name:"美蘭",phone:"",employmentType:"工讀",shiftClass:"一般",noBreak:false,allowedWorkTypeIds:["w2","w3","w4"],primaryWeekday:["w2"],primaryWeekend:["w2"],weeklyLimit:20,dailyLimit:8,active:true,pinEnabled:false,pinHash:null},
-      {id:"e3",employeeNo:"B005",name:"友福",phone:"",employmentType:"外籍學生",shiftClass:"假日班",noBreak:false,allowedWorkTypeIds:["w3","w4","w5"],primaryWeekday:[],primaryWeekend:["w5"],weeklyLimit:20,dailyLimit:8,active:true,pinEnabled:false,pinHash:null}
-    ],
-    workTypes:[
-      {id:"w1",name:"餅皮",color:"#b23b2e",sort:1,applyBreak:false,defaultBreak:0,prepDays:[],prepMinutes:0,active:true},
-      {id:"w2",name:"烤比薩",color:"#c0561f",sort:2,applyBreak:true,defaultBreak:90,prepDays:[],prepMinutes:0,active:true},
-      {id:"w3",name:"備料",color:"#2e7d52",sort:3,applyBreak:false,defaultBreak:0,prepDays:[],prepMinutes:0,active:true},
-      {id:"w4",name:"收銀",color:"#2f5d9c",sort:4,applyBreak:true,defaultBreak:90,prepDays:[],prepMinutes:0,active:true},
-      {id:"w5",name:"烤雞",color:"#6f4a97",sort:5,applyBreak:true,defaultBreak:90,prepDays:[0,6],prepMinutes:30,active:true}
-    ],
-    availability:[
-      {id:"a1",employeeId:"e1",date:"2026-07-18",unavailable:false,start:"08:00",end:"18:00"},
-      {id:"a2",employeeId:"e2",date:"2026-07-18",unavailable:false,start:"16:00",end:"22:00"},
-      {id:"a3",employeeId:"e3",date:"2026-07-18",unavailable:false,start:"10:00",end:"22:00"}
-    ],
-    shifts:[
-      {id:"s1",date:"2026-07-18",employeeId:"e1",workTypeId:"w1",start:"08:30",end:"16:30",breakMinutes:0,note:"",prepRole:false,status:"draft"},
-      {id:"s2",date:"2026-07-18",employeeId:"e2",workTypeId:"w2",start:"16:00",end:"22:00",breakMinutes:0,note:"",subWork:"備料",prepRole:false,status:"draft"},
-      {id:"s3",date:"2026-07-18",employeeId:"e3",workTypeId:"w3",start:"09:30",end:"18:00",breakMinutes:90,note:"週六前置作業",prepRole:true,status:"draft"}
-    ],
+    employees:[], workTypes:[], availability:[], shifts:[],
     settings:{
-      storeName:"蔡叔叔比薩屋",
-      businessStart:"08:30",
-      businessEnd:"21:00",
-      timeStep:30,
-      closedDays:[1],
-      breakStart:"14:30",
-      breakEnd:"16:00",
-      foreignDefaultLimit:20,
-      defaultBreak:90,
-      weekStartsOn:1,
-      dailyDemand:[
-        {id:"dd1",weekday:6,workTypeId:"w1",start:"08:30",end:"16:30",count:1,subWork:""},
-        {id:"dd2",weekday:6,workTypeId:"w5",start:"09:00",end:"18:00",count:1,subWork:""},
-        {id:"dd3",weekday:6,workTypeId:"w2",start:"11:00",end:"21:00",count:2,subWork:"備料"}
-      ],
-      availabilityWindows:[
-        {
-          id:"aw1",
-          name:"8月上半月可上班時間",
-          openStart:"2026-07-17",
-          openEnd:"2026-07-20",
-          targetStart:"2026-08-01",
-          targetEnd:"2026-08-15",
-          enabled:true,
-          note:"請於期限內完成填寫"
-        }
-      ]
+      storeName:"", businessStart:"08:30", businessEnd:"21:00", timeStep:30,
+      closedDays:[], breakStart:"14:30", breakEnd:"16:00", foreignDefaultLimit:20,
+      defaultBreak:90, weekStartsOn:1, adminPin:"1234",
+      dailyDemand:[], holidays:[], nationalHolidays:[], availabilityWindows:[]
     }
-  }
+  };
 }
 function migrate(d){
   if(!d||!d.employees)return defaultData();
@@ -92,8 +49,7 @@ function migrate(d){
   });
   return d;
 }
-function load(){ try{return migrate(JSON.parse(localStorage.getItem(STORAGE_KEY)))||defaultData()}catch{return defaultData()} }
-function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state.data));renderAll()}
+function save(){Cloud.save(state.data);renderAll()}
 function byId(id){return document.getElementById(id)}
 function employee(id){return state.data.employees.find(x=>x.id===id)}
 function worktype(id){return state.data.workTypes.find(x=>x.id===id)}
@@ -107,6 +63,7 @@ function settings(){
   s.breakStart=s.breakStart||"14:30";
   s.breakEnd=s.breakEnd||"16:00";
   s.foreignDefaultLimit=s.foreignDefaultLimit==null?20:Number(s.foreignDefaultLimit);
+  s.adminPin=s.adminPin||"1234";
   s.dailyDemand=s.dailyDemand||[];
   s.holidays=s.holidays||[];
   s.nationalHolidays=s.nationalHolidays||[];
@@ -750,6 +707,7 @@ function renderStoreSettings(){
       <label class="field"><span>休息開始時間</span><input class="input" type="time" name="breakStart" value="${cfg.breakStart}"></label>
       <label class="field"><span>休息結束時間</span><input class="input" type="time" name="breakEnd" value="${cfg.breakEnd}"></label>
       <label class="field"><span>外籍學生預設每週工時上限</span><input class="input" type="number" min="0" step="1" name="foreignDefaultLimit" value="${cfg.foreignDefaultLimit}"></label>
+      <label class="field"><span>後台 PIN 碼</span><input class="input" name="adminPin" value="${cfg.adminPin||"1234"}"><small class="field-help">進入後台管理時需輸入，預設 1234。</small></label>
       <div class="field span-2"><span>每週公休日（可多選）</span><div class="checkbox-grid">${dayBoxes}</div></div>
       <div class="modal-actions span-2"><button class="primary-btn" type="submit">儲存店家設定</button></div>
     </div>`;
@@ -765,6 +723,7 @@ function renderStoreSettings(){
       businessStart:bs,businessEnd:be,
       breakStart:brs,breakEnd:bre,
       foreignDefaultLimit:Number(fd.get("foreignDefaultLimit")||0),
+      adminPin:(fd.get("adminPin")||"1234").trim()||"1234",
       closedDays:fd.getAll("closedDays").map(Number)
     });
     save();alert("已儲存店家設定");
@@ -1009,8 +968,52 @@ function applyDemand(dateKey){
   alert(`已依需求建立 ${created} 個班次${unfilled?`，其中 ${unfilled} 個找不到合適員工、需手動指派`:"，皆已自動指派最適人選"}。`);
 }
 
+function onCloudData(data,info){
+  if(info&&info.local)return; // 自己剛寫入的回音，畫面已即時更新
+  state.data=migrate(data)||defaultData();
+  renderAll();
+}
+function updateSyncStatus(s){
+  const el=byId("syncStatus");if(!el)return;
+  const map={init:["◌","初始化"],connecting:["◌","連線中"],synced:["●","已同步"],saving:["◌","儲存中"],offline:["○","離線暫存"],local:["◍","本機模式"],error:["✕","雲端錯誤"]};
+  const m=map[s]||map.local;el.className="sync-badge "+s;el.textContent=`${m[0]} ${m[1]}`;
+}
+function setupPinGate(){
+  const gate=byId("pinGate");if(!gate)return;
+  if(sessionStorage.getItem("adminUnlocked")==="1"){gate.classList.add("hidden");return;}
+  const submit=()=>{
+    const ref=(state.data&&state.data.settings&&state.data.settings.adminPin)||"1234";
+    if(byId("pinInput").value.trim()===ref){sessionStorage.setItem("adminUnlocked","1");gate.classList.add("hidden");byId("pinError").textContent="";}
+    else{byId("pinError").textContent="PIN 碼錯誤，請再試一次";byId("pinInput").value="";}
+  };
+  byId("pinSubmit").onclick=submit;
+  byId("pinInput").addEventListener("keydown",e=>{if(e.key==="Enter")submit()});
+}
+function download(filename,text){
+  const blob=new Blob([text],{type:"application/json;charset=utf-8;"});const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function exportBackup(kind){
+  const store=(settings().storeName||"備份").trim();
+  const payload={kind,exportedAt:new Date().toISOString(),items:state.data[kind]||[]};
+  download(`${store}_${kind==="employees"?"員工":"工作"}備份_${toDateKey(new Date())}.json`,JSON.stringify(payload,null,2));
+}
+function importBackup(kind,file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const obj=JSON.parse(reader.result);
+      const items=Array.isArray(obj)?obj:(obj.items||[]);
+      if(!Array.isArray(items))throw new Error("bad");
+      if(!confirm(`將以匯入的 ${items.length} 筆${kind==="employees"?"員工":"工作"}覆蓋目前資料，確定？`))return;
+      state.data[kind]=items;save();alert("匯入完成。");
+    }catch(e){alert("檔案格式不正確，請確認是本系統匯出的備份 JSON。");}
+  };
+  reader.readAsText(file);
+}
 function init(){
-  state.data=load();
+  state.data=defaultData(); // 佔位，待雲端載入後覆蓋
   document.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>setView(b.dataset.view));
   document.querySelectorAll("[data-view-target]").forEach(b=>b.onclick=()=>setView(b.dataset.viewTarget));
   document.querySelectorAll("[data-quick='add-shift']").forEach(b=>b.onclick=()=>openShiftModal());
@@ -1049,9 +1052,16 @@ function init(){
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availMode=b.dataset.mode;renderAvailabilityOverview()});
   document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availPage=b.dataset.atab;syncAvailPage()});
   document.querySelectorAll("#settingsTabs .staff-tab").forEach(b=>b.onclick=()=>{state.settingsTab=b.dataset.sec;syncSettingsTab()});
-  byId("resetDemoBtn").onclick=()=>{if(confirm("確定重置為示範資料？")){state.data=defaultData();save()}};
+  byId("resetDemoBtn").onclick=()=>{if(confirm("確定清空所有資料？此動作無法復原（建議先匯出備份）。")){state.data=defaultData();save()}};
+  byId("exportEmployeesBtn")?.addEventListener("click",()=>exportBackup("employees"));
+  byId("importEmployeesBtn")?.addEventListener("click",()=>byId("importEmployeesFile").click());
+  byId("importEmployeesFile")?.addEventListener("change",e=>{importBackup("employees",e.target.files[0]);e.target.value="";});
+  byId("exportWorktypesBtn")?.addEventListener("click",()=>exportBackup("workTypes"));
+  byId("importWorktypesBtn")?.addEventListener("click",()=>byId("importWorktypesFile").click());
+  byId("importWorktypesFile")?.addEventListener("change",e=>{importBackup("workTypes",e.target.files[0]);e.target.value="";});
+  setupPinGate();
   if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
-  renderAll()
+  Cloud.init(onCloudData,updateSyncStatus);
 }
 window.openEmployeeModal=openEmployeeModal;window.deleteEmployee=deleteEmployee;window.openWorktypeModal=openWorktypeModal;window.deleteWorktype=deleteWorktype;window.openShiftModal=openShiftModal;window.deleteShift=deleteShift;window.closeModal=closeModal;window.selectDate=selectDate;
 document.addEventListener("DOMContentLoaded",init);

@@ -11,6 +11,16 @@
   <link rel="stylesheet" href="css/main.css" />
 </head>
 <body>
+  <div id="pinGate" class="pin-gate">
+    <div class="pin-card">
+      <div class="brand-mark large-mark">蔡</div>
+      <h1>後台管理</h1>
+      <p>請輸入 PIN 碼進入</p>
+      <input id="pinInput" class="input big-input" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN 碼" />
+      <button id="pinSubmit" class="primary-btn full">進入</button>
+      <div id="pinError" class="form-error"></div>
+    </div>
+  </div>
   <div id="app">
     <aside class="sidebar" id="sidebar">
       <div class="brand">
@@ -44,7 +54,7 @@
           <h1 id="pageTitle">營運總覽</h1>
           <p id="pageSubtitle">快速掌握本月排班與人力狀況</p>
         </div>
-        <div class="topbar-actions"></div>
+        <div class="topbar-actions"><span id="syncStatus" class="sync-badge init">◌ 初始化</span></div>
       </header>
 
       <section class="view active" id="dashboardView">
@@ -67,6 +77,9 @@
 
       <section class="view" id="employeesView">
         <div class="section-toolbar end">
+          <button class="ghost-btn" id="exportEmployeesBtn">⬇ 匯出備份</button>
+          <button class="ghost-btn" id="importEmployeesBtn">⬆ 匯入備份</button>
+          <input type="file" id="importEmployeesFile" accept="application/json,.json" hidden />
           <button class="primary-btn" id="addEmployeeBtn">＋ 新增員工</button>
         </div>
         <div class="panel table-panel">
@@ -89,6 +102,9 @@
 
       <section class="view" id="worktypesView">
         <div class="section-toolbar end">
+          <button class="ghost-btn" id="exportWorktypesBtn">⬇ 匯出備份</button>
+          <button class="ghost-btn" id="importWorktypesBtn">⬆ 匯入備份</button>
+          <input type="file" id="importWorktypesFile" accept="application/json,.json" hidden />
           <button class="primary-btn" id="addWorktypeBtn">＋ 新增工作</button>
         </div>
         <div class="panel table-panel">
@@ -235,8 +251,8 @@
         </div>
         <div class="panel maintenance-card settings-section hidden" data-sec="maintenance">
           <h3>資料維護</h3>
-          <p>將所有資料還原為示範內容。測試階段使用，會清除目前的員工、班次與員工填寫的可上班時間紀錄。</p>
-          <button type="button" class="ghost-btn" id="resetDemoBtn">重置示範資料</button>
+          <p>清空所有資料（員工、工作、班次、可上班時間等）。此動作無法復原，建議先到員工／工作管理匯出備份。</p>
+          <button type="button" class="ghost-btn" id="resetDemoBtn">清空所有資料</button>
         </div>
       </section>
 </main>
@@ -252,6 +268,10 @@
     </div>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/cloud.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

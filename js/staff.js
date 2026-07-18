@@ -13,9 +13,8 @@ let calendarDate=new Date();
 let selectedAvailabilityDate=null;
 let availEditable=true;
 
-function load(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))}catch{return null}}
-function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(data));renderStaff()}
-function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(data))}
+function save(){Cloud.save(data);renderStaff()}
+function persist(){Cloud.save(data)}
 function storeCfg(){return data?.settings||{}}
 function bizStart(){return storeCfg().businessStart||"08:30"}
 function bizEnd(){return storeCfg().businessEnd||"21:00"}
@@ -246,15 +245,13 @@ function saveSelectedDay(){
   let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
   if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:selectedAvailabilityDate};data.availability.push(a)}
   Object.assign(a,{unavailable,start,end});
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+  persist();
   byId("availabilitySaved").textContent="已儲存";
   setTimeout(()=>byId("availabilitySaved").textContent="",1600);
   renderAvailabilityCalendar();loadSelectedDay()
 }
 document.addEventListener("DOMContentLoaded",()=>{
-  data=load();
   applyStaffBranding();
-  if(!data){byId("staffLoginError").textContent="目前尚未建立示範資料，請先開啟主管後台 admin26.html。"}
   byId("staffLoginBtn").onclick=login;
   byId("staffNoInput").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
   byId("staffLogoutBtn").onclick=logout;
@@ -272,6 +269,12 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("quickDayNo").onclick=()=>quickDaySet("no");
   byId("quickWeekAvailable").onclick=()=>quickWeekApply("available");
   byId("quickWeekUnavailable").onclick=()=>quickWeekApply("unavailable");
-  if(staffEmployeeId)renderStaff();
+  // 讀取雲端資料（未設定 Firebase 時退回本機）
+  Cloud.init((d)=>{
+    data=d||null;
+    applyStaffBranding();
+    if(!data)byId("staffLoginError").textContent="尚未有資料，請先在後台建立員工。";
+    if(staffEmployeeId&&data)renderStaff();
+  },()=>{});
 });
 window.selectAvailabilityDate=selectAvailabilityDate;
