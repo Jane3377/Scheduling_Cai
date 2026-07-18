@@ -11,6 +11,7 @@ const state = {
   calendarDate:new Date(2026,6,1),
   selectedDate:"2026-07-18",
   scheduleMode:"day",
+  calendarExpanded:false,
   demandWeekday:6,
   hoursWeek:"2026-07-18",
   availPage:"settings",
@@ -29,11 +30,11 @@ function defaultData(){
       {id:"e3",employeeNo:"B005",name:"友福",phone:"",employmentType:"外籍學生",shiftClass:"假日班",noBreak:false,allowedWorkTypeIds:["w3","w4","w5"],primaryWeekday:[],primaryWeekend:["w5"],weeklyLimit:20,dailyLimit:8,active:true,pinEnabled:false,pinHash:null}
     ],
     workTypes:[
-      {id:"w1",name:"餅皮",color:"#b94b2f",sort:1,applyBreak:false,defaultBreak:0,prepDays:[],prepMinutes:0,active:true},
-      {id:"w2",name:"烤比薩",color:"#d9822b",sort:2,applyBreak:true,defaultBreak:90,prepDays:[],prepMinutes:0,active:true},
-      {id:"w3",name:"備料",color:"#4d7c6f",sort:3,applyBreak:false,defaultBreak:0,prepDays:[],prepMinutes:0,active:true},
-      {id:"w4",name:"收銀",color:"#5d6e9c",sort:4,applyBreak:true,defaultBreak:90,prepDays:[],prepMinutes:0,active:true},
-      {id:"w5",name:"烤雞",color:"#8f5fa2",sort:5,applyBreak:true,defaultBreak:90,prepDays:[0,6],prepMinutes:30,active:true}
+      {id:"w1",name:"餅皮",color:"#b23b2e",sort:1,applyBreak:false,defaultBreak:0,prepDays:[],prepMinutes:0,active:true},
+      {id:"w2",name:"烤比薩",color:"#c0561f",sort:2,applyBreak:true,defaultBreak:90,prepDays:[],prepMinutes:0,active:true},
+      {id:"w3",name:"備料",color:"#2e7d52",sort:3,applyBreak:false,defaultBreak:0,prepDays:[],prepMinutes:0,active:true},
+      {id:"w4",name:"收銀",color:"#2f5d9c",sort:4,applyBreak:true,defaultBreak:90,prepDays:[],prepMinutes:0,active:true},
+      {id:"w5",name:"烤雞",color:"#6f4a97",sort:5,applyBreak:true,defaultBreak:90,prepDays:[0,6],prepMinutes:30,active:true}
     ],
     availability:[
       {id:"a1",employeeId:"e1",date:"2026-07-18",unavailable:false,start:"08:00",end:"18:00"},
@@ -262,22 +263,37 @@ function renderEmployees(){
 }
 function renderWorktypes(){
   byId("worktypesTable").innerHTML=state.data.workTypes.slice().sort((a,b)=>a.sort-b.sort).map(w=>{
-    return `<tr><td class="employee-name"><span class="work-chip" style="background:${w.color}">${w.name}</span></td><td>${w.applyBreak?"是（依店家休息時段扣除）":"否（全額計薪）"}</td><td><span class="badge ${w.active?"ok":"inactive"}">${w.active?"啟用":"停用"}</span></td><td><div class="row-actions"><button class="text-btn" onclick="openWorktypeModal('${w.id}')">編輯</button></div></td></tr>`
+    return `<tr><td class="work-cell"><span class="work-chip" style="background:${w.color}">${w.name}</span></td><td>${w.applyBreak?"是（依店家休息時段扣除）":"否（全額計薪）"}</td><td><span class="badge ${w.active?"ok":"inactive"}">${w.active?"啟用":"停用"}</span></td><td><div class="row-actions"><button class="text-btn" onclick="openWorktypeModal('${w.id}')">編輯</button></div></td></tr>`
   }).join("")||`<tr><td colspan="4"><div class="empty-state">尚未建立工作</div></td></tr>`;
 }
+function calCell(day,refMonth){
+  const key=toDateKey(day);
+  const count=state.data.shifts.filter(s=>s.date===key).length;
+  const closed=isClosedDay(key),nh=nationalHolidayName(key);
+  const muted=refMonth!=null&&day.getMonth()!==refMonth;
+  return `<button class="cal-day ${muted?"muted":""} ${closed?"closed":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" ${closed?`disabled title="${closedReason(key)}"`:`onclick="selectDate('${key}')" ${nh?`title="${nh}"`:""}`}><span>${day.getDate()}</span>${closed?`<span class="cal-closed">休</span>`:(nh?`<span class="cal-holiday">${nh}</span>`:count?`<span class="cal-dot"></span>`:"")}</button>`;
+}
 function renderCalendar(){
-  const d=state.calendarDate,y=d.getFullYear(),m=d.getMonth();
-  byId("calendarMonthLabel").textContent=`${y} 年 ${m+1} 月`;
-  const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
+  const grid=byId("calendarGrid");if(!grid)return;
+  const tgl=byId("calToggleBtn");if(tgl)tgl.textContent=state.calendarExpanded?"收合月曆":"展開整月";
   let html="";
-  for(let i=0;i<42;i++){const day=new Date(start);day.setDate(start.getDate()+i);const key=toDateKey(day);const count=state.data.shifts.filter(s=>s.date===key).length;const closed=isClosedDay(key);
-    html+=`<button class="cal-day ${day.getMonth()!==m?"muted":""} ${closed?"closed":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" ${closed?`disabled title="${closedReason(key)}"`:`onclick="selectDate('${key}')" ${nationalHolidayName(key)?`title="${nationalHolidayName(key)}"`:""}`}><span>${day.getDate()}</span>${closed?`<span class="cal-closed">休</span>`:(nationalHolidayName(key)?`<span class="cal-holiday">${nationalHolidayName(key)}</span>`:count?`<span class="cal-dot"></span>`:"")}</button>`
+  if(state.calendarExpanded){
+    const d=state.calendarDate,y=d.getFullYear(),m=d.getMonth();
+    byId("calendarMonthLabel").textContent=`${y} 年 ${m+1} 月`;
+    const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
+    for(let i=0;i<42;i++){const day=new Date(start);day.setDate(start.getDate()+i);html+=calCell(day,m);}
+  }else{
+    // 收合：只顯示選定日期那一週（週一起）
+    const a=new Date(state.selectedDate+"T00:00:00");
+    byId("calendarMonthLabel").textContent=`${a.getFullYear()} 年 ${a.getMonth()+1} 月`;
+    const [ws]=weekRange(state.selectedDate),start=new Date(ws+"T00:00:00");
+    for(let i=0;i<7;i++){const day=new Date(start);day.setDate(start.getDate()+i);html+=calCell(day,null);}
   }
-  byId("calendarGrid").innerHTML=html;
+  grid.innerHTML=html;
 }
 /* ---------- 排班：直式時間軸（日／週） ---------- */
-const SLOT_H=34;   // 每個時間間隔的像素高度
-const HEAD_H=52;   // 欄位表頭高度
+const SLOT_H=40;   // 每個時間間隔的像素高度
+const HEAD_H=56;   // 欄位表頭高度
 function timeAxis(){
   const cfg=settings();
   const startM=mins(cfg.businessStart),endM=mins(cfg.businessEnd),step=cfg.timeStep||30;
@@ -954,8 +970,17 @@ function init(){
   byId("addEmployeeBtn").onclick=()=>openEmployeeModal();byId("addWorktypeBtn").onclick=()=>openWorktypeModal();
   byId("addAvailabilityWindowBtn").onclick=()=>openAvailabilityWindowModal();
   byId("employeeSearch").oninput=renderEmployees;byId("employeeStatusFilter").onchange=renderEmployees;
-  byId("prevMonthBtn").onclick=()=>{state.calendarDate.setMonth(state.calendarDate.getMonth()-1);renderCalendar()};
-  byId("nextMonthBtn").onclick=()=>{state.calendarDate.setMonth(state.calendarDate.getMonth()+1);renderCalendar()};
+  const calNav=dir=>{
+    if(state.calendarExpanded){state.calendarDate.setMonth(state.calendarDate.getMonth()+dir);renderCalendar();}
+    else{const d=new Date(state.selectedDate+"T00:00:00");d.setDate(d.getDate()+dir*7);selectDate(toDateKey(d));} // 收合時以「週」為單位
+  };
+  byId("prevMonthBtn").onclick=()=>calNav(-1);
+  byId("nextMonthBtn").onclick=()=>calNav(1);
+  byId("calToggleBtn").onclick=()=>{
+    state.calendarExpanded=!state.calendarExpanded;
+    if(state.calendarExpanded){const a=new Date(state.selectedDate+"T00:00:00");state.calendarDate=new Date(a.getFullYear(),a.getMonth(),1);}
+    renderCalendar();
+  };
   const shiftWeek=delta=>{const d=new Date(state.hoursWeek+"T00:00:00");d.setDate(d.getDate()+delta*7);state.hoursWeek=toDateKey(d);renderHours()};
   byId("prevWeekBtn")?.addEventListener("click",()=>shiftWeek(-1));
   byId("nextWeekBtn")?.addEventListener("click",()=>shiftWeek(1));
