@@ -23,9 +23,9 @@ const state = {
 function defaultData(){
   return {
     employees:[
-      {id:"e1",employeeNo:"A012",name:"青春",phone:"",employmentType:"正職",allowedWorkTypeIds:["w1","w2","w3"],primaryWeekday:["w3"],primaryWeekend:["w1"],weeklyLimit:40,dailyLimit:8,active:true,pinEnabled:false,pinHash:null},
-      {id:"e2",employeeNo:"A018",name:"美蘭",phone:"",employmentType:"工讀",allowedWorkTypeIds:["w2","w3","w4"],primaryWeekday:["w2"],primaryWeekend:["w2"],weeklyLimit:20,dailyLimit:8,active:true,pinEnabled:false,pinHash:null},
-      {id:"e3",employeeNo:"B005",name:"友福",phone:"",employmentType:"外籍學生",allowedWorkTypeIds:["w3","w4","w5"],primaryWeekday:[],primaryWeekend:["w5"],weeklyLimit:20,dailyLimit:8,active:true,pinEnabled:false,pinHash:null}
+      {id:"e1",employeeNo:"A012",name:"青春",phone:"",employmentType:"正職",shiftClass:"平日早班",noBreak:true,allowedWorkTypeIds:["w1","w2","w3"],primaryWeekday:["w3"],primaryWeekend:["w1"],weeklyLimit:40,dailyLimit:8,active:true,pinEnabled:false,pinHash:null},
+      {id:"e2",employeeNo:"A018",name:"美蘭",phone:"",employmentType:"工讀",shiftClass:"一般",noBreak:false,allowedWorkTypeIds:["w2","w3","w4"],primaryWeekday:["w2"],primaryWeekend:["w2"],weeklyLimit:20,dailyLimit:8,active:true,pinEnabled:false,pinHash:null},
+      {id:"e3",employeeNo:"B005",name:"友福",phone:"",employmentType:"外籍學生",shiftClass:"假日班",noBreak:false,allowedWorkTypeIds:["w3","w4","w5"],primaryWeekday:[],primaryWeekend:["w5"],weeklyLimit:20,dailyLimit:8,active:true,pinEnabled:false,pinHash:null}
     ],
     workTypes:[
       {id:"w1",name:"餅皮",color:"#b94b2f",sort:1,applyBreak:false,defaultBreak:0,prepDays:[],prepMinutes:0,active:true},
@@ -80,6 +80,8 @@ function migrate(d){
   d.employees.forEach(e=>{
     e.primaryWeekday=e.primaryWeekday||[];
     e.primaryWeekend=e.primaryWeekend||[];
+    e.shiftClass=e.shiftClass||"一般";
+    e.noBreak=e.noBreak||false;
     if(e.employmentType==="兼職")e.employmentType="工讀"; // 舊類型對應
   });
   (d.workTypes||[]).forEach(w=>{
@@ -120,8 +122,10 @@ const TW_HOLIDAYS=[
   ["2027-10-10","國慶日"],["2027-10-11","國慶日補假"],["2027-10-25","臺灣光復節"],["2027-12-25","行憲紀念日"]
 ];
 function overlapMinutes(aS,aE,bS,bE){return Math.max(0,Math.min(aE,bE)-Math.max(aS,bS))}
-// 自動休息：只有「工作設定為套用休息」且班次涵蓋店家休息時段時，才依重疊時間扣除。
+// 自動休息：固定早班（員工班別免扣）優先；否則「工作設定為套用休息」且班次涵蓋店家休息時段時，依重疊時間扣除。
 function breakForShift(s){
+  const emp=s.employeeId?employee(s.employeeId):null;
+  if(emp&&emp.noBreak)return 0; // 平日早班等固定早班人員：上班不扣休息
   const w=worktype(s.workTypeId);
   if(!w||!w.applyBreak)return 0;
   const cfg=settings();
@@ -249,7 +253,9 @@ function renderEmployees(){
     const pw=(e.primaryWeekend||[]).map(id=>worktype(id)?.name).filter(Boolean).join("、");
     const primary=(pd||pw)?`<span class="cell-sub">主要 平日：${pd||"—"}／假日：${pw||"—"}</span>`:"";
     const typeBadge=e.employmentType==="外籍學生"?`<span class="badge warn">外籍學生</span>`:e.employmentType;
-    return `<tr><td class="employee-name"><strong>${e.name}</strong><span>${typeBadge}</span></td><td>${e.employeeNo}</td><td>${works}${primary}</td><td>${e.weeklyLimit?e.weeklyLimit+" 小時":"未設定"}</td><td><span class="badge ${e.active?"ok":"inactive"}">${e.active?"在職":"停用"}</span></td><td><div class="row-actions"><button class="text-btn" onclick="openEmployeeModal('${e.id}')">編輯</button></div></td></tr>`
+    const clsTag=(e.shiftClass&&e.shiftClass!=="一般")?`・${e.shiftClass}`:"";
+    const noBreakTag=e.noBreak?` <span class="badge ok">免扣休息</span>`:"";
+    return `<tr><td class="employee-name"><strong>${e.name}</strong><span>${typeBadge}${clsTag}${noBreakTag}</span></td><td>${e.employeeNo}</td><td>${works}${primary}</td><td>${e.weeklyLimit?e.weeklyLimit+" 小時":"未設定"}</td><td><span class="badge ${e.active?"ok":"inactive"}">${e.active?"在職":"停用"}</span></td><td><div class="row-actions"><button class="text-btn" onclick="openEmployeeModal('${e.id}')">編輯</button></div></td></tr>`
   }).join("")||`<tr><td colspan="6"><div class="empty-state">找不到員工</div></td></tr>`;
 }
 function renderWorktypes(){
@@ -445,9 +451,10 @@ function selectDate(key){state.selectedDate=key;const d=new Date(key+"T00:00:00"
 function openModal(title,subtitle,html){byId("modalTitle").textContent=title;byId("modalSubtitle").textContent=subtitle||"";byId("modalForm").innerHTML=html;byId("modalBackdrop").classList.remove("hidden")}
 function closeModal(){byId("modalBackdrop").classList.add("hidden")}
 function openEmployeeModal(id=null){
-  const e=id?employee(id):{id:uid("e"),employeeNo:"",name:"",phone:"",employmentType:"正職",allowedWorkTypeIds:[],primaryWeekday:[],primaryWeekend:[],weeklyLimit:40,dailyLimit:8,active:true,pinEnabled:false,pinHash:null};
-  e.primaryWeekday=e.primaryWeekday||[];e.primaryWeekend=e.primaryWeekend||[];
+  const e=id?employee(id):{id:uid("e"),employeeNo:"",name:"",phone:"",employmentType:"正職",shiftClass:"一般",noBreak:false,allowedWorkTypeIds:[],primaryWeekday:[],primaryWeekend:[],weeklyLimit:40,dailyLimit:8,active:true,pinEnabled:false,pinHash:null};
+  e.primaryWeekday=e.primaryWeekday||[];e.primaryWeekend=e.primaryWeekend||[];e.shiftClass=e.shiftClass||"一般";
   const types=["正職","工讀","外籍學生","其他"];
+  const shiftClasses=["一般","平日早班","平日晚班","假日班","其他"];
   const foreignLimit=settings().foreignDefaultLimit;
   const workBoxes=(group,selected)=>state.data.workTypes.filter(w=>w.active).map(w=>`<label class="checkbox-card"><input type="checkbox" name="${group}" value="${w.id}" ${selected.includes(w.id)?"checked":""}>${w.name}</label>`).join("");
   openModal(id?"編輯員工":"新增員工","設定員工編號、可做工作、主要工作與工時限制",`
@@ -457,7 +464,9 @@ function openEmployeeModal(id=null){
       <label class="field"><span>員工編號</span><input class="input" name="employeeNo" required value="${e.employeeNo}"></label>
       <label class="field"><span>電話（選填）</span><input class="input" name="phone" value="${e.phone||""}"></label>
       <label class="field"><span>身分類型</span><select class="select" name="employmentType" id="empType">${types.map(x=>`<option ${x===e.employmentType?"selected":""}>${x}</option>`).join("")}</select></label>
-      <label class="field span-2"><span>每週計薪工時上限</span><input class="input" name="weeklyLimit" id="empWeeklyLimit" type="number" min="0" step=".5" value="${e.weeklyLimit}"><small class="field-help" id="empLimitHint">外籍學生預設 ${foreignLimit} 小時／週，可自行修改。</small></label>
+      <label class="field"><span>班別</span><select class="select" name="shiftClass" id="empShiftClass">${shiftClasses.map(x=>`<option ${x===e.shiftClass?"selected":""}>${x}</option>`).join("")}</select></label>
+      <label class="field"><span>每週計薪工時上限</span><input class="input" name="weeklyLimit" id="empWeeklyLimit" type="number" min="0" step=".5" value="${e.weeklyLimit}"><small class="field-help" id="empLimitHint">外籍學生預設 ${foreignLimit} 小時／週。</small></label>
+      <label class="check-row span-2"><input type="checkbox" name="noBreak" id="empNoBreak" ${e.noBreak?"checked":""}> 固定早班／上班不扣休息時間（選「平日早班」會自動勾選，可自行調整）</label>
       <label class="field span-2"><span>可以做的工作</span><div class="checkbox-grid">${workBoxes("works",e.allowedWorkTypeIds)}</div></label>
       <label class="field span-2"><span>主要工作・平日</span><div class="checkbox-grid">${workBoxes("primaryWeekday",e.primaryWeekday)}</div><small class="field-help">AI／排班時，平日優先推薦負責這些工作的人（需同時在「可以做的工作」中）。</small></label>
       <label class="field span-2"><span>主要工作・假日（六日）</span><div class="checkbox-grid">${workBoxes("primaryWeekend",e.primaryWeekend)}</div><small class="field-help">六日優先推薦負責這些工作的人。</small></label>
@@ -468,12 +477,15 @@ function openEmployeeModal(id=null){
   form.elements.employmentType.addEventListener("change",ev=>{
     if(ev.target.value==="外籍學生"){byId("empWeeklyLimit").value=foreignLimit;}
   });
+  form.elements.shiftClass.addEventListener("change",ev=>{
+    if(ev.target.value==="平日早班")byId("empNoBreak").checked=true; // 平日早班自動免扣休息
+  });
   form.onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target),no=fd.get("employeeNo").trim().toUpperCase();if(state.data.employees.some(x=>x.employeeNo.toUpperCase()===no&&x.id!==e.id)){alert("員工編號不可重複");return}
     const works=fd.getAll("works");
     // 主要工作必須落在可做工作範圍內
     const primaryWeekday=fd.getAll("primaryWeekday").filter(w=>works.includes(w));
     const primaryWeekend=fd.getAll("primaryWeekend").filter(w=>works.includes(w));
-    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,phone:(fd.get("phone")||"").trim(),employmentType:fd.get("employmentType"),weeklyLimit:Number(fd.get("weeklyLimit")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,active:fd.get("active")==="on"});
+    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,phone:(fd.get("phone")||"").trim(),employmentType:fd.get("employmentType"),shiftClass:fd.get("shiftClass"),noBreak:fd.get("noBreak")==="on",weeklyLimit:Number(fd.get("weeklyLimit")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,active:fd.get("active")==="on"});
     if(!id)state.data.employees.push(e);save();closeModal()
   }
 }
@@ -521,7 +533,7 @@ function getEmployeeEligibility(e,date,start,end,workTypeId,excludeShiftId=null)
   const overlap=state.data.shifts.some(x=>x.id!==excludeShiftId&&x.employeeId===e.id&&x.date===date&&mins(start)<mins(x.end)&&mins(end)>mins(x.start));
   if(overlap) reasons.push("已有重疊班次");
   const already=weeklyHours(e.id,date,excludeShiftId);
-  const projected=already+durationHours({workTypeId,start,end});
+  const projected=already+durationHours({workTypeId,employeeId:e.id,start,end});
   const foreign=e.employmentType==="外籍學生";
   if(e.weeklyLimit&&projected>e.weeklyLimit) reasons.push(`排入後 ${fmtHours(projected)}，超過每週 ${e.weeklyLimit} 小時${foreign?"（外籍上限）":""}`);
   const remaining=e.weeklyLimit?Math.max(0,e.weeklyLimit-already):999;
@@ -579,12 +591,13 @@ function openShiftModal(id=null,prefill=null){
     }
   }
   function updateCalc(){
-    const fd=new FormData(form),wt=fd.get("workTypeId"),start=fd.get("start"),end=fd.get("end"),w=worktype(wt);
+    const fd=new FormData(form),wt=fd.get("workTypeId"),start=fd.get("start"),end=fd.get("end"),eid=fd.get("employeeId"),w=worktype(wt),emp=employee(eid);
     const cfg=settings();
-    const brk=(mins(end)>mins(start))?breakForShift({workTypeId:wt,start,end}):0;
-    const paid=durationHours({workTypeId:wt,start,end});
-    const applies=w&&w.applyBreak;
-    byId("shiftCalc").innerHTML=`<span>${applies?`套用休息時段 ${cfg.breakStart}～${cfg.breakEnd}`:"此工作不套用休息"}</span><strong>自動扣除 ${brk} 分鐘・計薪 ${fmtHours(paid)}</strong>`;
+    const shiftObj={workTypeId:wt,employeeId:eid,start,end};
+    const brk=(mins(end)>mins(start))?breakForShift(shiftObj):0;
+    const paid=durationHours(shiftObj);
+    const reason=(emp&&emp.noBreak)?`${emp.name}為固定早班，不扣休息`:(w&&w.applyBreak?`套用休息時段 ${cfg.breakStart}～${cfg.breakEnd}`:"此工作不套用休息");
+    byId("shiftCalc").innerHTML=`<span>${reason}</span><strong>自動扣除 ${brk} 分鐘・計薪 ${fmtHours(paid)}</strong>`;
   }
   function updateWarnings(){
     const fd=new FormData(form),eid=fd.get("employeeId"),date=fd.get("date"),start=fd.get("start"),end=fd.get("end"),e=employee(eid),warnings=[];
@@ -602,10 +615,10 @@ function openShiftModal(id=null,prefill=null){
   ["date","workTypeId","start","end"].forEach(name=>{
     form.elements[name].addEventListener("change",()=>{refreshEmployeeOptions();updateWarnings();updateCalc()});
   });
-  form.elements.employeeId.addEventListener("change",updateWarnings);
+  form.elements.employeeId.addEventListener("change",()=>{updateWarnings();updateCalc()});
   form.onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);if(!fd.get("employeeId")){alert("請選擇員工");return}
     if(isClosedDay(fd.get("date"))&&!confirm("這一天是公休日，確定仍要排班？")){return}
-    Object.assign(s,{date:fd.get("date"),workTypeId:fd.get("workTypeId"),employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end"),breakMinutes:breakForShift({workTypeId:fd.get("workTypeId"),start:fd.get("start"),end:fd.get("end")}),prepRole:fd.get("prepRole")==="on",note:fd.get("note").trim()});
+    Object.assign(s,{date:fd.get("date"),workTypeId:fd.get("workTypeId"),employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end"),breakMinutes:breakForShift({workTypeId:fd.get("workTypeId"),employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end")}),prepRole:fd.get("prepRole")==="on",note:fd.get("note").trim()});
     if(mins(s.end)<=mins(s.start)){alert("結束時間必須晚於開始時間");return}
     if(!id)state.data.shifts.push(s);state.selectedDate=s.date;save();closeModal()
   }
@@ -906,7 +919,7 @@ function applyDemand(dateKey){
   gaps.forEach(r=>{
     for(let i=0;i<r.gap;i++){
       const pick=bestEmployeeFor(dateKey,r.start,r.end,r.workTypeId);
-      const s={id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,start:r.start,end:r.end}),note:"",prepRole:false,status:"draft"};
+      const s={id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end}),note:"",prepRole:false,status:"draft"};
       state.data.shifts.push(s);created++;if(!pick)unfilled++;
     }
   });

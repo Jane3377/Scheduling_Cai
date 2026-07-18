@@ -27,13 +27,15 @@ function timeOptions(selected=""){
   for(let m=s;m<=e;m+=step){const h=Math.floor(m/60)%24,t=`${pad(h)}:${pad(m%60)}`;out+=`<option ${t===selected?"selected":""}>${t}</option>`}
   return out
 }
-// 依「工作是否套用休息」與店家休息時段，計算此班的休息（不計薪）
+// 依「員工班別免扣休息」＞「工作是否套用休息」與店家休息時段，計算此班的休息（不計薪）
 function shiftBreakMin(s){
+  if(employee(s.employeeId)?.noBreak)return 0;
   const w=worktype(s.workTypeId);if(!w||!w.applyBreak)return 0;
   const bs=storeCfg().breakStart,be=storeCfg().breakEnd;if(!bs||!be)return 0;
   return Math.max(0,Math.min(mins(s.end),mins(be))-Math.max(mins(s.start),mins(bs)));
 }
 function shiftBreakLabel(s){
+  if(employee(s.employeeId)?.noBreak)return "";
   const w=worktype(s.workTypeId);if(!w||!w.applyBreak)return "";
   const bs=storeCfg().breakStart,be=storeCfg().breakEnd;if(!bs||!be)return "";
   const st=Math.max(mins(s.start),mins(bs)),en=Math.min(mins(s.end),mins(be));
