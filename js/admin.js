@@ -103,6 +103,7 @@ function settings(){
   s.breakEnd=s.breakEnd||"16:00";
   s.foreignDefaultLimit=s.foreignDefaultLimit==null?20:Number(s.foreignDefaultLimit);
   s.dailyDemand=s.dailyDemand||[];
+  s.holidays=s.holidays||[];
   return s;
 }
 function overlapMinutes(aS,aE,bS,bE){return Math.max(0,Math.min(aE,bE)-Math.max(aS,bS))}
@@ -115,7 +116,17 @@ function breakForShift(s){
   return overlapMinutes(mins(s.start),mins(s.end),mins(cfg.breakStart),mins(cfg.breakEnd));
 }
 function durationHours(s){return Math.max(0,(mins(s.end)-mins(s.start)-breakForShift(s))/60)}
-function isClosedDay(dateKey){return settings().closedDays.includes(new Date(dateKey+"T00:00:00").getDay())}
+function holidays(){return settings().holidays}
+function isClosedDay(dateKey){
+  if(holidays().some(h=>h.date===dateKey))return true; // 特定休息日（國定假日／臨時公休）
+  return settings().closedDays.includes(new Date(dateKey+"T00:00:00").getDay()); // 每週固定公休
+}
+function closedReason(dateKey){
+  const h=holidays().find(x=>x.date===dateKey);
+  if(h)return h.note||"休息日";
+  if(settings().closedDays.includes(new Date(dateKey+"T00:00:00").getDay()))return "每週公休";
+  return "";
+}
 function isWeekend(dateKey){const d=new Date(dateKey+"T00:00:00").getDay();return d===0||d===6}
 function fmtHours(n){return Number.isInteger(n)?`${n} 小時`:`${n.toFixed(1)} 小時`}
 function formatDate(key){const d=new Date(key+"T00:00:00");return `${d.getMonth()+1}/${d.getDate()}（${"日一二三四五六"[d.getDay()]}）`}
@@ -170,7 +181,7 @@ function syncAvailPage(){
   byId("availSettingsPanel")?.classList.toggle("hidden",state.availPage!=="settings");
   byId("availOverviewPanel")?.classList.toggle("hidden",state.availPage!=="overview");
 }
-function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderSchedule();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings();renderDemand()}
+function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderSchedule();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings();renderDemand();renderHolidays()}
 function renderDashboard(){
   const active=state.data.employees.filter(e=>e.active).length, month="2026-07";
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
@@ -238,7 +249,7 @@ function renderCalendar(){
   const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
   let html="";
   for(let i=0;i<42;i++){const day=new Date(start);day.setDate(start.getDate()+i);const key=toDateKey(day);const count=state.data.shifts.filter(s=>s.date===key).length;const closed=isClosedDay(key);
-    html+=`<button class="cal-day ${day.getMonth()!==m?"muted":""} ${closed?"closed":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" ${closed?"disabled title=\"公休日\"":`onclick="selectDate('${key}')"`}><span>${day.getDate()}</span>${closed?`<span class="cal-closed">休</span>`:count?`<span class="cal-dot"></span>`:""}</button>`
+    html+=`<button class="cal-day ${day.getMonth()!==m?"muted":""} ${closed?"closed":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" ${closed?`disabled title="${closedReason(key)}"`:`onclick="selectDate('${key}')"`}><span>${day.getDate()}</span>${closed?`<span class="cal-closed">休</span>`:count?`<span class="cal-dot"></span>`:""}</button>`
   }
   byId("calendarGrid").innerHTML=html;
 }
@@ -752,6 +763,26 @@ function availEmployeeView(w){
 }
 function availPickEmployee(v){state.availEmployeeId=v;renderAvailabilityOverview()}
 
+/* ---------- 特定休息日（國定假日／臨時公休） ---------- */
+function renderHolidays(){
+  const el=byId("holidayList");if(!el)return;
+  const list=holidays().slice().sort((a,b)=>a.date.localeCompare(b.date));
+  el.innerHTML=list.length?list.map(h=>`<div class="demand-row"><div class="list-icon">休</div><div class="list-main"><strong>${formatDate(h.date)}</strong><span>${h.note||"整店休息"}</span></div><button class="text-btn" onclick="deleteHoliday('${h.date}')">刪除</button></div>`).join(""):`<div class="empty-state">尚未設定特定休息日</div>`;
+}
+function addHoliday(){
+  const date=byId("holidayDate").value;
+  if(!date){alert("請先選擇日期");return}
+  const note=(byId("holidayNote").value||"").trim();
+  const list=holidays();
+  const existing=list.find(h=>h.date===date);
+  if(existing)existing.note=note; else list.push({date,note});
+  byId("holidayNote").value="";
+  save();
+}
+function deleteHoliday(date){
+  if(confirm("確定移除這個休息日？")){settings().holidays=holidays().filter(h=>h.date!==date);save()}
+}
+
 /* ---------- 每日需求模板 ---------- */
 function getDemand(){return settings().dailyDemand}
 function demandForWeekday(wd){return getDemand().filter(r=>r.weekday===wd).sort((a,b)=>mins(a.start)-mins(b.start))}
@@ -820,6 +851,7 @@ function init(){
   byId("schedAddBtn").onclick=()=>openShiftModal();
   byId("applyDemandBtn").onclick=()=>applyDemand(state.selectedDate);
   byId("addDemandBtn").onclick=()=>openDemandModal();
+  byId("addHolidayBtn").onclick=addHoliday;
   byId("schedPrev").onclick=()=>shiftSchedule(-1);
   byId("schedNext").onclick=()=>shiftSchedule(1);
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.onclick=()=>{state.scheduleMode=b.dataset.smode;renderSchedule()});
@@ -845,4 +877,4 @@ document.addEventListener("DOMContentLoaded",init);
 
 window.openAvailabilityWindowModal=openAvailabilityWindowModal;window.deleteAvailabilityWindow=deleteAvailabilityWindow;
 window.availMonthNav=availMonthNav;window.availPickDate=availPickDate;window.availPickEmployee=availPickEmployee;
-window.openDemandModal=openDemandModal;window.deleteDemand=deleteDemand;
+window.openDemandModal=openDemandModal;window.deleteDemand=deleteDemand;window.deleteHoliday=deleteHoliday;

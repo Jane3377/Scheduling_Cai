@@ -63,7 +63,11 @@ function getNextWindow(){
 }
 function inTargetRange(date){return activeWindow&&date>=activeWindow.targetStart&&date<=activeWindow.targetEnd}
 function closedDays(){return data?.settings?.closedDays||[]}
-function isClosedDay(key){return closedDays().includes(new Date(key+"T00:00:00").getDay())}
+function holidayList(){return data?.settings?.holidays||[]}
+function isClosedDay(key){
+  if(holidayList().some(h=>h.date===key))return true; // 特定休息日（國定假日／臨時公休）
+  return closedDays().includes(new Date(key+"T00:00:00").getDay());
+}
 function canFill(key){return inTargetRange(key)&&!isClosedDay(key)}
 function login(){
   const no=byId("staffNoInput").value.trim().toUpperCase();

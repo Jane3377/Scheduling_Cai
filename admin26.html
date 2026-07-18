@@ -187,6 +187,17 @@
           <div class="seg demand-weektabs" id="demandWeekTabs"></div>
           <div id="demandList" class="demand-list"></div>
         </div>
+        <div class="panel demand-card" style="padding:22px">
+          <div class="demand-head">
+            <div><h3>特定休息日（國定假日／臨時公休）</h3><p>指定單一日期整店休息（例如中秋節或臨時公休），該日在排班與員工填寫都會鎖起來反灰。每週固定的公休請用上方店家設定的「每週公休日」。</p></div>
+          </div>
+          <div class="holiday-add">
+            <input type="date" id="holidayDate" class="input" />
+            <input type="text" id="holidayNote" class="input" placeholder="說明（例如 中秋節，選填）" />
+            <button type="button" class="secondary-btn" id="addHolidayBtn">新增休息日</button>
+          </div>
+          <div id="holidayList" class="demand-list"></div>
+        </div>
         <div class="panel maintenance-card">
           <h3>資料維護</h3>
           <p>將所有資料還原為示範內容。測試階段使用，會清除目前的員工、班次與員工填寫的可上班時間紀錄。</p>
