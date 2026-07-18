@@ -352,8 +352,11 @@ function renderSchedule(){
     byId("selectedDateSummary").textContent=`本週 ${ws.length} 個班次・共 ${fmtHours(ws.reduce((n,s)=>n+durationHours(s),0))}`;
     const cols=days.map(key=>{
       const d=new Date(key+"T00:00:00"),closed=isClosedDay(key);
-      const blocks=layoutBlocks(state.data.shifts.filter(s=>s.date===key)).map(b=>shiftBlock(b.s,axis,true,b.lane,b.lanes)).join("");
-      return `<div class="dg-col"><div class="dg-col-head clickable ${key===state.selectedDate?"sel":""} ${key===toDateKey(today)?"today":""}" onclick="selectDate('${key}')"><strong>${d.getMonth()+1}/${d.getDate()}</strong><span>${"日一二三四五六"[d.getDay()]}</span></div><div class="dg-track ${closed?"closed":""}" data-date="${key}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
+      const laid=layoutBlocks(state.data.shifts.filter(s=>s.date===key));
+      const maxLanes=laid.reduce((m,b)=>Math.max(m,b.lanes),1);
+      const cw=Math.max(120,maxLanes*100); // 依重疊班次數自動加寬
+      const blocks=laid.map(b=>shiftBlock(b.s,axis,true,b.lane,b.lanes)).join("");
+      return `<div class="dg-col" style="flex:1 1 ${cw}px;min-width:${cw}px"><div class="dg-col-head clickable ${key===state.selectedDate?"sel":""} ${key===toDateKey(today)?"today":""}" onclick="selectDate('${key}')"><strong>${d.getMonth()+1}/${d.getDate()}</strong><span>${"日一二三四五六"[d.getDay()]}</span></div><div class="dg-track ${closed?"closed":""}" data-date="${key}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
     }).join("");
     grid.innerHTML=`<div class="dg">${timeGutter(axis)}${cols}</div>`;
   }else{
@@ -365,8 +368,11 @@ function renderSchedule(){
     const closed=isClosedDay(state.selectedDate);
     const cols=works.map(w=>{
       const shifts=dayShifts.filter(s=>s.workTypeId===w.id);
-      const blocks=layoutBlocks(shifts).map(b=>shiftBlock(b.s,axis,false,b.lane,b.lanes)).join("");
-      return `<div class="dg-col"><div class="dg-col-head" style="border-top-color:${w.color}"><strong>${w.name}</strong><span>${shifts.length} 人</span></div><div class="dg-track ${closed?"closed":""}" data-date="${state.selectedDate}" data-work="${w.id}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
+      const laid=layoutBlocks(shifts);
+      const maxLanes=laid.reduce((m,b)=>Math.max(m,b.lanes),1);
+      const cw=Math.max(130,maxLanes*130); // 同一工作多人同時上班時自動加寬
+      const blocks=laid.map(b=>shiftBlock(b.s,axis,false,b.lane,b.lanes)).join("");
+      return `<div class="dg-col" style="flex:1 1 ${cw}px;min-width:${cw}px"><div class="dg-col-head" style="border-top-color:${w.color}"><strong>${w.name}</strong><span>${shifts.length} 人</span></div><div class="dg-track ${closed?"closed":""}" data-date="${state.selectedDate}" data-work="${w.id}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
     }).join("");
     grid.innerHTML=`<div class="dg">${timeGutter(axis)}${cols||`<div class="empty-state">尚未設定任何工作</div>`}</div>`;
   }
