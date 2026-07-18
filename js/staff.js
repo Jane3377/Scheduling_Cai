@@ -64,6 +64,7 @@ function getNextWindow(){
 function inTargetRange(date){return activeWindow&&date>=activeWindow.targetStart&&date<=activeWindow.targetEnd}
 function closedDays(){return data?.settings?.closedDays||[]}
 function holidayList(){return data?.settings?.holidays||[]}
+function nhName(key){return (data?.settings?.nationalHolidays||[]).find(h=>h.date===key)?.name||""}
 function isClosedDay(key){
   if(holidayList().some(h=>h.date===key))return true; // 特定休息日（國定假日／臨時公休）
   return closedDays().includes(new Date(key+"T00:00:00").getDay());
@@ -166,8 +167,10 @@ function renderAvailabilityCalendar(){
     const showSummary=editable?inRange:(!!record||closed);
     const dim=editable&&!allowed;
     const clickAttr=allowed?`onclick="selectAvailabilityDate('${key}')"`:(editable?"disabled":"");
+    const nh=closed?"":nhName(key);
     html+=`<button class="employee-cal-day ${!inMonth?"muted":""} ${dim?"disabled":""} ${(editable&&key===selectedAvailabilityDate)?"selected":""} ${cls}" ${clickAttr}>
       <span class="day-number">${day.getDate()}</span>
+      ${nh?`<small class="emp-holiday">${nh}</small>`:""}
       ${showSummary?`<small>${summary}</small>`:""}
     </button>`
   }

@@ -63,6 +63,11 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 /* 公休日反灰 */
 .cal-day.closed{background:repeating-linear-gradient(135deg,#f1ece8 0,#f1ece8 6px,#e7e0da 6px,#e7e0da 12px);color:#b3aaa3;cursor:not-allowed}
 .cal-day .cal-closed{font-size:10px;color:#a89f98}
+.cal-day .cal-holiday{font-size:9px;color:#5566aa;font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+.employee-cal-day .emp-holiday{font-size:9px;color:#5566aa;font-weight:700}
+.nh-icon{background:#eef1fb!important;color:#5566aa!important}
+.nh-actions{display:flex;gap:6px;align-items:center}
+.small-btn{padding:7px 12px;font-size:13px}
 .employee-cal-day.closed{background:repeating-linear-gradient(135deg,#f1ece8 0,#f1ece8 6px,#e7e0da 6px,#e7e0da 12px);border-color:#ddd4cd;color:#b3aaa3;cursor:not-allowed}
 .legend-dot.closed{background:#c9bfb7}
 .avail-tab-panel .section-toolbar.end{margin-top:4px}

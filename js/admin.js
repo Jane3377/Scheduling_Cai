@@ -104,8 +104,16 @@ function settings(){
   s.foreignDefaultLimit=s.foreignDefaultLimit==null?20:Number(s.foreignDefaultLimit);
   s.dailyDemand=s.dailyDemand||[];
   s.holidays=s.holidays||[];
+  s.nationalHolidays=s.nationalHolidays||[];
   return s;
 }
+// 內建 2026 年臺灣國定假日（僅供標示、參考用，可自行增刪；是否公休由店家自訂）
+const TW_HOLIDAYS_2026=[
+  ["2026-01-01","元旦"],["2026-02-16","除夕"],["2026-02-17","春節"],["2026-02-18","春節"],["2026-02-19","春節"],
+  ["2026-02-28","和平紀念日"],["2026-04-04","兒童節"],["2026-04-05","清明節"],["2026-04-06","清明節補假"],
+  ["2026-05-01","勞動節"],["2026-06-19","端午節"],["2026-09-25","中秋節"],["2026-09-28","教師節"],
+  ["2026-10-10","國慶日"],["2026-10-25","臺灣光復節"],["2026-12-25","行憲紀念日"]
+];
 function overlapMinutes(aS,aE,bS,bE){return Math.max(0,Math.min(aE,bE)-Math.max(aS,bS))}
 // 自動休息：只有「工作設定為套用休息」且班次涵蓋店家休息時段時，才依重疊時間扣除。
 function breakForShift(s){
@@ -117,8 +125,10 @@ function breakForShift(s){
 }
 function durationHours(s){return Math.max(0,(mins(s.end)-mins(s.start)-breakForShift(s))/60)}
 function holidays(){return settings().holidays}
+function nationalHolidays(){return settings().nationalHolidays}
+function nationalHolidayName(dateKey){return (nationalHolidays().find(h=>h.date===dateKey)||{}).name||""}
 function isClosedDay(dateKey){
-  if(holidays().some(h=>h.date===dateKey))return true; // 特定休息日（國定假日／臨時公休）
+  if(holidays().some(h=>h.date===dateKey))return true; // 特定休息日（臨時公休／設為公休的國定假日）
   return settings().closedDays.includes(new Date(dateKey+"T00:00:00").getDay()); // 每週固定公休
 }
 function closedReason(dateKey){
@@ -181,7 +191,7 @@ function syncAvailPage(){
   byId("availSettingsPanel")?.classList.toggle("hidden",state.availPage!=="settings");
   byId("availOverviewPanel")?.classList.toggle("hidden",state.availPage!=="overview");
 }
-function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderSchedule();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings();renderDemand();renderHolidays()}
+function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderSchedule();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings();renderDemand();renderHolidays();renderNationalHolidays()}
 function renderDashboard(){
   const active=state.data.employees.filter(e=>e.active).length, month="2026-07";
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
@@ -249,7 +259,7 @@ function renderCalendar(){
   const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
   let html="";
   for(let i=0;i<42;i++){const day=new Date(start);day.setDate(start.getDate()+i);const key=toDateKey(day);const count=state.data.shifts.filter(s=>s.date===key).length;const closed=isClosedDay(key);
-    html+=`<button class="cal-day ${day.getMonth()!==m?"muted":""} ${closed?"closed":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" ${closed?`disabled title="${closedReason(key)}"`:`onclick="selectDate('${key}')"`}><span>${day.getDate()}</span>${closed?`<span class="cal-closed">休</span>`:count?`<span class="cal-dot"></span>`:""}</button>`
+    html+=`<button class="cal-day ${day.getMonth()!==m?"muted":""} ${closed?"closed":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" ${closed?`disabled title="${closedReason(key)}"`:`onclick="selectDate('${key}')" ${nationalHolidayName(key)?`title="${nationalHolidayName(key)}"`:""}`}><span>${day.getDate()}</span>${closed?`<span class="cal-closed">休</span>`:(nationalHolidayName(key)?`<span class="cal-holiday">${nationalHolidayName(key)}</span>`:count?`<span class="cal-dot"></span>`:"")}</button>`
   }
   byId("calendarGrid").innerHTML=html;
 }
@@ -307,7 +317,8 @@ function renderSchedule(){
     }).join("");
     grid.innerHTML=`<div class="dg">${timeGutter(axis)}${cols}</div>`;
   }else{
-    byId("selectedDateTitle").textContent=formatDate(state.selectedDate);
+    const nh=nationalHolidayName(state.selectedDate);
+    byId("selectedDateTitle").textContent=formatDate(state.selectedDate)+(nh?`・${nh}`:"");
     const dayShifts=state.data.shifts.filter(s=>s.date===state.selectedDate);
     byId("selectedDateSummary").textContent=`${dayShifts.length} 個班次・共 ${fmtHours(dayShifts.reduce((n,s)=>n+durationHours(s),0))}`;
     const works=state.data.workTypes.filter(w=>w.active).sort((a,b)=>a.sort-b.sort);
@@ -783,6 +794,30 @@ function deleteHoliday(date){
   if(confirm("確定移除這個休息日？")){settings().holidays=holidays().filter(h=>h.date!==date);save()}
 }
 
+/* ---------- 國定假日（僅標示，是否公休由店家自訂） ---------- */
+function renderNationalHolidays(){
+  const el=byId("nationalHolidayList");if(!el)return;
+  const list=nationalHolidays().slice().sort((a,b)=>a.date.localeCompare(b.date));
+  el.innerHTML=list.length?list.map(h=>{
+    const closed=holidays().some(x=>x.date===h.date);
+    return `<div class="demand-row"><div class="list-icon nh-icon">假</div><div class="list-main"><strong>${formatDate(h.date)}｜${h.name}</strong><span>${closed?"已設為公休（當天休息）":"照常營業（僅標示假日）"}</span></div><div class="nh-actions"><button class="secondary-btn small-btn" onclick="toggleHolidayClosed('${h.date}','${h.name}')">${closed?"取消公休":"設為公休"}</button><button class="text-btn" onclick="deleteNationalHoliday('${h.date}')">移除</button></div></div>`;
+  }).join(""):`<div class="empty-state">尚未匯入國定假日，可按上方「匯入 2026 國定假日」。</div>`;
+}
+function importTaiwanHolidays(){
+  const list=nationalHolidays();let added=0;
+  TW_HOLIDAYS_2026.forEach(([date,name])=>{if(!list.some(h=>h.date===date)){list.push({date,name});added++}});
+  save();
+  alert(`已匯入 ${added} 個 2026 年臺灣國定假日，僅作標示。是否公休請在各假日按「設為公休」自行決定。`);
+}
+function toggleHolidayClosed(date,name){
+  const list=holidays();const i=list.findIndex(h=>h.date===date);
+  if(i>=0)list.splice(i,1);else list.push({date,note:name});
+  save();
+}
+function deleteNationalHoliday(date){
+  settings().nationalHolidays=nationalHolidays().filter(h=>h.date!==date);save();
+}
+
 /* ---------- 每日需求模板 ---------- */
 function getDemand(){return settings().dailyDemand}
 function demandForWeekday(wd){return getDemand().filter(r=>r.weekday===wd).sort((a,b)=>mins(a.start)-mins(b.start))}
@@ -852,6 +887,7 @@ function init(){
   byId("applyDemandBtn").onclick=()=>applyDemand(state.selectedDate);
   byId("addDemandBtn").onclick=()=>openDemandModal();
   byId("addHolidayBtn").onclick=addHoliday;
+  byId("importHolidaysBtn").onclick=importTaiwanHolidays;
   byId("schedPrev").onclick=()=>shiftSchedule(-1);
   byId("schedNext").onclick=()=>shiftSchedule(1);
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.onclick=()=>{state.scheduleMode=b.dataset.smode;renderSchedule()});
@@ -878,3 +914,4 @@ document.addEventListener("DOMContentLoaded",init);
 window.openAvailabilityWindowModal=openAvailabilityWindowModal;window.deleteAvailabilityWindow=deleteAvailabilityWindow;
 window.availMonthNav=availMonthNav;window.availPickDate=availPickDate;window.availPickEmployee=availPickEmployee;
 window.openDemandModal=openDemandModal;window.deleteDemand=deleteDemand;window.deleteHoliday=deleteHoliday;
+window.toggleHolidayClosed=toggleHolidayClosed;window.deleteNationalHoliday=deleteNationalHoliday;
