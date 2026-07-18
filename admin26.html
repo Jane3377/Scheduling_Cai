@@ -215,7 +215,10 @@
         <div class="panel demand-card settings-section hidden" data-sec="demand" style="padding:22px">
           <div class="demand-head">
             <div><h3>每日需求模板</h3><p>設定每個星期各工作需要幾人；排班頁按「套用需求」即可依此自動建立班次並指派最適人選。</p></div>
-            <button type="button" class="secondary-btn" id="addDemandBtn">＋ 新增需求</button>
+            <div class="demand-head-actions">
+              <button type="button" class="ghost-btn" id="copyDemandBtn">複製到其他星期</button>
+              <button type="button" class="secondary-btn" id="addDemandBtn">＋ 新增需求</button>
+            </div>
           </div>
           <div class="seg demand-weektabs" id="demandWeekTabs"></div>
           <div id="demandList" class="demand-list"></div>
