@@ -41,7 +41,7 @@ function defaultData(){
     ],
     shifts:[
       {id:"s1",date:"2026-07-18",employeeId:"e1",workTypeId:"w1",start:"08:30",end:"16:30",breakMinutes:0,note:"",prepRole:false,status:"draft"},
-      {id:"s2",date:"2026-07-18",employeeId:"e2",workTypeId:"w2",start:"16:00",end:"22:00",breakMinutes:0,note:"",subWorkTypeIds:["w3"],prepRole:false,status:"draft"},
+      {id:"s2",date:"2026-07-18",employeeId:"e2",workTypeId:"w2",start:"16:00",end:"22:00",breakMinutes:0,note:"",subWork:"備料",prepRole:false,status:"draft"},
       {id:"s3",date:"2026-07-18",employeeId:"e3",workTypeId:"w3",start:"09:30",end:"18:00",breakMinutes:90,note:"週六前置作業",prepRole:true,status:"draft"}
     ],
     settings:{
@@ -56,9 +56,9 @@ function defaultData(){
       defaultBreak:90,
       weekStartsOn:1,
       dailyDemand:[
-        {id:"dd1",weekday:6,workTypeId:"w1",start:"08:30",end:"16:30",count:1},
-        {id:"dd2",weekday:6,workTypeId:"w5",start:"09:00",end:"18:00",count:1},
-        {id:"dd3",weekday:6,workTypeId:"w2",start:"11:00",end:"21:00",count:2}
+        {id:"dd1",weekday:6,workTypeId:"w1",start:"08:30",end:"16:30",count:1,subWork:""},
+        {id:"dd2",weekday:6,workTypeId:"w5",start:"09:00",end:"18:00",count:1,subWork:""},
+        {id:"dd3",weekday:6,workTypeId:"w2",start:"11:00",end:"21:00",count:2,subWork:"備料"}
       ],
       availabilityWindows:[
         {
@@ -242,7 +242,7 @@ function renderDashboard(){
 }
 function shiftListItem(s){
   const e=employee(s.employeeId),w=worktype(s.workTypeId);
-  const subs=subWorkNames(s),subTxt=subs.length?`＋${subs.join("＋")}`:"";
+  const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
   return `<div class="list-item"><div class="list-icon" style="background:${w.color}22;color:${w.color}">●</div><div class="list-main"><strong>${e?e.name:"待指派"}｜${w.name}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span></div></div>`
 }
 function renderEmployees(){
@@ -303,13 +303,13 @@ function layoutBlocks(shifts){
   flush();
   return res;
 }
-function subWorkNames(s){return (s.subWorkTypeIds||[]).map(id=>worktype(id)?.name).filter(Boolean)}
+function subWorkText(s){return (s.subWork||"").trim()}
 function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const w=worktype(s.workTypeId),e=employee(s.employeeId);
   const top=((mins(s.start)-axis.startM)/axis.total)*axis.height;
   const h=Math.max(20,((mins(s.end)-mins(s.start))/axis.total)*axis.height);
   const width=100/lanes,left=lane*width;
-  const subs=subWorkNames(s),subTxt=subs.length?`＋${subs.join("＋")}`:"";
+  const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
   const label=showWork&&w?`${w.name}${subTxt}・${s.start}`:`${s.start}–${s.end}${subTxt}`;
   const who=e?e.name:"待指派";
   return `<button class="dg-block ${e?"":"unassigned"}" onclick="event.stopPropagation();openShiftModal('${s.id}')" style="top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}"><strong>${who}</strong><span>${label}</span></button>`;
@@ -566,8 +566,7 @@ function openShiftModal(id=null,prefill=null){
     const endM=Math.min(mins(defStart)+240,mins(cfg.businessEnd)); // 預設 4 小時，不超過最晚下班
     defEnd=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
   }
-  const s=id?state.data.shifts.find(x=>x.id===id):{id:uid("s"),date:(prefill&&prefill.date)||state.selectedDate,employeeId:"",workTypeId:(prefill&&prefill.workTypeId)||state.data.workTypes.find(w=>w.active)?.id||"",start:defStart,end:defEnd,breakMinutes:0,note:"",subWorkTypeIds:[],prepRole:false,status:"draft"};
-  s.subWorkTypeIds=s.subWorkTypeIds||[];
+  const s=id?state.data.shifts.find(x=>x.id===id):{id:uid("s"),date:(prefill&&prefill.date)||state.selectedDate,employeeId:"",workTypeId:(prefill&&prefill.workTypeId)||state.data.workTypes.find(w=>w.active)?.id||"",start:defStart,end:defEnd,breakMinutes:0,note:"",subWork:(prefill&&prefill.subWork)||"",prepRole:false,status:"draft"};
   openModal(id?"編輯班次":"新增班次","先設定日期、工作與時間，最後再選擇系統整理好的員工",`
   <div class="form-grid">
     <label class="field"><span>日期</span><input class="input" type="date" name="date" value="${s.date}"></label>
@@ -575,7 +574,7 @@ function openShiftModal(id=null,prefill=null){
     <label class="field"><span>開始時間</span><select class="select" name="start">${timeOptions(s.start)}</select></label>
     <label class="field"><span>結束時間</span><select class="select" name="end">${timeOptions(s.end)}</select></label>
     <div class="field span-2"><span>休息與計薪</span><div class="calc-box" id="shiftCalc"></div></div>
-    <div class="field span-2"><span>附加工作（子工作，可多選）</span><div class="checkbox-grid" id="subWorkBoxes"></div><small class="field-help">這個班除了主要工作，還要順便做的工作（例如烤比薩班兼備料）。只作標示，不列入缺人計算。</small></div>
+    <label class="field span-2"><span>附加工作（子工作）</span><input class="input" name="subWork" value="${s.subWork||""}" placeholder="自行輸入，例如 備料、洗菜"><small class="field-help">主要工作外還要順便做的事，可自行輸入。只作標示，不列入缺人計算。</small></label>
     <label class="field span-2"><span>選擇員工</span><select class="select employee-smart-select" name="employeeId" id="shiftEmployeeSelect"></select><small class="field-help">名單會依主要負責、可做工作、可上班時間、重疊班次及每週工時自動排序分組。</small></label>
     <label class="field span-2"><span>備註</span><textarea name="note" rows="3">${s.note||""}</textarea></label>
     <div id="shiftWarnings" class="span-2"></div>
@@ -612,24 +611,14 @@ function openShiftModal(id=null,prefill=null){
     }
     byId("shiftWarnings").innerHTML=warnings.map(w=>`<div class="list-item"><div class="list-icon">⚠</div><div class="list-main"><strong>${w}</strong><span>第一版仍允許主管儲存，以保留例外彈性</span></div></div>`).join("")
   }
-  function refreshSubWorks(){
-    const primary=new FormData(form).get("workTypeId");
-    const box=byId("subWorkBoxes");
-    let checked=new Set([...box.querySelectorAll("input:checked")].map(i=>i.value));
-    if(!box.dataset.init){s.subWorkTypeIds.forEach(x=>checked.add(x));box.dataset.init="1"} // 首次以既有子工作為準
-    const opts=state.data.workTypes.filter(w=>w.active&&w.id!==primary);
-    box.innerHTML=opts.length?opts.map(w=>`<label class="checkbox-card"><input type="checkbox" name="subWorks" value="${w.id}" ${checked.has(w.id)?"checked":""}>${w.name}</label>`).join(""):`<span class="field-help">沒有其他可加的工作</span>`;
-  }
-  refreshSubWorks();refreshEmployeeOptions();updateWarnings();updateCalc();
+  refreshEmployeeOptions();updateWarnings();updateCalc();
   ["date","workTypeId","start","end"].forEach(name=>{
-    form.elements[name].addEventListener("change",()=>{if(name==="workTypeId")refreshSubWorks();refreshEmployeeOptions();updateWarnings();updateCalc()});
+    form.elements[name].addEventListener("change",()=>{refreshEmployeeOptions();updateWarnings();updateCalc()});
   });
   form.elements.employeeId.addEventListener("change",()=>{updateWarnings();updateCalc()});
   form.onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);if(!fd.get("employeeId")){alert("請選擇員工");return}
     if(isClosedDay(fd.get("date"))&&!confirm("這一天是公休日，確定仍要排班？")){return}
-    const primaryWork=fd.get("workTypeId");
-    const subWorkTypeIds=fd.getAll("subWorks").filter(x=>x!==primaryWork);
-    Object.assign(s,{date:fd.get("date"),workTypeId:primaryWork,subWorkTypeIds,employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end"),breakMinutes:breakForShift({workTypeId:fd.get("workTypeId"),employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end")}),note:fd.get("note").trim()});
+    Object.assign(s,{date:fd.get("date"),workTypeId:fd.get("workTypeId"),subWork:(fd.get("subWork")||"").trim(),employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end"),breakMinutes:breakForShift({workTypeId:fd.get("workTypeId"),employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end")}),note:fd.get("note").trim()});
     if(mins(s.end)<=mins(s.start)){alert("結束時間必須晚於開始時間");return}
     if(!id)state.data.shifts.push(s);state.selectedDate=s.date;save();closeModal()
   }
@@ -888,24 +877,25 @@ function renderDemand(){
   tabs.querySelectorAll(".seg-btn").forEach(b=>b.onclick=()=>{state.demandWeekday=Number(b.dataset.dw);renderDemand()});
   const list=demandForWeekday(state.demandWeekday);
   byId("demandList").innerHTML=list.length?list.map(r=>{
-    const w=worktype(r.workTypeId);
-    return `<div class="demand-row"><div class="list-icon" style="background:${w?.color||'#999'}22;color:${w?.color||'#999'}">●</div><div class="list-main"><strong>${w?.name||"未命名工作"}｜${r.count} 人</strong><span>${r.start}～${r.end}</span></div><button class="text-btn" onclick="openDemandModal('${r.id}')">編輯</button></div>`;
+    const w=worktype(r.workTypeId);const subTxt=(r.subWork||"").trim()?`＋${r.subWork.trim()}`:"";
+    return `<div class="demand-row"><div class="list-icon" style="background:${w?.color||'#999'}22;color:${w?.color||'#999'}">●</div><div class="list-main"><strong>${w?.name||"未命名工作"}${subTxt}｜${r.count} 人</strong><span>${r.start}～${r.end}</span></div><button class="text-btn" onclick="openDemandModal('${r.id}')">編輯</button></div>`;
   }).join(""):`<div class="empty-state">星期${"日一二三四五六"[state.demandWeekday]}尚未設定需求</div>`;
 }
 function openDemandModal(id=null){
   const list=getDemand();
-  const r=id?list.find(x=>x.id===id):{id:uid("dd"),weekday:state.demandWeekday,workTypeId:state.data.workTypes.find(w=>w.active)?.id||"",start:settings().businessStart,end:settings().businessEnd,count:1};
+  const r=id?list.find(x=>x.id===id):{id:uid("dd"),weekday:state.demandWeekday,workTypeId:state.data.workTypes.find(w=>w.active)?.id||"",start:settings().businessStart,end:settings().businessEnd,count:1,subWork:""};
   openModal(id?"編輯每日需求":"新增每日需求",`星期${"日一二三四五六"[r.weekday]}的人力需求`,`
     <div class="form-grid">
       <label class="field"><span>工作</span><select class="select" name="workTypeId">${state.data.workTypes.filter(w=>w.active).map(w=>`<option value="${w.id}" ${w.id===r.workTypeId?"selected":""}>${w.name}</option>`).join("")}</select></label>
       <label class="field"><span>需要人數</span><input class="input" type="number" name="count" min="1" step="1" value="${r.count}"></label>
       <label class="field"><span>開始時間</span><select class="select" name="start">${timeOptions(r.start)}</select></label>
       <label class="field"><span>結束時間</span><select class="select" name="end">${timeOptions(r.end)}</select></label>
+      <label class="field span-2"><span>附加工作（子工作，選填）</span><input class="input" name="subWork" value="${r.subWork||""}" placeholder="自行輸入，例如 備料"><small class="field-help">套用需求建立班次時會自動帶入，不用每次重打。</small></label>
       <div class="modal-actions span-2">${id?`<button type="button" class="danger-btn" onclick="deleteDemand('${r.id}')">刪除</button>`:""}<button type="button" class="ghost-btn" onclick="closeModal()">取消</button><button class="primary-btn">儲存</button></div>
     </div>`);
   byId("modalForm").onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);const start=fd.get("start"),end=fd.get("end");
     if(mins(end)<=mins(start)){alert("結束時間必須晚於開始時間");return}
-    Object.assign(r,{workTypeId:fd.get("workTypeId"),start,end,count:Math.max(1,Number(fd.get("count")||1))});
+    Object.assign(r,{workTypeId:fd.get("workTypeId"),start,end,count:Math.max(1,Number(fd.get("count")||1)),subWork:(fd.get("subWork")||"").trim()});
     if(!id)list.push(r);save();closeModal()};
 }
 function deleteDemand(id){if(confirm("確定刪除這筆需求？")){settings().dailyDemand=getDemand().filter(x=>x.id!==id);save();closeModal()}}
@@ -930,7 +920,7 @@ function applyDemand(dateKey){
   gaps.forEach(r=>{
     for(let i=0;i<r.gap;i++){
       const pick=bestEmployeeFor(dateKey,r.start,r.end,r.workTypeId);
-      const s={id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end}),note:"",prepRole:false,status:"draft"};
+      const s={id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end}),note:"",subWork:(r.subWork||"").trim(),prepRole:false,status:"draft"};
       state.data.shifts.push(s);created++;if(!pick)unfilled++;
     }
   });
