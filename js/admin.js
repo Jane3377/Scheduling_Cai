@@ -1,6 +1,7 @@
 
 const STORAGE_KEY = "smartSchedulerV01";
-const COLORS = ["#b94b2f","#d9822b","#4d7c6f","#5d6e9c","#8f5fa2","#54714f","#9a6152"];
+// 12 種適合白色字體的深中色調
+const COLORS = ["#b23b2e","#c0561f","#8a6d1f","#4f7a34","#2e7d52","#0f7d70","#1f6f8b","#2f5d9c","#4a4a94","#6f4a97","#9a3f68","#575f6e"];
 const pad = n => String(n).padStart(2,"0");
 const toDateKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const today = new Date();
@@ -178,7 +179,7 @@ function setView(view){
   const meta={
     dashboard:["營運總覽","快速掌握本月排班與人力狀況"],
     employees:["員工管理","設定員工編號、可做工作與工時上限"],
-    worktypes:["工作管理","設定工作、休息與前置作業規則"],
+    worktypes:["工作管理","設定工作名稱、顏色與休息規則"],
     schedule:["排班管理","以月曆與日時間軸快速完成排班"],
     hours:["工時總覽","查看每位員工每週的計薪工時"],
     availability:["可上班時間","開放員工填寫，並檢視每個人填寫的可上班時間"],
@@ -260,9 +261,9 @@ function renderEmployees(){
   }).join("")||`<tr><td colspan="6"><div class="empty-state">找不到員工</div></td></tr>`;
 }
 function renderWorktypes(){
-  byId("worktypeCards").innerHTML=state.data.workTypes.sort((a,b)=>a.sort-b.sort).map(w=>{
-    return `<article class="work-card"><div class="work-card-head"><div class="work-title"><span class="color-dot" style="background:${w.color}"></span><h3>${w.name}</h3></div><span class="badge ${w.active?"ok":"inactive"}">${w.active?"啟用":"停用"}</span></div><div class="work-meta"><span>套用休息：${w.applyBreak?"是（依店家休息時段扣除）":"否（工時全額計薪）"}</span></div><div class="work-card-actions"><button class="secondary-btn" onclick="openWorktypeModal('${w.id}')">編輯設定</button></div></article>`
-  }).join("");
+  byId("worktypesTable").innerHTML=state.data.workTypes.slice().sort((a,b)=>a.sort-b.sort).map(w=>{
+    return `<tr><td class="employee-name"><span class="work-chip" style="background:${w.color}">${w.name}</span></td><td>${w.applyBreak?"是（依店家休息時段扣除）":"否（全額計薪）"}</td><td><span class="badge ${w.active?"ok":"inactive"}">${w.active?"啟用":"停用"}</span></td><td><div class="row-actions"><button class="text-btn" onclick="openWorktypeModal('${w.id}')">編輯</button></div></td></tr>`
+  }).join("")||`<tr><td colspan="4"><div class="empty-state">尚未建立工作</div></td></tr>`;
 }
 function renderCalendar(){
   const d=state.calendarDate,y=d.getFullYear(),m=d.getMonth();
@@ -310,9 +311,14 @@ function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const h=Math.max(20,((mins(s.end)-mins(s.start))/axis.total)*axis.height);
   const width=100/lanes,left=lane*width;
   const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
-  const label=showWork&&w?`${w.name}${subTxt}・${s.start}`:`${s.start}–${s.end}${subTxt}`;
   const who=e?e.name:"待指派";
-  return `<button class="dg-block ${e?"":"unassigned"}" onclick="event.stopPropagation();openShiftModal('${s.id}')" style="top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}"><strong>${who}</strong><span>${label}</span></button>`;
+  const style=`top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}`;
+  if(showWork){ // 週檢視：直式文字，盡量顯示 員工＋工作＋子工作
+    const txt=`${who}｜${w?w.name:""}${subTxt}`;
+    return `<button class="dg-block dg-block-vert ${e?"":"unassigned"}" onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><span class="dg-vert">${txt}</span></button>`;
+  }
+  const label=`${s.start}–${s.end}${subTxt}`;
+  return `<button class="dg-block ${e?"":"unassigned"}" onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><strong>${who}</strong><span>${label}</span></button>`;
 }
 function renderSchedule(){
   const grid=byId("scheduleGrid");if(!grid)return;
@@ -464,10 +470,9 @@ function openEmployeeModal(id=null){
     <div class="form-grid">
       <label class="field"><span>姓名</span><input class="input" name="name" required value="${e.name}"></label>
       <label class="field"><span>員工編號</span><input class="input" name="employeeNo" required value="${e.employeeNo}"></label>
-      <label class="field"><span>電話（選填）</span><input class="input" name="phone" value="${e.phone||""}"></label>
       <label class="field"><span>身分類型</span><select class="select" name="employmentType" id="empType">${types.map(x=>`<option ${x===e.employmentType?"selected":""}>${x}</option>`).join("")}</select></label>
       <label class="field"><span>班別</span><select class="select" name="shiftClass" id="empShiftClass">${shiftClasses.map(x=>`<option ${x===e.shiftClass?"selected":""}>${x}</option>`).join("")}</select></label>
-      <label class="field"><span>每週計薪工時上限</span><input class="input" name="weeklyLimit" id="empWeeklyLimit" type="number" min="0" step=".5" value="${e.weeklyLimit}"><small class="field-help" id="empLimitHint">外籍學生預設 ${foreignLimit} 小時／週。</small></label>
+      <label class="field span-2"><span>每週計薪工時上限</span><input class="input" name="weeklyLimit" id="empWeeklyLimit" type="number" min="0" step=".5" value="${e.weeklyLimit}"><small class="field-help" id="empLimitHint">外籍學生預設 ${foreignLimit} 小時／週。</small></label>
       <label class="check-row span-2"><input type="checkbox" name="noBreak" id="empNoBreak" ${e.noBreak?"checked":""}> 固定早班／上班不扣休息時間（選「平日早班」會自動勾選，可自行調整）</label>
       <label class="field span-2"><span>可以做的工作</span><div class="checkbox-grid">${workBoxes("works",e.allowedWorkTypeIds)}</div></label>
       <label class="field span-2"><span>主要工作・平日</span><div class="checkbox-grid">${workBoxes("primaryWeekday",e.primaryWeekday)}</div><small class="field-help">AI／排班時，平日優先推薦負責這些工作的人（需同時在「可以做的工作」中）。</small></label>
@@ -487,7 +492,7 @@ function openEmployeeModal(id=null){
     // 主要工作必須落在可做工作範圍內
     const primaryWeekday=fd.getAll("primaryWeekday").filter(w=>works.includes(w));
     const primaryWeekend=fd.getAll("primaryWeekend").filter(w=>works.includes(w));
-    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,phone:(fd.get("phone")||"").trim(),employmentType:fd.get("employmentType"),shiftClass:fd.get("shiftClass"),noBreak:fd.get("noBreak")==="on",weeklyLimit:Number(fd.get("weeklyLimit")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,active:fd.get("active")==="on"});
+    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,employmentType:fd.get("employmentType"),shiftClass:fd.get("shiftClass"),noBreak:fd.get("noBreak")==="on",weeklyLimit:Number(fd.get("weeklyLimit")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,active:fd.get("active")==="on"});
     if(!id)state.data.employees.push(e);save();closeModal()
   }
 }

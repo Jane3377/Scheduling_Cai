@@ -91,7 +91,14 @@
         <div class="section-toolbar end">
           <button class="primary-btn" id="addWorktypeBtn">＋ 新增工作</button>
         </div>
-        <div id="worktypeCards" class="card-grid"></div>
+        <div class="panel table-panel">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>工作</th><th>套用休息</th><th>狀態</th><th></th></tr></thead>
+              <tbody id="worktypesTable"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section class="view" id="scheduleView">
