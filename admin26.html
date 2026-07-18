@@ -13,8 +13,8 @@
 <body>
   <div id="pinGate" class="pin-gate">
     <div class="pin-card">
-      <div class="brand-mark large-mark">蔡</div>
-      <h1>後台管理</h1>
+      <div class="brand-mark large-mark" id="pinBrandMark">蔡</div>
+      <h1 id="pinTitle">排班管理系統</h1>
       <p>請輸入 PIN 碼進入</p>
       <input id="pinInput" class="input big-input" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN 碼" />
       <button id="pinSubmit" class="primary-btn full">進入</button>
@@ -250,7 +250,17 @@
           <div id="nationalHolidayList" class="demand-list"></div>
         </div>
         <div class="panel maintenance-card settings-section hidden" data-sec="maintenance">
-          <h3>資料維護</h3>
+          <h3>後台 PIN 碼</h3>
+          <p>進入後台管理時需輸入的密碼，預設 1234。修改後下次進入即生效。</p>
+          <form id="pinChangeForm" class="form-grid pin-change-form">
+            <label class="field"><span>目前 PIN 碼</span><input class="input" type="password" name="currentPin" inputmode="numeric" autocomplete="off"></label>
+            <label class="field"><span>新 PIN 碼</span><input class="input" type="password" name="newPin" inputmode="numeric" autocomplete="off"></label>
+            <label class="field"><span>再次輸入新 PIN 碼</span><input class="input" type="password" name="confirmPin" inputmode="numeric" autocomplete="off"></label>
+            <div class="span-2"><button class="primary-btn" type="submit">更新 PIN 碼</button></div>
+            <div id="pinChangeMsg" class="span-2"></div>
+          </form>
+          <hr class="soft-divider" />
+          <h3>清空所有資料</h3>
           <p>清空所有資料（員工、工作、班次、可上班時間等）。此動作無法復原，建議先到員工／工作管理匯出備份。</p>
           <button type="button" class="ghost-btn" id="resetDemoBtn">清空所有資料</button>
         </div>

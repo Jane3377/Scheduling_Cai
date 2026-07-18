@@ -153,6 +153,8 @@ function applyBranding(){
   const full=name?`${name}排班管理系統`:"排班管理系統";
   const bn=byId("brandName");if(bn)bn.textContent=name||"排班管理系統";
   const bm=byId("brandMark");if(bm&&name)bm.textContent=name.slice(0,1);
+  const pt=byId("pinTitle");if(pt)pt.textContent=full;
+  const pbm=byId("pinBrandMark");if(pbm&&name)pbm.textContent=name.slice(0,1);
   document.title=`${full}｜主管後台`;
 }
 function syncAvailPage(){
@@ -707,7 +709,6 @@ function renderStoreSettings(){
       <label class="field"><span>休息開始時間</span><input class="input" type="time" name="breakStart" value="${cfg.breakStart}"></label>
       <label class="field"><span>休息結束時間</span><input class="input" type="time" name="breakEnd" value="${cfg.breakEnd}"></label>
       <label class="field"><span>外籍學生預設每週工時上限</span><input class="input" type="number" min="0" step="1" name="foreignDefaultLimit" value="${cfg.foreignDefaultLimit}"></label>
-      <label class="field"><span>後台 PIN 碼</span><input class="input" name="adminPin" value="${cfg.adminPin||"1234"}"><small class="field-help">進入後台管理時需輸入，預設 1234。</small></label>
       <div class="field span-2"><span>每週公休日（可多選）</span><div class="checkbox-grid">${dayBoxes}</div></div>
       <div class="modal-actions span-2"><button class="primary-btn" type="submit">儲存店家設定</button></div>
     </div>`;
@@ -723,7 +724,6 @@ function renderStoreSettings(){
       businessStart:bs,businessEnd:be,
       breakStart:brs,breakEnd:bre,
       foreignDefaultLimit:Number(fd.get("foreignDefaultLimit")||0),
-      adminPin:(fd.get("adminPin")||"1234").trim()||"1234",
       closedDays:fd.getAll("closedDays").map(Number)
     });
     save();alert("已儲存店家設定");
@@ -1053,6 +1053,19 @@ function init(){
   document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availPage=b.dataset.atab;syncAvailPage()});
   document.querySelectorAll("#settingsTabs .staff-tab").forEach(b=>b.onclick=()=>{state.settingsTab=b.dataset.sec;syncSettingsTab()});
   byId("resetDemoBtn").onclick=()=>{if(confirm("確定清空所有資料？此動作無法復原（建議先匯出備份）。")){state.data=defaultData();save()}};
+  byId("pinChangeForm")?.addEventListener("submit",e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const cur=(fd.get("currentPin")||"").trim(),np=(fd.get("newPin")||"").trim(),cp=(fd.get("confirmPin")||"").trim();
+    const ref=settings().adminPin||"1234";
+    const msg=byId("pinChangeMsg");
+    const bad=t=>{if(msg){msg.textContent=t;msg.className="span-2 form-error";}};
+    if(cur!==ref)return bad("目前 PIN 碼不正確");
+    if(!/^\d{4,}$/.test(np))return bad("新 PIN 碼請至少 4 位數字");
+    if(np!==cp)return bad("兩次輸入的新 PIN 碼不一致");
+    settings().adminPin=np;save();e.target.reset();
+    if(msg){msg.textContent="✓ PIN 碼已更新，下次進入後台生效。";msg.className="span-2 success-note";}
+  });
   byId("exportEmployeesBtn")?.addEventListener("click",()=>exportBackup("employees"));
   byId("importEmployeesBtn")?.addEventListener("click",()=>byId("importEmployeesFile").click());
   byId("importEmployeesFile")?.addEventListener("change",e=>{importBackup("employees",e.target.files[0]);e.target.value="";});
