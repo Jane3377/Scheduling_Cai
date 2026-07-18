@@ -200,8 +200,13 @@
         </div>
         <div class="panel demand-card" style="padding:22px">
           <div class="demand-head">
-            <div><h3>國定假日</h3><p>匯入後只會在月曆上「標示」假日名稱，不會自動公休；是否公休由您在每個假日按「設為公休」決定。</p></div>
-            <button type="button" class="secondary-btn" id="importHolidaysBtn">匯入 2026 國定假日</button>
+            <div><h3>國定假日</h3><p>匯入後只會在月曆上「標示」假日名稱，不會自動公休；是否公休由您在每個假日按「設為公休」決定。也可用下方欄位自行新增假日（新年度或補班補假調整時使用）。</p></div>
+            <button type="button" class="secondary-btn" id="importHolidaysBtn">匯入台灣國定假日</button>
+          </div>
+          <div class="holiday-add">
+            <input type="date" id="nhDate" class="input" />
+            <input type="text" id="nhName" class="input" placeholder="假日名稱（例如 補班日、公司紀念日）" />
+            <button type="button" class="secondary-btn" id="addNationalHolidayBtn">新增假日</button>
           </div>
           <div id="nationalHolidayList" class="demand-list"></div>
         </div>

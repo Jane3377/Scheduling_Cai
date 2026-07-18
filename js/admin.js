@@ -107,12 +107,17 @@ function settings(){
   s.nationalHolidays=s.nationalHolidays||[];
   return s;
 }
-// 內建 2026 年臺灣國定假日（僅供標示、參考用，可自行增刪；是否公休由店家自訂）
-const TW_HOLIDAYS_2026=[
+// 內建臺灣國定假日（僅供標示、參考用，可自行增刪；是否公休由店家自訂）
+// 註：2027 農曆假日與補假為預估，正式日期以行政院公告為準。
+const TW_HOLIDAYS=[
   ["2026-01-01","元旦"],["2026-02-16","除夕"],["2026-02-17","春節"],["2026-02-18","春節"],["2026-02-19","春節"],
   ["2026-02-28","和平紀念日"],["2026-04-04","兒童節"],["2026-04-05","清明節"],["2026-04-06","清明節補假"],
   ["2026-05-01","勞動節"],["2026-06-19","端午節"],["2026-09-25","中秋節"],["2026-09-28","教師節"],
-  ["2026-10-10","國慶日"],["2026-10-25","臺灣光復節"],["2026-12-25","行憲紀念日"]
+  ["2026-10-10","國慶日"],["2026-10-25","臺灣光復節"],["2026-12-25","行憲紀念日"],
+  ["2027-01-01","元旦"],["2027-02-05","除夕"],["2027-02-06","春節"],["2027-02-07","春節"],["2027-02-08","春節"],
+  ["2027-02-28","和平紀念日"],["2027-03-01","和平紀念日補假"],["2027-04-04","兒童節"],["2027-04-05","清明節"],["2027-04-06","補假"],
+  ["2027-05-01","勞動節"],["2027-06-09","端午節"],["2027-09-15","中秋節"],["2027-09-28","教師節"],
+  ["2027-10-10","國慶日"],["2027-10-11","國慶日補假"],["2027-10-25","臺灣光復節"],["2027-12-25","行憲紀念日"]
 ];
 function overlapMinutes(aS,aE,bS,bE){return Math.max(0,Math.min(aE,bE)-Math.max(aS,bS))}
 // 自動休息：只有「工作設定為套用休息」且班次涵蓋店家休息時段時，才依重疊時間扣除。
@@ -805,9 +810,16 @@ function renderNationalHolidays(){
 }
 function importTaiwanHolidays(){
   const list=nationalHolidays();let added=0;
-  TW_HOLIDAYS_2026.forEach(([date,name])=>{if(!list.some(h=>h.date===date)){list.push({date,name});added++}});
+  TW_HOLIDAYS.forEach(([date,name])=>{if(!list.some(h=>h.date===date)){list.push({date,name});added++}});
   save();
-  alert(`已匯入 ${added} 個 2026 年臺灣國定假日，僅作標示。是否公休請在各假日按「設為公休」自行決定。`);
+  alert(`已匯入 ${added} 個臺灣國定假日（2026–2027），僅作標示。是否公休請在各假日按「設為公休」自行決定。`);
+}
+function addNationalHoliday(){
+  const date=byId("nhDate").value;if(!date){alert("請先選擇日期");return}
+  const name=(byId("nhName").value||"").trim();if(!name){alert("請輸入假日名稱");return}
+  const list=nationalHolidays();const ex=list.find(h=>h.date===date);
+  if(ex)ex.name=name;else list.push({date,name});
+  byId("nhName").value="";save();
 }
 function toggleHolidayClosed(date,name){
   const list=holidays();const i=list.findIndex(h=>h.date===date);
@@ -888,6 +900,7 @@ function init(){
   byId("addDemandBtn").onclick=()=>openDemandModal();
   byId("addHolidayBtn").onclick=addHoliday;
   byId("importHolidaysBtn").onclick=importTaiwanHolidays;
+  byId("addNationalHolidayBtn").onclick=addNationalHoliday;
   byId("schedPrev").onclick=()=>shiftSchedule(-1);
   byId("schedNext").onclick=()=>shiftSchedule(1);
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.onclick=()=>{state.scheduleMode=b.dataset.smode;renderSchedule()});
