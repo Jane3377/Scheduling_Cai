@@ -354,9 +354,9 @@ function renderSchedule(){
       const d=new Date(key+"T00:00:00"),closed=isClosedDay(key);
       const laid=layoutBlocks(state.data.shifts.filter(s=>s.date===key));
       const maxLanes=laid.reduce((m,b)=>Math.max(m,b.lanes),1);
-      const cw=Math.max(120,maxLanes*100); // 依重疊班次數自動加寬
+      const cw=Math.max(68,maxLanes*56); // 依重疊班次數自動加寬（固定寬、不撐滿）
       const blocks=laid.map(b=>shiftBlock(b.s,axis,true,b.lane,b.lanes)).join("");
-      return `<div class="dg-col" style="flex:1 1 ${cw}px;min-width:${cw}px"><div class="dg-col-head clickable ${key===state.selectedDate?"sel":""} ${key===toDateKey(today)?"today":""}" onclick="selectDate('${key}')"><strong>${d.getMonth()+1}/${d.getDate()}</strong><span>${"日一二三四五六"[d.getDay()]}</span></div><div class="dg-track ${closed?"closed":""}" data-date="${key}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
+      return `<div class="dg-col" style="flex:0 0 ${cw}px;min-width:${cw}px"><div class="dg-col-head clickable ${key===state.selectedDate?"sel":""} ${key===toDateKey(today)?"today":""}" onclick="selectDate('${key}')"><strong>${d.getMonth()+1}/${d.getDate()}</strong><span>${"日一二三四五六"[d.getDay()]}</span></div><div class="dg-track ${closed?"closed":""}" data-date="${key}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
     }).join("");
     grid.innerHTML=`<div class="dg">${timeGutter(axis)}${cols}</div>`;
   }else{
@@ -370,9 +370,9 @@ function renderSchedule(){
       const shifts=dayShifts.filter(s=>s.workTypeId===w.id);
       const laid=layoutBlocks(shifts);
       const maxLanes=laid.reduce((m,b)=>Math.max(m,b.lanes),1);
-      const cw=Math.max(130,maxLanes*130); // 同一工作多人同時上班時自動加寬
+      const cw=Math.max(100,maxLanes*96); // 同一工作多人同時上班時自動加寬（固定寬、不撐滿）
       const blocks=laid.map(b=>shiftBlock(b.s,axis,false,b.lane,b.lanes)).join("");
-      return `<div class="dg-col" style="flex:1 1 ${cw}px;min-width:${cw}px"><div class="dg-col-head" style="border-top-color:${w.color}"><strong>${w.name}</strong><span>${shifts.length} 人</span></div><div class="dg-track ${closed?"closed":""}" data-date="${state.selectedDate}" data-work="${w.id}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
+      return `<div class="dg-col" style="flex:0 0 ${cw}px;min-width:${cw}px"><div class="dg-col-head" style="border-top-color:${w.color}"><strong>${w.name}</strong><span>${shifts.length} 人</span></div><div class="dg-track ${closed?"closed":""}" data-date="${state.selectedDate}" data-work="${w.id}" style="height:${axis.height}px;--slot:${SLOT_H}px">${blocks}</div></div>`;
     }).join("");
     grid.innerHTML=`<div class="dg">${timeGutter(axis)}${cols||`<div class="empty-state">尚未設定任何工作</div>`}</div>`;
   }
@@ -398,6 +398,37 @@ function shiftSchedule(delta){
   const d=new Date(state.selectedDate+"T00:00:00");
   d.setDate(d.getDate()+delta*(state.scheduleMode==="week"?7:1));
   selectDate(toDateKey(d));
+}
+/* ---------- 匯出班表（Excel/CSV，週或月） ---------- */
+function scheduleRows(mode){
+  let start,end;
+  if(mode==="week"){[start,end]=weekRange(state.selectedDate);}
+  else{const d=new Date(state.selectedDate+"T00:00:00");start=toDateKey(new Date(d.getFullYear(),d.getMonth(),1));end=toDateKey(new Date(d.getFullYear(),d.getMonth()+1,0));}
+  const days=datesInRange(start,end);
+  const dayHead=k=>{const dd=new Date(k+"T00:00:00");return `${dd.getMonth()+1}/${dd.getDate()}(${"日一二三四五六"[dd.getDay()]})`};
+  const cellFor=(k,eid)=>state.data.shifts.filter(s=>s.date===k&&s.employeeId===eid).sort((a,b)=>mins(a.start)-mins(b.start))
+    .map(s=>{const w=worktype(s.workTypeId),sub=subWorkText(s);return `${w?w.name:""}${sub?`＋${sub}`:""} ${s.start}-${s.end}`}).join(" / ");
+  const rows=[["員工",...days.map(dayHead),"合計工時"]];
+  state.data.employees.filter(e=>e.active).forEach(e=>{
+    let total=0;
+    const cells=days.map(k=>{state.data.shifts.filter(s=>s.date===k&&s.employeeId===e.id).forEach(s=>total+=durationHours(s));return cellFor(k,e.id)});
+    rows.push([e.name,...cells,fmtNum(total)]);
+  });
+  // 待指派班次（若有）
+  const unassigned=days.map(k=>state.data.shifts.filter(s=>s.date===k&&!s.employeeId).sort((a,b)=>mins(a.start)-mins(b.start)).map(s=>{const w=worktype(s.workTypeId);return `${w?w.name:""} ${s.start}-${s.end}`}).join(" / "));
+  if(unassigned.some(x=>x))rows.push(["(待指派)",...unassigned,""]);
+  return {rows,start,end};
+}
+function csvEscape(v){v=String(v==null?"":v);return /[",\n\r]/.test(v)?`"${v.replace(/"/g,'""')}"`:v}
+function exportSchedule(mode){
+  const {rows,start,end}=scheduleRows(mode);
+  const csv="﻿"+rows.map(r=>r.map(csvEscape).join(",")).join("\r\n");
+  const store=(settings().storeName||"班表").trim();
+  const fname=mode==="week"?`${store}_週班表_${start}_至_${end}.csv`:`${store}_月班表_${start.slice(0,7)}.csv`;
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
 
 
@@ -968,6 +999,8 @@ function init(){
   document.querySelectorAll("[data-quick='add-shift']").forEach(b=>b.onclick=()=>openShiftModal());
   byId("schedAddBtn").onclick=()=>openShiftModal();
   byId("applyDemandBtn").onclick=()=>applyDemand(state.selectedDate);
+  byId("exportWeekBtn").onclick=()=>exportSchedule("week");
+  byId("exportMonthBtn").onclick=()=>exportSchedule("month");
   byId("addDemandBtn").onclick=()=>openDemandModal();
   byId("addHolidayBtn").onclick=addHoliday;
   byId("importHolidaysBtn").onclick=importTaiwanHolidays;
