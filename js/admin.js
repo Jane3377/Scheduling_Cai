@@ -207,7 +207,11 @@ function syncSettingsTab(){
   document.querySelectorAll("#settingsTabs .staff-tab").forEach(b=>b.classList.toggle("active",b.dataset.sec===state.settingsTab));
   document.querySelectorAll("#storeSettingsView .settings-section").forEach(el=>el.classList.toggle("hidden",el.dataset.sec!==state.settingsTab));
 }
-function renderAll(){applyBranding();renderDashboard();renderEmployees();renderWorktypes();renderCalendar();renderSchedule();renderAvailabilityWindows();renderHours();renderAvailabilityOverview();syncAvailPage();renderStoreSettings();renderDemand();renderHolidays();renderNationalHolidays();syncSettingsTab()}
+function renderAll(){
+  // 逐一保護：即使某個區塊出錯，也不讓整個畫面變空白
+  [applyBranding,renderDashboard,renderEmployees,renderWorktypes,renderCalendar,renderSchedule,renderAvailabilityWindows,renderHours,renderAvailabilityOverview,syncAvailPage,renderStoreSettings,renderDemand,renderHolidays,renderNationalHolidays,syncSettingsTab]
+    .forEach(fn=>{try{fn()}catch(err){console.error("render error:",fn.name,err)}});
+}
 function renderDashboard(){
   const active=state.data.employees.filter(e=>e.active).length, month="2026-07";
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
@@ -248,9 +252,9 @@ function renderDashboard(){
   byId("dashboardWarnings").innerHTML=warns.length?warns.map(w=>`<div class="list-item"><div class="list-icon">⚠</div><div class="list-main"><strong>${w.t}</strong><span>${w.d}</span></div></div>`).join(""):`<div class="empty-state">目前沒有明顯衝突</div>`;
 }
 function shiftListItem(s){
-  const e=employee(s.employeeId),w=worktype(s.workTypeId);
+  const e=employee(s.employeeId),w=worktype(s.workTypeId),c=w?.color||"#999";
   const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
-  return `<div class="list-item"><div class="list-icon" style="background:${w.color}22;color:${w.color}">●</div><div class="list-main"><strong>${e?e.name:"待指派"}｜${w.name}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span></div></div>`
+  return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${e?e.name:"待指派"}｜${w?w.name:"（已刪除工作）"}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span></div></div>`
 }
 function renderEmployees(){
   const q=(byId("employeeSearch")?.value||"").trim().toLowerCase(),f=byId("employeeStatusFilter")?.value||"all";
@@ -579,7 +583,20 @@ function openWorktypeModal(id=null){
   colorInput.oninput=()=>markActive(colorInput.value);
   byId("modalForm").onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);const applyBreak=fd.get("applyBreak")==="on";Object.assign(w,{name:fd.get("name").trim(),color:fd.get("color"),applyBreak,defaultBreak:applyBreak?(w.defaultBreak||90):0,active:fd.get("active")==="on"});if(!id)state.data.workTypes.push(w);save();closeModal()}
 }
-function deleteWorktype(id){if(confirm("確定刪除這個工作？")){state.data.workTypes=state.data.workTypes.filter(x=>x.id!==id);save();closeModal()}}
+function deleteWorktype(id){
+  const shiftCount=state.data.shifts.filter(s=>s.workTypeId===id).length;
+  const msg=shiftCount?`此工作已被 ${shiftCount} 個班次使用，刪除後這些班次會顯示「已刪除工作」（可自行改工作或刪除）。確定刪除？`:"確定刪除這個工作？";
+  if(!confirm(msg))return;
+  // 一併清除員工技能／主要工作與每日需求中的參照，避免殘留
+  state.data.employees.forEach(e=>{
+    e.allowedWorkTypeIds=(e.allowedWorkTypeIds||[]).filter(x=>x!==id);
+    e.primaryWeekday=(e.primaryWeekday||[]).filter(x=>x!==id);
+    e.primaryWeekend=(e.primaryWeekend||[]).filter(x=>x!==id);
+  });
+  settings().dailyDemand=getDemand().filter(r=>r.workTypeId!==id);
+  state.data.workTypes=state.data.workTypes.filter(x=>x.id!==id);
+  save();closeModal();
+}
 function isPrimaryWork(e,date,workTypeId){
   const list=isWeekend(date)?(e.primaryWeekend||[]):(e.primaryWeekday||[]);
   return list.includes(workTypeId);

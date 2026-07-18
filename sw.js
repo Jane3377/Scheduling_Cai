@@ -1,6 +1,6 @@
 // 開發／測試階段採「網路優先」策略，確保每次都能載入最新版程式碼；
 // 離線時才回退到快取。每次調整資源時請一併更新 CACHE 版本字串。
-const CACHE = "smart-scheduler-v24";
+const CACHE = "smart-scheduler-v25";
 const ASSETS = ["./", "./index.html", "./admin26.html", "./css/main.css", "./js/admin.js", "./js/staff.js", "./manifest.json", "./icons/icon-192.svg", "./icons/icon-512.svg"];
 
 self.addEventListener("install", e => {
