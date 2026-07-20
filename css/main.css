@@ -303,9 +303,8 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .quick-yes,.quick-no{border:0;border-radius:12px;padding:14px;font-weight:800;font-size:15px}
 .quick-yes{background:#e8f5ed;color:var(--ok)}
 .quick-no{background:#fdeaea;color:var(--danger)}
-.day-detail{border:1px solid var(--line);border-radius:12px;padding:0 14px;margin-top:6px}
-.day-detail summary{padding:12px 0;cursor:pointer;color:var(--muted);font-size:13px}
-.day-detail[open]{padding-bottom:14px}
+.day-detail{border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:10px}
+.day-detail-title{margin:0 0 10px;color:var(--muted);font-size:13px;font-weight:700}
 .employee-smart-select optgroup{font-weight:800;color:var(--ink)}
 .staff-page{background:linear-gradient(180deg,#fff8f4 0,#f6f3f0 45%)}
 .staff-page-main{min-height:100vh;padding:0 20px 50px}

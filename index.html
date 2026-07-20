@@ -26,7 +26,7 @@
         <div class="brand-mark large-mark">蔡</div>
         <span class="eyebrow">Employee Portal</span>
         <h1>查看班表與填寫可上班時間</h1>
-        <p>輸入業主設定的員工編號即可進入，不需要密碼。</p>
+        <p>輸入你的員工編號即可進入。</p>
         <label class="field">
           <span>員工編號</span>
           <input id="staffNoInput" class="input big-input" autocomplete="off" inputmode="text" />
@@ -85,7 +85,7 @@
                 </div>
                 <div class="quick-week-actions">
                   <button class="qw-btn-yes" id="quickWeekAvailable">設為可上班</button>
-                  <button class="qw-btn-no" id="quickWeekUnavailable">設為不可上班</button>
+                  <button class="qw-btn-no" id="quickWeekUnavailable">設為整天不可上班</button>
                 </div>
                 <small class="field-help">先勾星期（可多選）與時間，例如每週一～五 12:00～18:00 都可上班；套用後仍可點個別日期修改。</small>
               </div>
@@ -116,15 +116,14 @@
                   <button class="quick-yes" id="quickDayYes">✓ 整天可上班</button>
                   <button class="quick-no" id="quickDayNo">✗ 整天不行</button>
                 </div>
-                <details class="day-detail">
-                  <summary>想指定時段（進階）</summary>
-                  <label class="check-row"><input type="checkbox" id="availabilityUnavailable" /> 這一天整天不可排班</label>
+                <div class="day-detail">
+                  <p class="day-detail-title">想指定時段</p>
                   <div class="time-pair">
                     <label class="field"><span>最早可上班</span><select id="availabilityStart" class="select"></select></label>
                     <label class="field"><span>最晚可下班</span><select id="availabilityEnd" class="select"></select></label>
                   </div>
                   <button id="saveAvailabilityBtn" class="primary-btn">儲存這一天</button>
-                </details>
+                </div>
                 <div id="availabilitySaved" class="success-note"></div>
               </div>
             </div>

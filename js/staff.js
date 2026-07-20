@@ -186,12 +186,8 @@ function loadSelectedDay(){
   if(!selectedAvailabilityDate)return;
   byId("availabilitySelectedDateTitle").textContent=formatDate(selectedAvailabilityDate);
   const a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
-  const unavailable=!!a?.unavailable;
-  byId("availabilityUnavailable").checked=unavailable;
-  byId("availabilityStart").innerHTML=timeOptions(a?.start||bizStart());
-  byId("availabilityEnd").innerHTML=timeOptions(a?.end||bizEnd());
-  byId("availabilityStart").disabled=unavailable;
-  byId("availabilityEnd").disabled=unavailable;
+  byId("availabilityStart").innerHTML=timeOptions(a&&!a.unavailable?a.start:bizStart());
+  byId("availabilityEnd").innerHTML=timeOptions(a&&!a.unavailable?a.end:bizEnd());
   const badge=byId("availabilityDayStatus");
   if(a?.unavailable){badge.textContent="不可排班";badge.className="badge warn"}
   else if(a){badge.textContent="已填寫";badge.className="badge ok"}
@@ -241,11 +237,11 @@ function quickWeekApply(type){
 }
 function saveSelectedDay(){
   if(!activeWindow||!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
-  const unavailable=byId("availabilityUnavailable").checked,start=byId("availabilityStart").value,end=byId("availabilityEnd").value;
-  if(!unavailable&&mins(end)<=mins(start)){alert("結束時間必須晚於開始時間");return}
+  const start=byId("availabilityStart").value,end=byId("availabilityEnd").value;
+  if(mins(end)<=mins(start)){alert("結束時間必須晚於開始時間");return}
   let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
   if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:selectedAvailabilityDate};data.availability.push(a)}
-  Object.assign(a,{unavailable,start,end});
+  Object.assign(a,{unavailable:false,start,end}); // 指定時段＝可上班；整天不行請用上方按鈕
   persist();
   byId("availabilitySaved").textContent="已儲存";
   setTimeout(()=>byId("availabilitySaved").textContent="",1600);
@@ -259,7 +255,6 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active")});
   byId("availabilityStart").innerHTML=timeOptions("16:00");
   byId("availabilityEnd").innerHTML=timeOptions("22:00");
-  byId("availabilityUnavailable").onchange=e=>{byId("availabilityStart").disabled=e.target.checked;byId("availabilityEnd").disabled=e.target.checked};
   byId("saveAvailabilityBtn").onclick=saveSelectedDay;
   byId("staffPrevMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);renderAvailabilityCalendar()};
   byId("staffNextMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);renderAvailabilityCalendar()};
