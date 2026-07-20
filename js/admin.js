@@ -210,17 +210,20 @@ function renderDashboard(){
   byId("todayShifts").innerHTML=selected.length?selected.map(shiftListItem).join(""):`<div class="empty-state">今天尚未排班</div>`;
   const warns=[];
   if(fill&&fill.unfilled.length&&!fill.window.defaultAvailable)warns.push({t:`${fill.unfilled.length} 人尚未填寫可上班時間`,d:fill.unfilled.map(e=>e.name).join("、")});
-  // 固定班次缺額（未來 14 天）：只提醒「已經開始排、但還沒排滿」的日子，避免整批未排的未來日誤報
+  // 固定班次缺額（未來 14 天）：只在「當天已指派人」時才檢查，並以實際涵蓋人數（時間有重疊即算）比對，
+  // 避免只是有待指派/複製過來的班次、或時間跟模板不同就誤報缺人。待指派另有專屬提醒。
   const demandWarns=[];
   for(let i=0;i<14;i++){
     const d=new Date(today);d.setDate(d.getDate()+i);const key=toDateKey(d);
     if(isClosedDay(key))continue;
-    if(!state.data.shifts.some(s=>s.date===key))continue; // 這天完全還沒排班就不算缺人
-    demandGaps(key).forEach(r=>{
-      if(r.gap>0&&workAppliesOnDate(worktype(r.workTypeId),key)){
-        const w=worktype(r.workTypeId);
-        demandWarns.push({t:`${formatDate(key)} 缺 ${r.gap} 位 ${w?.name||""}`,d:`固定班次需 ${r.count} 人・${r.start}～${r.end}`});
-      }
+    const dayShifts=state.data.shifts.filter(s=>s.date===key);
+    if(!dayShifts.some(s=>s.employeeId))continue; // 尚未指派任何人 → 不在此報缺（交給「未指派」提醒）
+    demandForWeekday(d.getDay()).forEach(r=>{
+      const w=worktype(r.workTypeId);
+      if(!workAppliesOnDate(w,key))return;
+      const covered=dayShifts.filter(s=>s.employeeId&&s.workTypeId===r.workTypeId&&mins(s.start)<mins(r.end)&&mins(s.end)>mins(r.start)).length;
+      const gap=r.count-covered;
+      if(gap>0)demandWarns.push({t:`${formatDate(key)} 缺 ${gap} 位 ${w?w.name:""}`,d:`固定班次需 ${r.count} 人・${r.start}～${r.end}`});
     });
   }
   demandWarns.slice(0,6).forEach(x=>warns.push(x));
