@@ -631,6 +631,11 @@ function openAvailabilityWindowModal(id=null){
     // 不同區段的「可填寫排班日期」不可重疊
     const clash=windows.find(x=>x.id!==w.id&&targetStart<=x.targetEnd&&targetEnd>=x.targetStart);
     if(clash){alert(`可填寫排班日期與區段「${clash.name}」重疊（${formatDate(clash.targetStart)}～${formatDate(clash.targetEnd)}），請調整日期不要衝突。`);return}
+    // 若原本是「預設全部可上班」且仍維持，範圍縮小而被移出的日期，先把預設寫成實際紀錄保留下來（避免改範圍就歸零）
+    if(id&&w.defaultAvailable&&fd.get("defaultAvailable")==="on"&&w.targetStart&&w.targetEnd){
+      const dropped=datesInRange(w.targetStart,w.targetEnd).filter(d=>d<targetStart||d>targetEnd);
+      if(dropped.length)materializeDefaultForDates(dropped);
+    }
     Object.assign(w,{
       name:fd.get("name").trim(),
       openStart,openEnd,targetStart,targetEnd,
@@ -884,11 +889,22 @@ function effectiveAvail(employeeId,dateKey){
   }
   return undefined;
 }
-// 某員工在某填寫區段是否「真的自己填過」（在目標排班日期範圍內有任一筆紀錄）。
-// 註：預設全部可上班的區段不算已填——那只是後台的預設值，不代表員工本人已確認。
+// 某員工在某填寫區段是否「真的自己填過」（有非預設的紀錄）。預設值(_default)不算已填。
 function hasFilled(employeeId,w){
   if(!w)return false;
-  return state.data.availability.some(a=>a.employeeId===employeeId&&a.date>=w.targetStart&&a.date<=w.targetEnd);
+  return state.data.availability.some(a=>a.employeeId===employeeId&&!a._default&&a.date>=w.targetStart&&a.date<=w.targetEnd);
+}
+// 把指定日期的「預設全部可上班」寫成實際紀錄（僅補沒有紀錄的員工），讓它不隨區段範圍改變而消失
+function materializeDefaultForDates(dates){
+  const bs=settings().businessStart,be=settings().businessEnd;
+  const actives=state.data.employees.filter(e=>e.active);
+  dates.forEach(d=>{
+    if(isClosedDay(d))return;
+    actives.forEach(e=>{
+      if(!state.data.availability.find(a=>a.employeeId===e.id&&a.date===d))
+        state.data.availability.push({id:uid("a"),employeeId:e.id,date:d,unavailable:false,start:bs,end:be,_default:true});
+    });
+  });
 }
 function windowFillStatus(w){
   if(!w)return null;
@@ -1156,6 +1172,7 @@ function availQuickSet(employeeId,dateKey,type){
   }
   if(!rec){rec={id:uid("a"),employeeId,date:dateKey};list.push(rec)}
   Object.assign(rec,{unavailable:type==="no",start:rec.start||bs,end:rec.end||be});
+  delete rec._default; // 主管明確設定 → 不再是「預設」
   save();
 }
 // 一列：左側資訊 + 狀態 + 快速勾選（可上班／整天不可／詳細時間）
@@ -1231,6 +1248,7 @@ function openAvailEditModal(employeeId,dateKey){
     let rec=list.find(x=>x.employeeId===employeeId&&x.date===dateKey);
     if(!rec){rec={id:uid("a"),employeeId,date:dateKey};list.push(rec)}
     Object.assign(rec,{unavailable:st==="off",start:s,end:e});
+    delete rec._default; // 主管明確設定 → 不再是「預設」
     save();closeModal();
   };
 }
