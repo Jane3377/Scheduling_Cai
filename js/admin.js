@@ -507,6 +507,70 @@ function exportSchedule(mode){
   const period=mode==="week"?`${start}_至_${end}`:start.slice(0,7);
   downloadCSV(reportFileName(mode==="week"?"週班表":"月班表",period),rows);
 }
+// 列印友善的週班表：開新視窗、乾淨版面、A4 橫向、自動列印（可貼公佈欄）
+function printWeekSchedule(){
+  const [a,b]=weekRange(state.selectedDate);
+  const days=datesInRange(a,b);
+  const store=(settings().storeName||"").trim();
+  const actives=state.data.employees.filter(e=>e.active);
+  const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const dow="日一二三四五六";
+  const usedWorks=[...new Set(state.data.shifts.filter(s=>s.date>=a&&s.date<=b).map(s=>s.workTypeId))].map(worktype).filter(Boolean);
+  const cellFor=(d,eid)=>{
+    const ss=state.data.shifts.filter(s=>s.date===d&&s.employeeId===eid).sort((x,y)=>mins(x.start)-mins(y.start));
+    if(!ss.length)return `<span class="off">·</span>`;
+    return ss.map(s=>{const w=worktype(s.workTypeId),sub=subWorkText(s),note=(s.note||"").trim();
+      return `<div class="pc"><span class="dot" style="background:${w?w.color:'#888'}"></span><b>${esc(w?w.name:'')}${sub?'＋'+esc(sub):''}</b><span class="tm">${s.start}–${s.end}</span>${note?`<span class="nt">📝 ${esc(note)}</span>`:''}</div>`;
+    }).join("");
+  };
+  const body=actives.map((e,i)=>{
+    let total=0;days.forEach(d=>state.data.shifts.filter(s=>s.date===d&&s.employeeId===e.id).forEach(s=>total+=durationHours(s)));
+    const tds=days.map(d=>isClosedDay(d)?`<td class="cl"><span class="off">公休</span></td>`:`<td>${cellFor(d,e.id)}</td>`).join("");
+    return `<tr class="${i%2?'z':''}"><th class="emp">${esc(e.name)}<span>${esc(e.employmentType)}</span></th>${tds}<td class="tot">${fmtNum(total)}h</td></tr>`;
+  }).join("")||`<tr><td colspan="${days.length+2}" class="off" style="padding:24px">本週尚無在職員工</td></tr>`;
+  const legend=usedWorks.length?`<div class="legend">${usedWorks.map(w=>`<span><i style="background:${w.color}"></i>${esc(w.name)}</span>`).join("")}</div>`:"";
+  const html=`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${esc(store)} 週班表 ${a}~${b}</title>
+  <style>
+    @page{size:A4 landscape;margin:10mm}
+    *{box-sizing:border-box}
+    body{font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;color:#241f1c;margin:0;padding:14px}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #b94b2f;padding-bottom:8px;margin-bottom:12px}
+    .head h1{margin:0;font-size:22px}.head .rng{font-size:16px;color:#555;font-weight:700}
+    .legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px;font-size:12px;color:#555}
+    .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+    table{width:100%;border-collapse:collapse;table-layout:fixed}
+    th,td{border:1px solid #d8cfc8;padding:6px 7px;vertical-align:top;font-size:12px}
+    thead th{background:#f6ece7;color:#8f3521;text-align:center;font-size:12.5px}
+    thead .dw{display:block;font-size:11px;color:#a06a55;font-weight:400}
+    tr.z td,tr.z th{background:#faf7f5}
+    .emp{width:96px;text-align:left;background:#fff}.emp span{display:block;color:#888;font-weight:400;font-size:10.5px}
+    .tot{width:52px;text-align:center;font-weight:700;background:#fff}
+    td.cl{background:#f1eeec}
+    .pc{margin-bottom:4px;line-height:1.35}
+    .pc:last-child{margin-bottom:0}
+    .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:0}
+    .pc b{font-weight:700}.tm{display:block;color:#555;font-size:11px;margin-left:13px}
+    .nt{display:block;color:#b94b2f;font-size:10.5px;margin-left:13px}
+    .off{color:#bbb}
+    .foot{margin-top:10px;font-size:11px;color:#888;display:flex;justify-content:space-between}
+    @media print{.noprint{display:none}}
+    .noprint{margin-top:14px;text-align:center}
+    .noprint button{font-size:15px;padding:10px 22px;border-radius:10px;border:0;background:#b94b2f;color:#fff;cursor:pointer}
+  </style></head><body>
+    <div class="head"><h1>${esc(store||"週班表")}${store?"　週班表":""}</h1><div class="rng">${formatDate(a)} ～ ${formatDate(b)}</div></div>
+    ${legend}
+    <table>
+      <thead><tr><th class="emp">員工</th>${days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th>${dd.getMonth()+1}/${dd.getDate()}<span class="dw">星期${dow[dd.getDay()]}</span></th>`}).join("")}<th class="tot">合計</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <div class="foot"><span>實際排班以最新公布的班表為準。</span><span>列印時間：${new Date().toLocaleString("zh-TW")}</span></div>
+    <div class="noprint"><button onclick="window.print()">🖨 列印 / 另存 PDF</button></div>
+  </body></html>`;
+  const win=window.open("","_blank");
+  if(!win){alert("瀏覽器阻擋了新視窗，請允許彈出視窗後再試。");return;}
+  win.document.write(html);win.document.close();win.focus();
+  setTimeout(()=>{try{win.print()}catch(e){}},400);
+}
 // 統一的「下載 CSV」選擇器：先選週統計或月統計，再下載
 function openCsvChooser(subtitle,onPick){
   openModal("下載 CSV",subtitle,`
@@ -1643,6 +1707,7 @@ function init(){
   byId("applyDemandBtn").onclick=()=>applyDemand(state.selectedDate);
   byId("copyLastWeekBtn").onclick=()=>copyLastWeek();
   byId("exportScheduleBtn").onclick=()=>openCsvChooser("要下載哪個範圍的班表？",m=>exportSchedule(m));
+  byId("printWeekBtn").onclick=()=>printWeekSchedule();
   byId("addDemandBtn").onclick=()=>openDemandModal();
   byId("copyDemandBtn").onclick=()=>openCopyDemandModal();
   byId("fixedShiftBtn").onclick=()=>openFixedShiftModal();
