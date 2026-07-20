@@ -600,13 +600,15 @@ function openAvailabilityWindowModal(id=null){
     id:uid("aw"),name:"",openStart:"",openEnd:"",targetStart:"",targetEnd:"",enabled:true,note:"",defaultAvailable:false
   };
   const tk=toDateKey(today);
+  // 只有「新增」才限制最早今天；「編輯」既有區段不加 min，避免原本已開始（日期早於今天）的欄位被瀏覽器清成空白
+  const minAttr=id?"":`min="${tk}"`;
   openModal(id?"編輯開放區段":"新增開放區段","設定員工可進入填寫的期間，以及實際要填寫的排班日期",`
     <div class="form-grid">
       <label class="field span-2"><span>區段名稱</span><input class="input" name="name" required value="${w.name}" placeholder="例如 8月上半月可上班時間"></label>
-      <label class="field"><span>開放填寫起日</span><input class="input" type="date" name="openStart" min="${tk}" required value="${w.openStart}"></label>
-      <label class="field"><span>開放填寫迄日</span><input class="input" type="date" name="openEnd" min="${tk}" required value="${w.openEnd}"></label>
-      <label class="field"><span>可填寫排班起日</span><input class="input" type="date" name="targetStart" min="${tk}" required value="${w.targetStart}"></label>
-      <label class="field"><span>可填寫排班迄日</span><input class="input" type="date" name="targetEnd" min="${tk}" required value="${w.targetEnd}"></label>
+      <label class="field"><span>開放填寫起日</span><input class="input" type="date" name="openStart" ${minAttr} required value="${w.openStart}"></label>
+      <label class="field"><span>開放填寫迄日</span><input class="input" type="date" name="openEnd" ${minAttr} required value="${w.openEnd}"></label>
+      <label class="field"><span>可填寫排班起日</span><input class="input" type="date" name="targetStart" ${minAttr} required value="${w.targetStart}"></label>
+      <label class="field"><span>可填寫排班迄日</span><input class="input" type="date" name="targetEnd" ${minAttr} required value="${w.targetEnd}"></label>
       <label class="field span-2"><span>員工提示文字</span><textarea name="note" rows="3" placeholder="例如：請於期限內完成填寫">${w.note||""}</textarea></label>
       <label class="check-row span-2"><input type="checkbox" name="enabled" ${w.enabled?"checked":""}> 啟用此填寫區段</label>
       <label class="check-row span-2"><input type="checkbox" name="defaultAvailable" ${w.defaultAvailable?"checked":""}> 預設全部員工整天可上班（只要標記少數請假的人即可）</label>
@@ -620,9 +622,11 @@ function openAvailabilityWindowModal(id=null){
     ev.preventDefault();
     const fd=new FormData(ev.target);
     const openStart=fd.get("openStart"),openEnd=fd.get("openEnd"),targetStart=fd.get("targetStart"),targetEnd=fd.get("targetEnd");
-    if(openStart<tk){alert("開放填寫起日不可早於今天");return}
+    if(!openStart||!openEnd||!targetStart||!targetEnd){alert("請完整填寫開放填寫期間與可填寫排班日期");return}
+    // 新增時才要求最早今天；編輯既有區段（可能已開始）不強制，避免改一個日期就把其他日期擋掉
+    if(!id&&openStart<tk){alert("開放填寫起日不可早於今天");return}
     if(openEnd<openStart){alert("開放填寫迄日不可早於起日");return}
-    if(targetStart<tk){alert("可填寫排班起日不可早於今天");return}
+    if(!id&&targetStart<tk){alert("可填寫排班起日不可早於今天");return}
     if(targetEnd<targetStart){alert("可填寫排班迄日不可早於起日");return}
     // 不同區段的「可填寫排班日期」不可重疊
     const clash=windows.find(x=>x.id!==w.id&&targetStart<=x.targetEnd&&targetEnd>=x.targetStart);
