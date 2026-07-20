@@ -184,15 +184,16 @@ function renderAll(){
     .forEach(fn=>{try{fn()}catch(err){console.error("render error:",fn.name,err)}});
 }
 function renderDashboard(){
-  const active=state.data.employees.filter(e=>e.active).length, month="2026-07";
+  const active=state.data.employees.filter(e=>e.active).length, month=toDateKey(today).slice(0,7);
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
   const hours=shifts.reduce((n,s)=>n+durationHours(s),0);
   const avail=state.data.availability.filter(a=>a.date.startsWith(month)).length;
   const fill=windowFillStatus(currentWindow());
+  const monthNum=Number(month.slice(5));
   byId("dashboardStats").innerHTML=[
     ["在職員工",active,"可安排人力"],
-    ["本月班次",shifts.length,"目前已建立"],
-    ["本月計薪工時",fmtHours(hours),"依班次自動計算"],
+    ["本月班次",shifts.length,`${monthNum} 月已建立`],
+    ["本月計薪工時",fmtHours(hours),`${monthNum} 月依班次自動計算`],
     ["可上班時間填寫",fill?`${fill.filled.length}／${fill.total}`:avail+" 筆",fill?`${fill.unfilled.length} 人未填`:"員工提交紀錄"]
   ].map(x=>`<div class="stat-card"><span>${x[0]}</span><strong>${x[1]}</strong><small>${x[2]}</small></div>`).join("");
   byId("todayLabel").textContent=formatDate(state.selectedDate);
@@ -1125,6 +1126,26 @@ function demandGaps(dateKey){
     return {...r,filled,gap:Math.max(0,r.count-filled)};
   });
 }
+function addDays(dateKey,n){const d=new Date(dateKey+"T00:00:00");d.setDate(d.getDate()+n);return toDateKey(d)}
+// 把「上一週」整週班次複製到目前選取的這一週（同星期、同工作、同員工、同時段）
+function copyLastWeek(){
+  const [a,b]=weekRange(state.selectedDate);
+  const prevA=addDays(a,-7),prevB=addDays(b,-7);
+  const src=state.data.shifts.filter(s=>s.date>=prevA&&s.date<=prevB).sort((x,y)=>x.date.localeCompare(y.date));
+  if(!src.length){alert(`上一週（${formatDate(prevA)}～${formatDate(prevB)}）沒有班次可以複製。`);return}
+  const existing=state.data.shifts.filter(s=>s.date>=a&&s.date<=b).length;
+  const msg=existing
+    ? `本週（${formatDate(a)}～${formatDate(b)}）已有 ${existing} 個班次。\n將把上一週的 ${src.length} 個班次「加入」本週（不會刪除原有，之後可自行調整）。確定？`
+    : `將上一週的 ${src.length} 個班次複製到本週（${formatDate(a)}～${formatDate(b)}）？`;
+  if(!confirm(msg))return;
+  src.forEach(s=>{
+    const ns={...s,id:uid("s"),date:addDays(s.date,7)};
+    ns.breakMinutes=breakForShift(ns);
+    state.data.shifts.push(ns);
+  });
+  save();
+  alert(`已複製 ${src.length} 個班次到本週。`);
+}
 function applyDemand(dateKey){
   const allGaps=demandGaps(dateKey);
   if(!allGaps.length){alert(`星期${"日一二三四五六"[new Date(dateKey+"T00:00:00").getDay()]}尚未設定固定班次，請先按上方「固定班次設定」建立。`);return}
@@ -1154,6 +1175,10 @@ function updateSyncStatus(s){
   const el=byId("syncStatus");if(!el)return;
   const map={init:["◌","初始化"],connecting:["◌","連線中"],synced:["●","已同步"],saving:["◌","儲存中"],offline:["○","離線暫存"],local:["◍","本機模式"],error:["✕","雲端錯誤"]};
   const m=map[s]||map.local;el.className="sync-badge "+s;el.textContent=`${m[0]} ${m[1]}`;
+  const isLocal=(s==="local");
+  const nt=byId("sidebarNoteTitle"),nd=byId("sidebarNoteDesc");
+  if(nt)nt.textContent=isLocal?"本機模式":"雲端同步版";
+  if(nd)nd.textContent=isLocal?"資料僅存在此裝置瀏覽器":"資料儲存於雲端，多裝置即時同步";
 }
 function setupPinGate(){
   const gate=byId("pinGate");if(!gate)return;
@@ -1217,6 +1242,7 @@ function init(){
   document.querySelectorAll("[data-quick='add-shift']").forEach(b=>b.onclick=()=>openShiftModal());
   byId("schedAddBtn").onclick=()=>openShiftModal();
   byId("applyDemandBtn").onclick=()=>applyDemand(state.selectedDate);
+  byId("copyLastWeekBtn").onclick=()=>copyLastWeek();
   byId("exportWeekBtn").onclick=()=>exportSchedule("week");
   byId("exportMonthBtn").onclick=()=>exportSchedule("month");
   byId("addDemandBtn").onclick=()=>openDemandModal();
