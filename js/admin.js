@@ -494,13 +494,16 @@ function csvEscape(v){v=String(v==null?"":v);return /[",\n\r]/.test(v)?`"${v.rep
 /* ---------- 統一報表匯出（Excel 可開的 CSV，含 BOM、統一檔名） ---------- */
 // 檔名格式：店名_報表類型_期間.csv
 function reportFileName(type,period){const store=(settings().storeName||"報表").trim();return `${store}_${type}_${period}.csv`;}
-// rows 為二維陣列；統一輸出 UTF-8 BOM 的 CSV
-function downloadCSV(filename,rows){
-  const csv="﻿"+rows.map(r=>r.map(csvEscape).join(",")).join("\r\n");
-  const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+// 共用：把 Blob 觸發成瀏覽器下載（建立暫時 anchor 並在稍後釋放 URL）
+function triggerDownload(blob,filename){
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+// rows 為二維陣列；統一輸出 UTF-8 BOM 的 CSV
+function downloadCSV(filename,rows){
+  const csv="﻿"+rows.map(r=>r.map(csvEscape).join(",")).join("\r\n");
+  triggerDownload(new Blob([csv],{type:"text/csv;charset=utf-8;"}),filename);
 }
 function exportSchedule(mode){
   const {rows,start,end}=scheduleRows(mode);
@@ -1182,7 +1185,6 @@ function renderAvailabilityOverview(){
   else if(state.availMode==="date")root.innerHTML=availDateView();
   else root.innerHTML=availEmployeeView();
 }
-function availAt(employeeId,dateKey){return state.data.availability.find(a=>a.employeeId===employeeId&&a.date===dateKey)}
 function availMonthView(){
   const d=state.availCalDate,y=d.getFullYear(),m=d.getMonth();
   const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
@@ -1470,14 +1472,6 @@ function bestEmployeeFor(date,start,end,workTypeId){
   const ok=rows.filter(x=>x.eligible).sort((a,b)=>b.score-a.score);
   return ok[0]?.e.id||"";
 }
-// 對照某日需求與已排班次，回傳每筆需求的缺額
-function demandGaps(dateKey){
-  const wd=new Date(dateKey+"T00:00:00").getDay();
-  return demandForWeekday(wd).map(r=>{
-    const filled=state.data.shifts.filter(s=>s.date===dateKey&&s.workTypeId===r.workTypeId&&s.start===r.start&&s.end===r.end&&s.employeeId).length;
-    return {...r,filled,gap:Math.max(0,r.count-filled)};
-  });
-}
 function addDays(dateKey,n){const d=new Date(dateKey+"T00:00:00");d.setDate(d.getDate()+n);return toDateKey(d)}
 // 把「上一週」整週班次複製到目前選取的這一週（同星期、同工作、同員工、同時段）
 function copyLastWeek(){
@@ -1605,8 +1599,7 @@ function setupPinGate(){
   byId("pinInput").addEventListener("keydown",e=>{if(e.key==="Enter")submit()});
 }
 function download(filename,text){
-  const blob=new Blob([text],{type:"application/json;charset=utf-8;"});const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+  triggerDownload(new Blob([text],{type:"application/json;charset=utf-8;"}),filename);
 }
 function exportBackup(kind){
   const store=(settings().storeName||"備份").trim();
