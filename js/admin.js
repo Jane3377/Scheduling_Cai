@@ -48,6 +48,7 @@ function migrate(d){
     e.shiftClass=e.shiftClass||"一般";
     e.noBreak=e.noBreak||false;
     e.note=e.note||""; // 員工備註（例如勞健保註記）
+    e.hourlyWage=Number(e.hourlyWage)||0; // 時薪（用於人力成本試算）
     if(e.employmentType==="兼職")e.employmentType="工讀"; // 舊類型對應
   });
   (d.workTypes||[]).forEach(w=>{
@@ -88,6 +89,7 @@ function settings(){
   s.nationalHolidays=s.nationalHolidays||[];
   s.autoAvailableDates=s.autoAvailableDates||[]; // 持久保存的「預設全部可上班」日期，不隨區段增刪而消失
   s.autoPurgeDays=s.autoPurgeDays==null?365:Number(s.autoPurgeDays); // 超過幾天自動清除舊資料（0＝不清除），預設 365
+  s.publishLog=s.publishLog||[]; // 班表公布紀錄（給員工端顯示「幾號～幾號已更新」）
   return s;
 }
 // 內建臺灣國定假日（僅供標示、參考用，可自行增刪；是否公休由店家自訂）
@@ -530,8 +532,8 @@ function exportHours(mode){
   });
   const {key,dir}=state.hoursSort;
   data.sort((a,b)=>key==="total"?(a.sched-b.sched)*dir:a.e.name.localeCompare(b.e.name,"zh-Hant")*dir);
-  const rows=[["員工","員工編號","身分","每週上限","表訂工時","實際工時","差異","已核對"]];
-  data.forEach(d=>rows.push([d.e.name,d.e.employeeNo,d.e.employmentType,d.e.weeklyLimit||"",fmtNum(d.sched),fmtNum(d.actual),(d.diff>0?"+":"")+fmtNum(d.diff),`${d.v}/${d.total}`]));
+  const rows=[["員工","員工編號","身分","每週上限","時薪","表訂工時","實際工時","差異","預估薪資","已核對"]];
+  data.forEach(d=>{const wage=Number(d.e.hourlyWage)||0;rows.push([d.e.name,d.e.employeeNo,d.e.employmentType,d.e.weeklyLimit||"",wage||"",fmtNum(d.sched),fmtNum(d.actual),(d.diff>0?"+":"")+fmtNum(d.diff),wage?Math.round(d.sched*wage):"",`${d.v}/${d.total}`]);});
   const period=p.mode==="month"?p.start.slice(0,7):`${p.start}_至_${p.end}`;
   downloadCSV(reportFileName(p.mode==="month"?"月工時統計":"週工時統計",period),rows);
 }
@@ -676,7 +678,8 @@ function openEmployeeModal(id=null){
       <label class="field"><span>員工編號</span><input class="input" name="employeeNo" required value="${e.employeeNo}"></label>
       <label class="field"><span>身分類型</span><select class="select" name="employmentType" id="empType">${types.map(x=>`<option ${x===e.employmentType?"selected":""}>${x}</option>`).join("")}</select></label>
       <label class="field"><span>班別</span><select class="select" name="shiftClass" id="empShiftClass">${shiftClasses.map(x=>`<option ${x===e.shiftClass?"selected":""}>${x}</option>`).join("")}</select></label>
-      <label class="field span-2"><span>每週計薪工時上限</span><input class="input" name="weeklyLimit" id="empWeeklyLimit" type="number" min="0" step=".5" value="${e.weeklyLimit}"><small class="field-help" id="empLimitHint">外籍學生預設 ${foreignLimit} 小時／週。</small></label>
+      <label class="field"><span>每週計薪工時上限</span><input class="input" name="weeklyLimit" id="empWeeklyLimit" type="number" min="0" step=".5" value="${e.weeklyLimit}"><small class="field-help" id="empLimitHint">外籍學生預設 ${foreignLimit} 小時／週。</small></label>
+      <label class="field"><span>時薪（元）</span><input class="input" name="hourlyWage" type="number" min="0" step="1" value="${e.hourlyWage||0}"><small class="field-help">用於工時統計的人力成本試算，選填。</small></label>
       <label class="check-row span-2"><input type="checkbox" name="noBreak" id="empNoBreak" ${e.noBreak?"checked":""}> 固定早班／上班不扣休息時間（選「平日早班」會自動勾選，可自行調整）</label>
       <label class="field span-2"><span>可以做的工作</span><div class="checkbox-grid">${workBoxes("works",e.allowedWorkTypeIds)}</div></label>
       <label class="field span-2"><span>主要工作・平日</span><div class="checkbox-grid">${workBoxes("primaryWeekday",e.primaryWeekday,isWeekdayWork)}</div><small class="field-help">只列出平日會出現的工作；排班時平日優先推薦負責這些工作的人（需同時在「可以做的工作」中）。</small></label>
@@ -697,7 +700,7 @@ function openEmployeeModal(id=null){
     // 主要工作必須落在可做工作範圍內
     const primaryWeekday=fd.getAll("primaryWeekday").filter(w=>works.includes(w));
     const primaryWeekend=fd.getAll("primaryWeekend").filter(w=>works.includes(w));
-    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,employmentType:fd.get("employmentType"),shiftClass:fd.get("shiftClass"),noBreak:fd.get("noBreak")==="on",weeklyLimit:Number(fd.get("weeklyLimit")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,note:(fd.get("note")||"").trim(),active:fd.get("active")==="on"});
+    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,employmentType:fd.get("employmentType"),shiftClass:fd.get("shiftClass"),noBreak:fd.get("noBreak")==="on",weeklyLimit:Number(fd.get("weeklyLimit")||0),hourlyWage:Number(fd.get("hourlyWage")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,note:(fd.get("note")||"").trim(),active:fd.get("active")==="on"});
     if(!id)state.data.employees.push(e);save();closeModal()
   }
 }
@@ -1016,7 +1019,9 @@ function renderHours(){
     const vCount=ps.filter(s=>s.verified).length;
     const verifyCell=ps.length?`<span class="verify-chip ${vCount===ps.length?"done":""}">✓ ${vCount}/${ps.length}</span>`:`<span class="hmuted">–</span>`;
     const cells=showDaily?days.map(d=>{const h=shiftDayHours(e.id,d);return `<td class="hcell">${h?fmtNum(h):`<span class="hmuted">–</span>`}</td>`}).join(""):"";
-    const totalCell=weekMode?`<strong>${fmtNum(total)}</strong> / ${e.weeklyLimit||"—"}${note}`:`<strong>${fmtNum(total)}</strong>${note}`;
+    const wage=Number(e.hourlyWage)||0,cost=total*wage;
+    const costLine=wage>0?`<span class="cell-sub cost-sub">≈ ${fmtMoney(cost)}</span>`:"";
+    const totalCell=(weekMode?`<strong>${fmtNum(total)}</strong> / ${e.weeklyLimit||"—"}${note}`:`<strong>${fmtNum(total)}</strong>${note}`)+costLine;
     const expanded=state.hoursExpanded===e.id;
     const mainRow=`<tr class="hrow ${expanded?"open":""}" onclick="hoursToggle('${e.id}')">
       <td class="hname"><span class="hexp">${expanded?"▾":"▸"}</span><strong>${e.name}</strong>${foreign?`<span class="badge warn">外籍</span>`:`<span class="cell-sub">${e.employmentType}</span>`}</td>
@@ -1025,8 +1030,12 @@ function renderHours(){
     const detailRow=expanded?`<tr class="hours-detail-row"><td colspan="${colspan}">${hoursDetail(e,ps)}</td></tr>`:"";
     return mainRow+detailRow;
   }).join("");
-  wrap.innerHTML=`<table class="hours-matrix"><thead>${head}</thead><tbody>${body||`<tr><td>找不到符合條件的員工</td></tr>`}</tbody></table>`;
+  const totalCost=rows.reduce((n,{e,total})=>n+total*(Number(e.hourlyWage)||0),0);
+  const withWage=rows.filter(r=>Number(r.e.hourlyWage)>0).length;
+  const costSummary=withWage?`<div class="hours-cost-summary">本期預估人力成本 <strong>${fmtMoney(totalCost)}</strong>　<span>（依已設定時薪的 ${withWage} 位計算，表訂工時 × 時薪）</span></div>`:"";
+  wrap.innerHTML=`${costSummary}<table class="hours-matrix"><thead>${head}</thead><tbody>${body||`<tr><td>找不到符合條件的員工</td></tr>`}</tbody></table>`;
 }
+function fmtMoney(n){return "$"+Math.round(n).toLocaleString("en-US")}
 // 展開明細：逐筆班次表訂 vs 實際打卡，可編輯與核對
 function hoursDetail(e,ps){
   if(!ps.length)return `<div class="empty-state">此期間沒有班次</div>`;
@@ -1433,7 +1442,11 @@ function publishWeek(){
   const drafts=wsh.filter(s=>s.published===false);
   if(!drafts.length){alert("本週班次都已公布。");return}
   if(!confirm(`公布本週（${formatDate(a)}～${formatDate(b)}）？\n共 ${wsh.length} 個班次，其中 ${drafts.length} 個為新的／未公布。公布後員工就能在自己的班表看到。`))return;
-  wsh.forEach(s=>s.published=true);save();
+  wsh.forEach(s=>s.published=true);
+  // 記錄公布事件，供員工端顯示「幾號～幾號的班表已更新」
+  const log=settings().publishLog;log.push({start:a,end:b,at:Date.now()});
+  if(log.length>20)settings().publishLog=log.slice(-20);
+  save();
   alert("已公布本週班表，員工現在可以看到了。");
 }
 // 取消公布本週：員工端暫時看不到（不刪除班次）

@@ -85,6 +85,10 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 }
 .hours-matrix th.hsort{cursor:pointer;user-select:none;white-space:nowrap}
 .hours-matrix th.hsort:hover{color:var(--brand)}
+.hours-cost-summary{background:#fff7f4;border:1px solid #f0d9cf;border-radius:12px;padding:12px 16px;margin-bottom:12px;font-size:15px}
+.hours-cost-summary strong{color:var(--brand-dark);font-size:18px}
+.hours-cost-summary span{color:var(--muted);font-size:12.5px}
+.cost-sub{color:var(--brand-dark)!important;font-weight:600}
 .hrow{cursor:pointer}
 .hrow:hover{background:var(--brand-soft)}
 .hrow.open{background:var(--brand-soft)}
@@ -336,6 +340,10 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .next-shift-card{display:flex;justify-content:space-between;align-items:center;gap:20px;background:linear-gradient(135deg,#fff,#fbe9e2);border:1px solid #ebcfc4;border-radius:22px;padding:22px;margin:18px 0}
 .next-shift-card h2{margin:6px 0;font-size:24px}.next-shift-card p{margin:0;color:var(--muted)}
 .next-shift-time{font-size:34px;font-weight:800;color:var(--brand)}
+.publish-update-banner{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#e8f5ed;border:1px solid #b7dfc6;border-radius:16px;padding:14px 16px;margin:14px 0}
+.publish-update-banner .pub-update-main{flex:1;min-width:180px;display:grid;gap:3px}
+.publish-update-banner strong{color:var(--ok)}
+.publish-update-banner span{font-size:13px;color:var(--ink)}
 .availability-window-banner{display:grid;gap:5px;border-radius:16px;padding:15px 17px;margin:14px 0}
 .availability-window-banner.open{background:#eaf6ef;border:1px solid #b9ddc7;color:#245d3b}
 .availability-window-banner.closed{background:#f2efec;border:1px solid var(--line);color:var(--muted)}

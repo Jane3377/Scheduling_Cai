@@ -49,6 +49,21 @@ function googleCalUrl(s){
 }
 window.addShiftToCalendar=addShiftToCalendar;
 window.addAllToCalendar=addAllToCalendar;
+
+/* ---------- 班表公布通知（顯示幾號～幾號已更新） ---------- */
+function renderPublishUpdates(e){
+  const el=byId("publishUpdateBanner");if(!el)return;
+  const log=(data&&data.settings&&data.settings.publishLog)||[];
+  const seenKey="staffSeenPublish:"+e.id;
+  const lastSeen=Number(localStorage.getItem(seenKey)||0);
+  // 只顯示「比上次看過還新」且該員工在該範圍內有已公布班次的更新
+  const news=log.filter(p=>p.at>lastSeen&&data.shifts.some(s=>s.employeeId===e.id&&s.published!==false&&s.date>=p.start&&s.date<=p.end));
+  if(!news.length){el.className="publish-update-banner hidden";el.innerHTML="";return;}
+  const ranges=[...new Set(news.slice().sort((a,b)=>a.start.localeCompare(b.start)).map(p=>`${formatDate(p.start)}～${formatDate(p.end)}`))];
+  el.className="publish-update-banner";
+  el.innerHTML=`<div class="pub-update-main"><strong>📢 班表已更新</strong><span>${ranges.join("、")} 的班表已公布，記得查看並加入行事曆。</span></div><button type="button" class="ghost-btn small-btn" id="dismissPubBtn">知道了</button>`;
+  byId("dismissPubBtn").onclick=()=>{localStorage.setItem(seenKey,String(Date.now()));el.className="publish-update-banner hidden";el.innerHTML="";};
+}
 function bizStep(){return Number(storeCfg().timeStep)||30}
 function timeOptions(selected=""){
   const s=mins(bizStart()),e=mins(bizEnd()),step=bizStep();
@@ -140,6 +155,7 @@ function renderStaff(){
     <div class="next-shift-time">${next.start}</div>
   `:`<div><span class="eyebrow">下一班</span><h2>目前尚未排班</h2><p>完成排班後會顯示在這裡。</p></div>`;
 
+  renderPublishUpdates(e);
   const shiftItem=(s,withCal)=>{const w=worktype(s.workTypeId),c=w?.color||"#999",br=shiftBreakLabel(s);const subTxt=(s.subWork||"").trim()?`＋${s.subWork.trim()}`:"";
     const cal=withCal?`<div class="shift-cal"><button type="button" class="cal-mini" onclick="addShiftToCalendar('${s.id}')">📅 加入行事曆</button><a class="cal-mini google" href="${googleCalUrl(s)}" target="_blank" rel="noopener">Google 行事曆</a></div>`:"";
     return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||"未命名工作"}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span>${br?`<span class="shift-break">休息 ${br}（不計薪）</span>`:""}${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}${cal}</div></div>`};
