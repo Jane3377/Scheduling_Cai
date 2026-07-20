@@ -60,6 +60,7 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .calc-box strong{display:block;margin-top:4px;color:var(--brand-dark)}
 /* 工時總覽矩陣 */
 .hours-matrix{min-width:720px}
+@media(max-width:760px){#hoursTable .hours-matrix{min-width:0;width:100%}#hoursTable th,#hoursTable td{padding:12px 10px}#hoursTable .hcell{display:none}}
 .hours-matrix th,.hours-matrix td{text-align:center}
 .hours-matrix th:first-child,.hours-matrix td:first-child{text-align:left}
 .hcell span{display:block;color:var(--muted);font-size:11px;font-weight:400}
@@ -68,21 +69,17 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .htotal{white-space:nowrap}
 .htotal.near{background:#fff2dc;color:var(--warn)}
 .htotal.over{background:#fdeaea;color:var(--danger)}
-.hours-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.ht-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.ht-right{justify-content:flex-end}
+.hours-toolbar{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.ht-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .hours-nav{display:flex;align-items:center;gap:6px}
-.hours-nav .input{max-width:160px}
+.hours-nav .input{max-width:170px}
 .hours-toolbar #hoursTypeFilter{max-width:140px}
-.hours-toolbar #hoursSearchInput{max-width:200px}
+.hours-toolbar #hoursSearchInput{max-width:220px}
+.ht-filter #exportHoursBtn{margin-left:auto}
 @media(max-width:760px){
-  .hours-toolbar{gap:10px}
-  .ht-group,.ht-right{width:100%}
-  .ht-right{flex-wrap:wrap}
   .hours-nav{flex:1}.hours-nav .input{flex:1;max-width:none}
-  .hours-toolbar #hoursTypeFilter{flex:1;max-width:none}
-  .hours-toolbar #hoursSearchInput{flex:1;max-width:none;min-width:140px}
-  #exportHoursBtn{flex:0 0 auto}
+  .ht-filter #hoursSearchInput{flex:1;max-width:none;min-width:120px}
+  .ht-filter #exportHoursBtn{margin-left:0}
 }
 .hours-matrix th.hsort{cursor:pointer;user-select:none;white-space:nowrap}
 .hours-matrix th.hsort:hover{color:var(--brand)}

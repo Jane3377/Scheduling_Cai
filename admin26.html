@@ -188,7 +188,7 @@
 
       <section class="view" id="hoursView">
         <div class="hours-toolbar">
-          <div class="ht-group">
+          <div class="ht-row">
             <div class="seg" id="hoursModeTabs">
               <button class="seg-btn active" data-hmode="week">週統計</button>
               <button class="seg-btn" data-hmode="month">月統計</button>
@@ -197,10 +197,10 @@
               <button class="icon-btn" id="prevWeekBtn">‹</button>
               <input type="date" class="input" id="hoursDateInput">
               <button class="icon-btn" id="nextWeekBtn">›</button>
-              <button class="ghost-btn" id="thisWeekBtn">本週</button>
             </div>
+            <button class="ghost-btn" id="thisWeekBtn">本週</button>
           </div>
-          <div class="ht-group ht-right">
+          <div class="ht-row ht-filter">
             <select class="select" id="hoursTypeFilter">
               <option value="all">全部身分</option>
               <option value="正職">正職</option>
