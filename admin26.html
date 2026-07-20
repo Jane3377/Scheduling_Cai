@@ -188,25 +188,29 @@
 
       <section class="view" id="hoursView">
         <div class="hours-toolbar">
-          <div class="seg" id="hoursModeTabs">
-            <button class="seg-btn active" data-hmode="week">週統計</button>
-            <button class="seg-btn" data-hmode="month">月統計</button>
+          <div class="ht-group">
+            <div class="seg" id="hoursModeTabs">
+              <button class="seg-btn active" data-hmode="week">週統計</button>
+              <button class="seg-btn" data-hmode="month">月統計</button>
+            </div>
+            <div class="hours-nav">
+              <button class="icon-btn" id="prevWeekBtn">‹</button>
+              <input type="date" class="input" id="hoursDateInput">
+              <button class="icon-btn" id="nextWeekBtn">›</button>
+              <button class="ghost-btn" id="thisWeekBtn">本週</button>
+            </div>
           </div>
-          <div class="hours-nav">
-            <button class="icon-btn" id="prevWeekBtn">‹</button>
-            <input type="date" class="input" id="hoursDateInput" style="max-width:160px">
-            <button class="icon-btn" id="nextWeekBtn">›</button>
-            <button class="ghost-btn" id="thisWeekBtn">本週</button>
+          <div class="ht-group ht-right">
+            <select class="select" id="hoursTypeFilter">
+              <option value="all">全部身分</option>
+              <option value="正職">正職</option>
+              <option value="工讀">工讀</option>
+              <option value="外籍學生">外籍學生</option>
+              <option value="其他">其他</option>
+            </select>
+            <input class="input" id="hoursSearchInput" placeholder="搜尋員工姓名／編號">
+            <button class="ghost-btn" id="exportHoursBtn">⬇ 下載 CSV</button>
           </div>
-          <select class="select" id="hoursTypeFilter" style="max-width:150px">
-            <option value="all">全部身分</option>
-            <option value="正職">正職</option>
-            <option value="工讀">工讀</option>
-            <option value="外籍學生">外籍學生</option>
-            <option value="其他">其他</option>
-          </select>
-          <input class="input" id="hoursSearchInput" placeholder="搜尋員工姓名／編號" style="max-width:200px">
-          <button class="ghost-btn" id="exportHoursBtn" style="margin-left:auto">⬇ 下載 CSV</button>
         </div>
         <div class="info-banner">
           <div>

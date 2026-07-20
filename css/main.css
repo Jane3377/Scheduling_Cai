@@ -68,8 +68,22 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .htotal{white-space:nowrap}
 .htotal.near{background:#fff2dc;color:var(--warn)}
 .htotal.over{background:#fdeaea;color:var(--danger)}
-.hours-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.hours-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.ht-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ht-right{justify-content:flex-end}
 .hours-nav{display:flex;align-items:center;gap:6px}
+.hours-nav .input{max-width:160px}
+.hours-toolbar #hoursTypeFilter{max-width:140px}
+.hours-toolbar #hoursSearchInput{max-width:200px}
+@media(max-width:760px){
+  .hours-toolbar{gap:10px}
+  .ht-group,.ht-right{width:100%}
+  .ht-right{flex-wrap:wrap}
+  .hours-nav{flex:1}.hours-nav .input{flex:1;max-width:none}
+  .hours-toolbar #hoursTypeFilter{flex:1;max-width:none}
+  .hours-toolbar #hoursSearchInput{flex:1;max-width:none;min-width:140px}
+  #exportHoursBtn{flex:0 0 auto}
+}
 .hours-matrix th.hsort{cursor:pointer;user-select:none;white-space:nowrap}
 .hours-matrix th.hsort:hover{color:var(--brand)}
 .hrow{cursor:pointer}
@@ -92,6 +106,18 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .hd-verify{display:flex;align-items:center;gap:6px;font-size:13px;margin-left:auto;white-space:nowrap}
 .hd-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 4px;font-size:13.5px}
 .hd-summary .pos{color:var(--warn)}.hd-summary .neg{color:var(--danger)}
+@media(max-width:760px){
+  .hours-detail-row>td{background:#faf7f5}
+  .hd-wrap{padding:12px}
+  .hd-shift{gap:6px 10px;align-items:flex-start}
+  .hd-date{flex:1 0 100%;min-width:0}
+  .hd-sched{flex:1 0 100%;white-space:normal}
+  .hd-actual{flex:1 0 100%}
+  .hd-actual input[type=time]{flex:1;min-width:0}
+  .hd-diff{min-width:44px;text-align:left}
+  .hd-verify{margin-left:0}
+  .hd-summary button{margin-left:0;width:100%;margin-top:4px}
+}
 .hd-summary button{margin-left:auto}
 /* 可排時間總覽 */
 .ov-cal-head{display:flex;align-items:center;justify-content:space-between;padding:6px 0 12px}

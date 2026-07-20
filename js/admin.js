@@ -968,6 +968,7 @@ function renderHours(){
   const resetBtn=byId("thisWeekBtn");if(resetBtn)resetBtn.textContent=state.hoursMode==="month"?"本月":"本週";
   const days=datesInRange(p.start,p.end);
   const weekMode=p.mode==="week";
+  const showDaily=weekMode&&!isNarrow(); // 手機不顯示每日欄，避免橫向擠壓
   // 篩選＋搜尋
   const q=state.hoursSearch.trim().toLowerCase();
   let actives=state.data.employees.filter(e=>e.active
@@ -994,7 +995,7 @@ function renderHours(){
   const totalHead=weekMode?"本週合計 / 上限":"本月合計";
   const head=`<tr>
     <th class="hsort" onclick="hoursSortBy('name')">員工${sortArrow("name")}</th>
-    ${weekMode?days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th class="hcell">${dd.getMonth()+1}/${dd.getDate()}<span>${"日一二三四五六"[dd.getDay()]}</span></th>`}).join(""):""}
+    ${showDaily?days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th class="hcell">${dd.getMonth()+1}/${dd.getDate()}<span>${"日一二三四五六"[dd.getDay()]}</span></th>`}).join(""):""}
     <th class="hsort" onclick="hoursSortBy('total')">${totalHead}${sortArrow("total")}</th>
     <th>核對</th></tr>`;
   const body=rows.map(({e,total,overWeek})=>{
@@ -1007,13 +1008,13 @@ function renderHours(){
     const ps=periodShifts(e.id,p.start,p.end);
     const vCount=ps.filter(s=>s.verified).length;
     const verifyCell=ps.length?`<span class="verify-chip ${vCount===ps.length?"done":""}">✓ ${vCount}/${ps.length}</span>`:`<span class="hmuted">–</span>`;
-    const cells=weekMode?days.map(d=>{const h=shiftDayHours(e.id,d);return `<td class="hcell">${h?fmtNum(h):`<span class="hmuted">–</span>`}</td>`}).join(""):"";
+    const cells=showDaily?days.map(d=>{const h=shiftDayHours(e.id,d);return `<td class="hcell">${h?fmtNum(h):`<span class="hmuted">–</span>`}</td>`}).join(""):"";
     const totalCell=weekMode?`<strong>${fmtNum(total)}</strong> / ${e.weeklyLimit||"—"}${note}`:`<strong>${fmtNum(total)}</strong>${note}`;
     const expanded=state.hoursExpanded===e.id;
     const mainRow=`<tr class="hrow ${expanded?"open":""}" onclick="hoursToggle('${e.id}')">
       <td class="hname"><span class="hexp">${expanded?"▾":"▸"}</span><strong>${e.name}</strong>${foreign?`<span class="badge warn">外籍</span>`:`<span class="cell-sub">${e.employmentType}</span>`}</td>
       ${cells}<td class="htotal ${cls}">${totalCell}</td><td>${verifyCell}</td></tr>`;
-    const colspan=weekMode?days.length+3:3;
+    const colspan=showDaily?days.length+3:3;
     const detailRow=expanded?`<tr class="hours-detail-row"><td colspan="${colspan}">${hoursDetail(e,ps)}</td></tr>`:"";
     return mainRow+detailRow;
   }).join("");
@@ -1583,7 +1584,7 @@ function init(){
   byId("menuBtn").onclick=()=>toggleSidebar();
   byId("sidebarBackdrop").onclick=()=>toggleSidebar(false);
   let _wasNarrow=isNarrow();
-  window.addEventListener("resize",()=>{const n=isNarrow();if(n!==_wasNarrow){_wasNarrow=n;if(state.view==="schedule")renderSchedule();}});
+  window.addEventListener("resize",()=>{const n=isNarrow();if(n!==_wasNarrow){_wasNarrow=n;if(state.view==="schedule")renderSchedule();else if(state.view==="hours")renderHours();}});
   byId("modalCloseBtn").onclick=closeModal;byId("modalBackdrop").onclick=e=>{if(e.target===byId("modalBackdrop"))closeModal()};
   byId("addEmployeeBtn").onclick=()=>openEmployeeModal();byId("addWorktypeBtn").onclick=()=>openWorktypeModal();
   byId("addAvailabilityWindowBtn").onclick=()=>openAvailabilityWindowModal();
