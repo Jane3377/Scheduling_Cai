@@ -214,8 +214,12 @@ function renderDashboard(){
     });
   }
   demandWarns.slice(0,6).forEach(x=>warns.push(x));
-  const unassigned=state.data.shifts.filter(s=>!s.employeeId&&s.date>=toDateKey(today)).length;
-  if(unassigned)warns.push({t:`${unassigned} 個班次尚未指派員工`,d:"請於排班頁點該班次指派"});
+  // 未指派員工的班次（不分過去未來，漏排就提醒；附上最近一筆日期方便找）
+  const unassignedShifts=state.data.shifts.filter(s=>!s.employeeId).sort((a,b)=>a.date.localeCompare(b.date));
+  if(unassignedShifts.length){
+    const dates=[...new Set(unassignedShifts.map(s=>formatDate(s.date)))];
+    warns.push({t:`${unassignedShifts.length} 個班次尚未指派員工`,d:`日期：${dates.slice(0,5).join("、")}${dates.length>5?" 等":""}｜請於排班頁點該班次指派`});
+  }
   selected.forEach(s=>{
     const e=employee(s.employeeId);if(!e)return; // 未指派的班次不在此提醒
     const a=state.data.availability.find(x=>x.employeeId===s.employeeId&&x.date===s.date);
