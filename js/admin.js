@@ -698,10 +698,23 @@ function renderAvailabilityWindows(){
     </article>`
   }).join(""):`<div class="panel empty-state">尚未建立開放填寫區段</div>`;
 }
-function openAvailabilityWindowModal(id=null){
+// 一鍵開放：算好下週（週一～週日）的日期，開啟已填好的新增視窗，主管確認即可存
+function openNextWeekWindow(){
+  const [ts,te]=weekRange(addDays(toDateKey(today),7));
+  const d1=new Date(ts+"T00:00:00"),d2=new Date(te+"T00:00:00");
+  openAvailabilityWindowModal(null,{name:`下週可上班時間（${d1.getMonth()+1}/${d1.getDate()}–${d2.getMonth()+1}/${d2.getDate()}）`,openStart:toDateKey(today),openEnd:addDays(ts,-1),targetStart:ts,targetEnd:te});
+}
+// 一鍵開放：算好下個月整月的日期
+function openNextMonthWindow(){
+  const first=new Date(today.getFullYear(),today.getMonth()+1,1),last=new Date(today.getFullYear(),today.getMonth()+2,0);
+  const ts=toDateKey(first),te=toDateKey(last);
+  openAvailabilityWindowModal(null,{name:`${first.getMonth()+1}月可上班時間`,openStart:toDateKey(today),openEnd:addDays(ts,-1),targetStart:ts,targetEnd:te});
+}
+function openAvailabilityWindowModal(id=null,prefill=null){
   const windows=getAvailabilityWindows();
   const w=id?windows.find(x=>x.id===id):{
-    id:uid("aw"),name:"",openStart:"",openEnd:"",targetStart:"",targetEnd:"",enabled:true,note:"",defaultAvailable:false
+    id:uid("aw"),name:"",openStart:"",openEnd:"",targetStart:"",targetEnd:"",enabled:true,note:"",defaultAvailable:false,
+    ...(prefill||{})
   };
   const tk=toDateKey(today);
   // 只有「新增」才限制最早今天；「編輯」既有區段不加 min，避免原本已開始（日期早於今天）的欄位被瀏覽器清成空白
@@ -1797,6 +1810,8 @@ function init(){
   byId("modalCloseBtn").onclick=closeModal;byId("modalBackdrop").onclick=e=>{if(e.target===byId("modalBackdrop"))closeModal()};
   byId("addEmployeeBtn").onclick=()=>openEmployeeModal();byId("addWorktypeBtn").onclick=()=>openWorktypeModal();
   byId("addAvailabilityWindowBtn").onclick=()=>openAvailabilityWindowModal();
+  byId("openNextWeekBtn")?.addEventListener("click",openNextWeekWindow);
+  byId("openNextMonthBtn")?.addEventListener("click",openNextMonthWindow);
   byId("employeeSearch").oninput=renderEmployees;byId("employeeStatusFilter").onchange=renderEmployees;
   const calNav=dir=>{
     if(state.calendarExpanded){state.calendarDate.setMonth(state.calendarDate.getMonth()+dir);renderCalendar();}
