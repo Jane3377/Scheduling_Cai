@@ -200,12 +200,18 @@ function renderDashboard(){
   byId("todayShifts").innerHTML=selected.length?selected.map(shiftListItem).join(""):`<div class="empty-state">這一天尚未排班</div>`;
   const warns=[];
   if(fill&&fill.unfilled.length)warns.push({t:`${fill.unfilled.length} 人尚未填寫可上班時間`,d:fill.unfilled.map(e=>e.name).join("、")});
-  // 每日需求缺額（未來 14 天，依每日需求模板）
+  // 固定班次缺額（未來 14 天）：只提醒「已經開始排、但還沒排滿」的日子，避免整批未排的未來日誤報
   const demandWarns=[];
   for(let i=0;i<14;i++){
     const d=new Date(today);d.setDate(d.getDate()+i);const key=toDateKey(d);
     if(isClosedDay(key))continue;
-    demandGaps(key).forEach(r=>{if(r.gap>0){const w=worktype(r.workTypeId);demandWarns.push({t:`${formatDate(key)} 缺 ${r.gap} 位 ${w?.name||""}`,d:`需求 ${r.count} 人・${r.start}～${r.end}`})}});
+    if(!state.data.shifts.some(s=>s.date===key))continue; // 這天完全還沒排班就不算缺人
+    demandGaps(key).forEach(r=>{
+      if(r.gap>0&&workAppliesOnDate(worktype(r.workTypeId),key)){
+        const w=worktype(r.workTypeId);
+        demandWarns.push({t:`${formatDate(key)} 缺 ${r.gap} 位 ${w?.name||""}`,d:`固定班次需 ${r.count} 人・${r.start}～${r.end}`});
+      }
+    });
   }
   demandWarns.slice(0,6).forEach(x=>warns.push(x));
   const unassigned=state.data.shifts.filter(s=>!s.employeeId&&s.date>=toDateKey(today)).length;
@@ -1197,12 +1203,8 @@ function importDemandBackup(file){
   };
   reader.readAsText(file);
 }
-function toggleFixedShiftPanel(){
-  const p=byId("fixedShiftPanel");if(!p)return;
-  p.classList.toggle("hidden");
-  if(!p.classList.contains("hidden")){p.classList.remove("collapsed");renderDemand();if(p.scrollIntoView)p.scrollIntoView({behavior:"smooth",block:"nearest"});}
-}
-function toggleFixedShiftCollapse(){const p=byId("fixedShiftPanel");if(p)p.classList.toggle("collapsed");}
+function openFixedShiftModal(){const b=byId("fixedModalBackdrop");if(!b)return;b.classList.remove("hidden");renderDemand();}
+function closeFixedShiftModal(){const b=byId("fixedModalBackdrop");if(b)b.classList.add("hidden");}
 function init(){
   state.data=defaultData(); // 佔位，待雲端載入後覆蓋
   document.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>setView(b.dataset.view));
@@ -1214,9 +1216,9 @@ function init(){
   byId("exportMonthBtn").onclick=()=>exportSchedule("month");
   byId("addDemandBtn").onclick=()=>openDemandModal();
   byId("copyDemandBtn").onclick=()=>openCopyDemandModal();
-  byId("fixedShiftBtn").onclick=()=>toggleFixedShiftPanel();
-  byId("fixedShiftCollapse").onclick=()=>toggleFixedShiftCollapse();
-  byId("fixedShiftTitle").onclick=()=>toggleFixedShiftCollapse();
+  byId("fixedShiftBtn").onclick=()=>openFixedShiftModal();
+  byId("fixedModalClose").onclick=()=>closeFixedShiftModal();
+  byId("fixedModalBackdrop").onclick=e=>{if(e.target===byId("fixedModalBackdrop"))closeFixedShiftModal()};
   byId("exportDemandBtn").onclick=()=>exportDemandBackup();
   byId("importDemandBtn").onclick=()=>byId("importDemandFile").click();
   byId("importDemandFile").addEventListener("change",e=>{importDemandBackup(e.target.files[0]);e.target.value="";});

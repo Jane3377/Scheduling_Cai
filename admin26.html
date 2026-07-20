@@ -125,26 +125,6 @@
           <button class="ghost-btn" id="applyDemandBtn">套用固定班次</button>
           <button class="primary-btn" id="schedAddBtn">＋ 班次</button>
         </div>
-        <section class="panel fixed-shift-panel hidden" id="fixedShiftPanel">
-          <div class="fixed-shift-head">
-            <button type="button" class="fs-collapse" id="fixedShiftCollapse" aria-label="收合／展開">▾</button>
-            <div class="fs-title" id="fixedShiftTitle">
-              <h3>固定班次設定</h3>
-              <p>設定每個星期各工作固定需要幾人；按上方「套用固定班次」即可自動建立班次並指派最適人選。點左側箭頭可收合。</p>
-            </div>
-            <div class="fs-actions">
-              <button type="button" class="ghost-btn small-btn" id="exportDemandBtn">⬇ 匯出</button>
-              <button type="button" class="ghost-btn small-btn" id="importDemandBtn">⬆ 匯入</button>
-              <input type="file" id="importDemandFile" accept="application/json" hidden>
-              <button type="button" class="ghost-btn small-btn" id="copyDemandBtn">複製到其他星期</button>
-              <button type="button" class="secondary-btn small-btn" id="addDemandBtn">＋ 新增</button>
-            </div>
-          </div>
-          <div class="fs-body" id="fixedShiftBody">
-            <div class="seg demand-weektabs" id="demandWeekTabs"></div>
-            <div id="demandList" class="demand-list"></div>
-          </div>
-        </section>
         <div class="schedule-stack">
           <section class="panel calendar-panel">
             <div class="calendar-head">
@@ -278,6 +258,26 @@
         </div>
       </section>
 </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="fixedModalBackdrop">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <div><h3>固定班次設定</h3><p>設定每個星期各工作固定需要幾人；回排班管理按「套用固定班次」即可自動建立班次。</p></div>
+        <button class="icon-btn" id="fixedModalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="fs-actions">
+          <button type="button" class="ghost-btn small-btn" id="exportDemandBtn">⬇ 匯出</button>
+          <button type="button" class="ghost-btn small-btn" id="importDemandBtn">⬆ 匯入</button>
+          <input type="file" id="importDemandFile" accept="application/json" hidden>
+          <button type="button" class="ghost-btn small-btn" id="copyDemandBtn">複製到其他星期</button>
+          <button type="button" class="secondary-btn small-btn" id="addDemandBtn">＋ 新增</button>
+        </div>
+        <div class="seg demand-weektabs" id="demandWeekTabs"></div>
+        <div id="demandList" class="demand-list"></div>
+      </div>
+    </div>
   </div>
 
   <div class="modal-backdrop hidden" id="modalBackdrop">
