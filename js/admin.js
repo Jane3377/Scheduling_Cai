@@ -512,7 +512,8 @@ function printWeekSchedule(){
   const [a,b]=weekRange(state.selectedDate);
   const days=datesInRange(a,b);
   const store=(settings().storeName||"").trim();
-  const actives=state.data.employees.filter(e=>e.active);
+  // 只列出本週有排班的在職員工（沒排班的不顯示）
+  const actives=state.data.employees.filter(e=>e.active&&state.data.shifts.some(s=>s.employeeId===e.id&&s.date>=a&&s.date<=b));
   const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   const dow="日一二三四五六";
   const usedWorks=[...new Set(state.data.shifts.filter(s=>s.date>=a&&s.date<=b).map(s=>s.workTypeId))].map(worktype).filter(Boolean);
@@ -524,10 +525,9 @@ function printWeekSchedule(){
     }).join("");
   };
   const body=actives.map((e,i)=>{
-    let total=0;days.forEach(d=>state.data.shifts.filter(s=>s.date===d&&s.employeeId===e.id).forEach(s=>total+=durationHours(s)));
     const tds=days.map(d=>isClosedDay(d)?`<td class="cl"><span class="off">公休</span></td>`:`<td>${cellFor(d,e.id)}</td>`).join("");
-    return `<tr class="${i%2?'z':''}"><th class="emp">${esc(e.name)}<span>${esc(e.employmentType)}</span></th>${tds}<td class="tot">${fmtNum(total)}h</td></tr>`;
-  }).join("")||`<tr><td colspan="${days.length+2}" class="off" style="padding:24px">本週尚無在職員工</td></tr>`;
+    return `<tr class="${i%2?'z':''}"><th class="emp">${esc(e.name)}</th>${tds}</tr>`;
+  }).join("")||`<tr><td colspan="${days.length+1}" class="off" style="padding:24px">本週尚無排班</td></tr>`;
   const legend=usedWorks.length?`<div class="legend">${usedWorks.map(w=>`<span><i style="background:${w.color}"></i>${esc(w.name)}</span>`).join("")}</div>`:"";
   const html=`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${esc(store)} 週班表 ${a}~${b}</title>
   <style>
@@ -560,7 +560,7 @@ function printWeekSchedule(){
     <div class="head"><h1>${esc(store||"週班表")}${store?"　週班表":""}</h1><div class="rng">${formatDate(a)} ～ ${formatDate(b)}</div></div>
     ${legend}
     <table>
-      <thead><tr><th class="emp">員工</th>${days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th>${dd.getMonth()+1}/${dd.getDate()}<span class="dw">星期${dow[dd.getDay()]}</span></th>`}).join("")}<th class="tot">合計</th></tr></thead>
+      <thead><tr><th class="emp">員工</th>${days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th>${dd.getMonth()+1}/${dd.getDate()}<span class="dw">星期${dow[dd.getDay()]}</span></th>`}).join("")}</tr></thead>
       <tbody>${body}</tbody>
     </table>
     <div class="foot"><span>實際排班以最新公布的班表為準。</span><span>列印時間：${new Date().toLocaleString("zh-TW")}</span></div>
