@@ -435,15 +435,61 @@ function scheduleRows(mode){
   return {rows,start,end};
 }
 function csvEscape(v){v=String(v==null?"":v);return /[",\n\r]/.test(v)?`"${v.replace(/"/g,'""')}"`:v}
-function exportSchedule(mode){
-  const {rows,start,end}=scheduleRows(mode);
+/* ---------- 統一報表匯出（Excel 可開的 CSV，含 BOM、統一檔名） ---------- */
+// 檔名格式：店名_報表類型_期間.csv
+function reportFileName(type,period){const store=(settings().storeName||"報表").trim();return `${store}_${type}_${period}.csv`;}
+// rows 為二維陣列；統一輸出 UTF-8 BOM 的 CSV
+function downloadCSV(filename,rows){
   const csv="﻿"+rows.map(r=>r.map(csvEscape).join(",")).join("\r\n");
-  const store=(settings().storeName||"班表").trim();
-  const fname=mode==="week"?`${store}_週班表_${start}_至_${end}.csv`:`${store}_月班表_${start.slice(0,7)}.csv`;
   const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();
+  const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function exportSchedule(mode){
+  const {rows,start,end}=scheduleRows(mode);
+  const period=mode==="week"?`${start}_至_${end}`:start.slice(0,7);
+  downloadCSV(reportFileName(mode==="week"?"週班表":"月班表",period),rows);
+}
+// 工時統計匯出（依目前週/月、篩選、排序）
+function exportHours(){
+  const p=hoursPeriod();
+  const q=state.hoursSearch.trim().toLowerCase();
+  const list=state.data.employees.filter(e=>e.active
+    &&(state.hoursType==="all"||e.employmentType===state.hoursType)
+    &&(!q||e.name.toLowerCase().includes(q)||(e.employeeNo||"").toLowerCase().includes(q)));
+  const data=list.map(e=>{
+    const ps=periodShifts(e.id,p.start,p.end);
+    const sched=ps.reduce((n,s)=>n+durationHours(s),0);
+    const actual=ps.reduce((n,s)=>n+shiftActualHours(s),0);
+    return {e,sched,actual,diff:actual-sched,v:ps.filter(s=>s.verified).length,total:ps.length};
+  });
+  const {key,dir}=state.hoursSort;
+  data.sort((a,b)=>key==="total"?(a.sched-b.sched)*dir:a.e.name.localeCompare(b.e.name,"zh-Hant")*dir);
+  const rows=[["員工","員工編號","身分","每週上限","表訂工時","實際工時","差異","已核對"]];
+  data.forEach(d=>rows.push([d.e.name,d.e.employeeNo,d.e.employmentType,d.e.weeklyLimit||"",fmtNum(d.sched),fmtNum(d.actual),(d.diff>0?"+":"")+fmtNum(d.diff),`${d.v}/${d.total}`]));
+  const period=p.mode==="month"?p.start.slice(0,7):`${p.start}_至_${p.end}`;
+  downloadCSV(reportFileName(p.mode==="month"?"月工時統計":"週工時統計",period),rows);
+}
+// 可上班時間匯出（有開放區段用其排班日期範圍，否則用目前月份）
+function exportAvailability(){
+  const w=currentWindow();let start,end,period;
+  if(w){start=w.targetStart;end=w.targetEnd;period=`${start}_至_${end}`;}
+  else{const d=state.availCalDate;start=toDateKey(new Date(d.getFullYear(),d.getMonth(),1));end=toDateKey(new Date(d.getFullYear(),d.getMonth()+1,0));period=start.slice(0,7);}
+  const days=datesInRange(start,end);
+  const dayHead=k=>{const dd=new Date(k+"T00:00:00");return `${dd.getMonth()+1}/${dd.getDate()}(${"日一二三四五六"[dd.getDay()]})`};
+  const rows=[["員工",...days.map(dayHead)]];
+  state.data.employees.filter(e=>e.active).forEach(e=>{
+    const cells=days.map(k=>{
+      if(isClosedDay(k))return "公休";
+      const a=effectiveAvail(e.id,k);
+      if(!a)return "未填";
+      if(a.unavailable)return "不可";
+      return `${a.start}-${a.end}${a._default?"(預設)":""}`;
+    });
+    rows.push([e.name,...cells]);
+  });
+  downloadCSV(reportFileName("可上班時間",period),rows);
 }
 
 
@@ -1413,6 +1459,26 @@ function importDemandBackup(file){
   };
   reader.readAsText(file);
 }
+// 完整備份：整份 data（員工、工作、班次、可上班、固定班次、設定）
+function exportAll(){
+  const store=(settings().storeName||"備份").trim();
+  const payload={kind:"full",app:"tsai-scheduler",version:1,exportedAt:new Date().toISOString(),data:state.data};
+  download(`${store}_完整備份_${toDateKey(new Date())}.json`,JSON.stringify(payload,null,2));
+}
+function importAll(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const obj=JSON.parse(reader.result);
+      const d=obj&&obj.data?obj.data:obj; // 容許直接是 data 或包在 {data} 內
+      if(!d||!Array.isArray(d.employees)||!Array.isArray(d.shifts))throw new Error("bad");
+      if(!confirm(`將以此備份「完全覆蓋」目前所有資料（員工 ${d.employees.length}、工作 ${(d.workTypes||[]).length}、班次 ${d.shifts.length}）。\n此動作無法復原，確定還原？`))return;
+      state.data=migrate(d);save();alert("完整備份已還原。");
+    }catch(e){alert("檔案格式不正確，請確認是本系統匯出的「完整備份」JSON。");}
+  };
+  reader.readAsText(file);
+}
 function openFixedShiftModal(){const b=byId("fixedModalBackdrop");if(!b)return;b.classList.remove("hidden");renderDemand();}
 function closeFixedShiftModal(){const b=byId("fixedModalBackdrop");if(b)b.classList.add("hidden");}
 function init(){
@@ -1465,6 +1531,8 @@ function init(){
   document.querySelectorAll("#hoursModeTabs .seg-btn").forEach(b=>b.addEventListener("click",()=>{state.hoursMode=b.dataset.hmode;state.hoursExpanded=null;renderHours()}));
   byId("hoursTypeFilter")?.addEventListener("change",e=>{state.hoursType=e.target.value;renderHours()});
   byId("hoursSearchInput")?.addEventListener("input",e=>{state.hoursSearch=e.target.value;renderHours()});
+  byId("exportHoursBtn")?.addEventListener("click",exportHours);
+  byId("exportAvailBtn")?.addEventListener("click",exportAvailability);
   syncHoursDateInput();
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availMode=b.dataset.mode;renderAvailabilityOverview()});
   document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availPage=b.dataset.atab;syncAvailPage()});
@@ -1489,6 +1557,9 @@ function init(){
   byId("exportWorktypesBtn")?.addEventListener("click",()=>exportBackup("workTypes"));
   byId("importWorktypesBtn")?.addEventListener("click",()=>byId("importWorktypesFile").click());
   byId("importWorktypesFile")?.addEventListener("change",e=>{importBackup("workTypes",e.target.files[0]);e.target.value="";});
+  byId("exportAllBtn")?.addEventListener("click",exportAll);
+  byId("importAllBtn")?.addEventListener("click",()=>byId("importAllFile").click());
+  byId("importAllFile")?.addEventListener("change",e=>{importAll(e.target.files[0]);e.target.value="";});
   setupPinGate();
   if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
   Cloud.init(onCloudData,updateSyncStatus);

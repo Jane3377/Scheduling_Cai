@@ -77,9 +77,6 @@
 
       <section class="view" id="employeesView">
         <div class="section-toolbar end">
-          <button class="ghost-btn" id="exportEmployeesBtn">⬇ 匯出備份</button>
-          <button class="ghost-btn" id="importEmployeesBtn">⬆ 匯入備份</button>
-          <input type="file" id="importEmployeesFile" accept="application/json,.json" hidden />
           <button class="primary-btn" id="addEmployeeBtn">＋ 新增員工</button>
         </div>
         <div class="panel table-panel">
@@ -102,9 +99,6 @@
 
       <section class="view" id="worktypesView">
         <div class="section-toolbar end">
-          <button class="ghost-btn" id="exportWorktypesBtn">⬇ 匯出備份</button>
-          <button class="ghost-btn" id="importWorktypesBtn">⬆ 匯入備份</button>
-          <input type="file" id="importWorktypesFile" accept="application/json,.json" hidden />
           <button class="primary-btn" id="addWorktypeBtn">＋ 新增工作</button>
         </div>
         <div class="panel table-panel">
@@ -180,10 +174,13 @@
 
         <div class="avail-tab-panel hidden" id="availOverviewPanel">
           <div id="availOverviewSummary"></div>
-          <div class="staff-tabs" id="availModeTabs">
-            <button class="staff-tab active" data-mode="month">月曆模式</button>
-            <button class="staff-tab" data-mode="date">日期模式</button>
-            <button class="staff-tab" data-mode="employee">員工模式</button>
+          <div class="avail-overview-bar">
+            <div class="staff-tabs" id="availModeTabs">
+              <button class="staff-tab active" data-mode="month">月曆模式</button>
+              <button class="staff-tab" data-mode="date">日期模式</button>
+              <button class="staff-tab" data-mode="employee">員工模式</button>
+            </div>
+            <button class="ghost-btn" id="exportAvailBtn">⬇ 匯出</button>
           </div>
           <div id="availabilityOverviewBody"></div>
         </div>
@@ -209,6 +206,7 @@
             <option value="其他">其他</option>
           </select>
           <input class="input" id="hoursSearchInput" placeholder="搜尋員工姓名／編號" style="max-width:200px">
+          <button class="ghost-btn" id="exportHoursBtn" style="margin-left:auto">⬇ 匯出</button>
         </div>
         <div class="info-banner">
           <div>
@@ -267,8 +265,35 @@
             <div id="pinChangeMsg" class="span-2"></div>
           </form>
           <hr class="soft-divider" />
+          <h3>資料備份與還原</h3>
+          <p>用於換裝置、搬站或定期備份。建議平時就用「完整備份」匯出一份保存。</p>
+          <div class="backup-block">
+            <strong>完整備份（推薦）</strong>
+            <span class="field-help">一個檔包含所有資料（員工、工作、班次、可上班時間、固定班次與設定）。</span>
+            <div class="backup-btns">
+              <button type="button" class="secondary-btn" id="exportAllBtn">⬇ 匯出完整備份</button>
+              <button type="button" class="ghost-btn" id="importAllBtn">⬆ 還原完整備份</button>
+              <input type="file" id="importAllFile" accept="application/json,.json" hidden />
+            </div>
+          </div>
+          <div class="backup-block">
+            <strong>分項備份</strong>
+            <span class="field-help">只匯出／匯入單一類別，適合把某類資料搬到另一間店。匯入會覆蓋該類別現有資料。</span>
+            <div class="backup-btns">
+              <button type="button" class="ghost-btn small-btn" id="exportEmployeesBtn">⬇ 員工</button>
+              <button type="button" class="ghost-btn small-btn" id="importEmployeesBtn">⬆ 員工</button>
+              <input type="file" id="importEmployeesFile" accept="application/json,.json" hidden />
+              <button type="button" class="ghost-btn small-btn" id="exportWorktypesBtn">⬇ 工作</button>
+              <button type="button" class="ghost-btn small-btn" id="importWorktypesBtn">⬆ 工作</button>
+              <input type="file" id="importWorktypesFile" accept="application/json,.json" hidden />
+              <button type="button" class="ghost-btn small-btn" id="exportDemandBtn">⬇ 固定班次</button>
+              <button type="button" class="ghost-btn small-btn" id="importDemandBtn">⬆ 固定班次</button>
+              <input type="file" id="importDemandFile" accept="application/json,.json" hidden />
+            </div>
+          </div>
+          <hr class="soft-divider" />
           <h3>清空所有資料</h3>
-          <p>清空所有資料（員工、工作、班次、可上班時間等）。此動作無法復原，建議先到員工／工作管理匯出備份。</p>
+          <p>清空所有資料（員工、工作、班次、可上班時間等）。此動作無法復原，建議先用上方「完整備份」匯出保存。</p>
           <button type="button" class="ghost-btn" id="resetDemoBtn">清空所有資料</button>
         </div>
       </section>
@@ -283,9 +308,6 @@
       </div>
       <div class="modal-body">
         <div class="fs-actions">
-          <button type="button" class="ghost-btn small-btn" id="exportDemandBtn">⬇ 匯出</button>
-          <button type="button" class="ghost-btn small-btn" id="importDemandBtn">⬆ 匯入</button>
-          <input type="file" id="importDemandFile" accept="application/json" hidden>
           <button type="button" class="ghost-btn small-btn" id="copyDemandBtn">複製到其他星期</button>
           <button type="button" class="secondary-btn small-btn" id="addDemandBtn">＋ 新增</button>
         </div>
