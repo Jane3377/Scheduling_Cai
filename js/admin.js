@@ -15,6 +15,11 @@ const state = {
   settingsTab:"store",
   demandWeekday:new Date().getDay(),
   hoursWeek:todayKeyInit,
+  hoursMode:"week",           // week | month
+  hoursSort:{key:"name",dir:1}, // key: name | total
+  hoursType:"all",            // 身分類型篩選
+  hoursSearch:"",
+  hoursExpanded:null,         // 展開明細的員工 id
   availPage:"settings",
   availMode:"month",
   availCalDate:new Date(today.getFullYear(),today.getMonth(),1),
@@ -105,6 +110,10 @@ function breakForShift(s){
   return overlapMinutes(mins(s.start),mins(s.end),mins(cfg.breakStart),mins(cfg.breakEnd));
 }
 function durationHours(s){return Math.max(0,(mins(s.end)-mins(s.start)-breakForShift(s))/60)}
+// 是否已填實際打卡時間
+function shiftHasActual(s){return !!(s.actualStart&&s.actualEnd)}
+// 實際工時：有填打卡時間就用打卡時間（同樣扣除休息），否則用表訂時間
+function shiftActualHours(s){return shiftHasActual(s)?durationHours({...s,start:s.actualStart,end:s.actualEnd}):durationHours(s)}
 function holidays(){return settings().holidays}
 function nationalHolidays(){return settings().nationalHolidays}
 function nationalHolidayName(dateKey){return (nationalHolidays().find(h=>h.date===dateKey)||{}).name||""}
@@ -813,29 +822,130 @@ function renderStoreSettings(){
   };
 }
 
-/* ---------- 工時總覽（員工 × 一週七天矩陣） ---------- */
+/* ---------- 工時總覽（可選週／月、排序、篩選、展開明細、打卡核對） ---------- */
 function shiftDayHours(employeeId,dateKey){
   return state.data.shifts.filter(s=>s.employeeId===employeeId&&s.date===dateKey).reduce((n,s)=>n+durationHours(s),0);
 }
+// 依目前模式（週／月）與錨點日期算出期間
+function hoursPeriod(){
+  if(state.hoursMode==="month"){
+    const d=new Date(state.hoursWeek+"T00:00:00"),y=d.getFullYear(),m=d.getMonth();
+    const start=toDateKey(new Date(y,m,1)),end=toDateKey(new Date(y,m+1,0));
+    return {start,end,label:`${y} 年 ${m+1} 月`,mode:"month"};
+  }
+  const [start,end]=weekRange(state.hoursWeek);
+  return {start,end,label:`${formatDate(start)} ～ ${formatDate(end)}`,mode:"week"};
+}
+// 期間內某員工的班次
+function periodShifts(eid,start,end){return state.data.shifts.filter(s=>s.employeeId===eid&&s.date>=start&&s.date<=end).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start))}
 function renderHours(){
   const wrap=byId("hoursTable");if(!wrap)return;
-  const [startKey,endKey]=weekRange(state.hoursWeek);
-  const days=datesInRange(startKey,endKey);
-  byId("hoursWeekLabel").textContent=`${formatDate(startKey)} ～ ${formatDate(endKey)}`;
-  const actives=state.data.employees.filter(e=>e.active);
-  const head=`<tr><th>員工</th>${days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th class="hcell">${dd.getMonth()+1}/${dd.getDate()}<span>${"日一二三四五六"[dd.getDay()]}</span></th>`}).join("")}<th>本週合計 / 上限</th></tr>`;
-  const body=actives.map(e=>{
-    let total=0;
-    const cells=days.map(d=>{const h=shiftDayHours(e.id,d);total+=h;return `<td class="hcell">${h?fmtNum(h):`<span class="hmuted">–</span>`}</td>`}).join("");
+  const p=hoursPeriod();
+  const lbl=byId("hoursWeekLabel");if(lbl)lbl.textContent=p.label;
+  // 模式 / 篩選 UI 狀態同步
+  document.querySelectorAll("#hoursModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.hmode===state.hoursMode));
+  const resetBtn=byId("thisWeekBtn");if(resetBtn)resetBtn.textContent=state.hoursMode==="month"?"本月":"本週";
+  const days=datesInRange(p.start,p.end);
+  const weekMode=p.mode==="week";
+  // 篩選＋搜尋
+  const q=state.hoursSearch.trim().toLowerCase();
+  let actives=state.data.employees.filter(e=>e.active
+    &&(state.hoursType==="all"||e.employmentType===state.hoursType)
+    &&(!q||e.name.toLowerCase().includes(q)||(e.employeeNo||"").toLowerCase().includes(q)));
+  // 計算每位員工期間合計（表訂）與是否超過每週上限
+  const rows=actives.map(e=>{
+    const total=days.reduce((n,d)=>n+shiftDayHours(e.id,d),0);
+    let overWeek=false;
+    if(e.weeklyLimit){
+      // 逐週檢查（月模式時可能跨多週）
+      const seen=new Set();
+      days.forEach(d=>{const wk=weekRange(d)[0];if(seen.has(wk))return;seen.add(wk);
+        const wt=datesInRange(...weekRange(d)).reduce((n,x)=>n+shiftDayHours(e.id,x),0);
+        if(wt>e.weeklyLimit)overWeek=true;
+      });
+    }
+    return {e,total,overWeek};
+  });
+  // 排序
+  const {key,dir}=state.hoursSort;
+  rows.sort((a,b)=>key==="total"?(a.total-b.total)*dir:a.e.name.localeCompare(b.e.name,"zh-Hant")*dir);
+  const sortArrow=k=>state.hoursSort.key===k?(state.hoursSort.dir>0?" ▲":" ▼"):"";
+  const totalHead=weekMode?"本週合計 / 上限":"本月合計";
+  const head=`<tr>
+    <th class="hsort" onclick="hoursSortBy('name')">員工${sortArrow("name")}</th>
+    ${weekMode?days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th class="hcell">${dd.getMonth()+1}/${dd.getDate()}<span>${"日一二三四五六"[dd.getDay()]}</span></th>`}).join(""):""}
+    <th class="hsort" onclick="hoursSortBy('total')">${totalHead}${sortArrow("total")}</th>
+    <th>核對</th></tr>`;
+  const body=rows.map(({e,total,overWeek})=>{
     const foreign=e.employmentType==="外籍學生";
     let cls="",note="";
     if(e.weeklyLimit){
-      if(total>e.weeklyLimit){cls="over";note=foreign?" ⚠外籍超時":" ⚠超時";}
-      else if(total>=e.weeklyLimit*0.9){cls="near";note=" 接近上限";}
+      if(overWeek){cls="over";note=foreign?" ⚠外籍超時":" ⚠超時";}
+      else if(weekMode&&total>=e.weeklyLimit*0.9){cls="near";note=" 接近上限";}
     }
-    return `<tr><td class="hname"><strong>${e.name}</strong>${foreign?`<span class="badge warn">外籍</span>`:`<span class="cell-sub">${e.employmentType}</span>`}</td>${cells}<td class="htotal ${cls}"><strong>${fmtNum(total)}</strong> / ${e.weeklyLimit||"—"}${note}</td></tr>`;
+    const ps=periodShifts(e.id,p.start,p.end);
+    const vCount=ps.filter(s=>s.verified).length;
+    const verifyCell=ps.length?`<span class="verify-chip ${vCount===ps.length?"done":""}">✓ ${vCount}/${ps.length}</span>`:`<span class="hmuted">–</span>`;
+    const cells=weekMode?days.map(d=>{const h=shiftDayHours(e.id,d);return `<td class="hcell">${h?fmtNum(h):`<span class="hmuted">–</span>`}</td>`}).join(""):"";
+    const totalCell=weekMode?`<strong>${fmtNum(total)}</strong> / ${e.weeklyLimit||"—"}${note}`:`<strong>${fmtNum(total)}</strong>${note}`;
+    const expanded=state.hoursExpanded===e.id;
+    const mainRow=`<tr class="hrow ${expanded?"open":""}" onclick="hoursToggle('${e.id}')">
+      <td class="hname"><span class="hexp">${expanded?"▾":"▸"}</span><strong>${e.name}</strong>${foreign?`<span class="badge warn">外籍</span>`:`<span class="cell-sub">${e.employmentType}</span>`}</td>
+      ${cells}<td class="htotal ${cls}">${totalCell}</td><td>${verifyCell}</td></tr>`;
+    const colspan=weekMode?days.length+3:3;
+    const detailRow=expanded?`<tr class="hours-detail-row"><td colspan="${colspan}">${hoursDetail(e,ps)}</td></tr>`:"";
+    return mainRow+detailRow;
   }).join("");
-  wrap.innerHTML=`<table class="hours-matrix"><thead>${head}</thead><tbody>${body||`<tr><td>尚無在職員工</td></tr>`}</tbody></table>`;
+  wrap.innerHTML=`<table class="hours-matrix"><thead>${head}</thead><tbody>${body||`<tr><td>找不到符合條件的員工</td></tr>`}</tbody></table>`;
+}
+// 展開明細：逐筆班次表訂 vs 實際打卡，可編輯與核對
+function hoursDetail(e,ps){
+  if(!ps.length)return `<div class="empty-state">此期間沒有班次</div>`;
+  let schedSum=0,actualSum=0;
+  const items=ps.map(s=>{
+    const w=worktype(s.workTypeId);
+    const schedH=durationHours(s),actualH=shiftActualHours(s);
+    schedSum+=schedH;actualSum+=actualH;
+    const diff=actualH-schedH;
+    const hasA=shiftHasActual(s);
+    const diffTxt=hasA?`<span class="hd-diff ${diff>0.001?"pos":diff<-0.001?"neg":""}">${diff>0?"+":""}${fmtNum(diff)}h</span>`:`<span class="hmuted">—</span>`;
+    return `<div class="hd-shift ${s.verified?"verified":""}" onclick="event.stopPropagation()">
+      <div class="hd-date"><strong>${formatDate(s.date)}</strong><span>${w?w.name:"（已刪除工作）"}${(s.subWork||"").trim()?"＋"+s.subWork.trim():""}</span></div>
+      <div class="hd-sched">表訂 ${s.start}–${s.end}<span>${fmtNum(schedH)}h</span></div>
+      <div class="hd-actual">實際打卡
+        <input type="time" value="${s.actualStart||""}" onchange="setShiftActual('${s.id}','actualStart',this.value)">
+        <span>–</span>
+        <input type="time" value="${s.actualEnd||""}" onchange="setShiftActual('${s.id}','actualEnd',this.value)">
+        <span>${hasA?fmtNum(actualH)+"h":""}</span>
+      </div>
+      ${diffTxt}
+      <label class="hd-verify"><input type="checkbox" ${s.verified?"checked":""} onchange="toggleShiftVerified('${s.id}')"> 已核對</label>
+    </div>`;
+  }).join("");
+  const anyActual=ps.some(shiftHasActual);
+  const totalDiff=actualSum-schedSum;
+  const summary=`<div class="hd-summary">
+    表訂合計 <b>${fmtNum(schedSum)}h</b>${anyActual?` ・ 實際合計 <b>${fmtNum(actualSum)}h</b> ・ 差異 <b class="${totalDiff>0.001?"pos":totalDiff<-0.001?"neg":""}">${totalDiff>0?"+":""}${fmtNum(totalDiff)}h</b>`:""} ・ 已核對 ${ps.filter(s=>s.verified).length}/${ps.length}
+    <button class="ghost-btn small-btn" onclick="event.stopPropagation();verifyAll('${e.id}')">全部標記已核對</button>
+  </div>`;
+  return `<div class="hd-wrap">${items}${summary}</div>`;
+}
+function hoursSortBy(key){
+  if(state.hoursSort.key===key)state.hoursSort.dir*=-1;
+  else state.hoursSort={key,dir:key==="total"?-1:1};
+  renderHours();
+}
+function hoursToggle(eid){state.hoursExpanded=state.hoursExpanded===eid?null:eid;renderHours();}
+function setShiftActual(id,field,val){
+  const s=state.data.shifts.find(x=>x.id===id);if(!s)return;
+  if(val)s[field]=val; else delete s[field];
+  save();
+}
+function toggleShiftVerified(id){const s=state.data.shifts.find(x=>x.id===id);if(!s)return;s.verified=!s.verified;save();}
+function verifyAll(eid){
+  const p=hoursPeriod();
+  periodShifts(eid,p.start,p.end).forEach(s=>s.verified=true);
+  save();
 }
 function fmtNum(n){return Number.isInteger(n)?String(n):n.toFixed(1)}
 
@@ -1346,10 +1456,16 @@ function init(){
     if(state.calendarExpanded){const a=new Date(state.selectedDate+"T00:00:00");state.calendarDate=new Date(a.getFullYear(),a.getMonth(),1);}
     renderCalendar();
   };
-  const shiftWeek=delta=>{const d=new Date(state.hoursWeek+"T00:00:00");d.setDate(d.getDate()+delta*7);state.hoursWeek=toDateKey(d);renderHours()};
-  byId("prevWeekBtn")?.addEventListener("click",()=>shiftWeek(-1));
-  byId("nextWeekBtn")?.addEventListener("click",()=>shiftWeek(1));
-  byId("thisWeekBtn")?.addEventListener("click",()=>{state.hoursWeek=toDateKey(new Date());renderHours()});
+  const shiftHours=delta=>{const d=new Date(state.hoursWeek+"T00:00:00");if(state.hoursMode==="month")d.setMonth(d.getMonth()+delta);else d.setDate(d.getDate()+delta*7);state.hoursWeek=toDateKey(d);syncHoursDateInput();renderHours()};
+  const syncHoursDateInput=()=>{const inp=byId("hoursDateInput");if(inp)inp.value=state.hoursWeek;};
+  byId("prevWeekBtn")?.addEventListener("click",()=>shiftHours(-1));
+  byId("nextWeekBtn")?.addEventListener("click",()=>shiftHours(1));
+  byId("thisWeekBtn")?.addEventListener("click",()=>{state.hoursWeek=toDateKey(new Date());syncHoursDateInput();renderHours()});
+  byId("hoursDateInput")?.addEventListener("change",e=>{if(e.target.value){state.hoursWeek=e.target.value;renderHours()}});
+  document.querySelectorAll("#hoursModeTabs .seg-btn").forEach(b=>b.addEventListener("click",()=>{state.hoursMode=b.dataset.hmode;state.hoursExpanded=null;renderHours()}));
+  byId("hoursTypeFilter")?.addEventListener("change",e=>{state.hoursType=e.target.value;renderHours()});
+  byId("hoursSearchInput")?.addEventListener("input",e=>{state.hoursSearch=e.target.value;renderHours()});
+  syncHoursDateInput();
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availMode=b.dataset.mode;renderAvailabilityOverview()});
   document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availPage=b.dataset.atab;syncAvailPage()});
   document.querySelectorAll("#settingsTabs .staff-tab").forEach(b=>b.onclick=()=>{state.settingsTab=b.dataset.sec;syncSettingsTab()});
@@ -1378,6 +1494,7 @@ function init(){
   Cloud.init(onCloudData,updateSyncStatus);
 }
 window.openEmployeeModal=openEmployeeModal;window.deleteEmployee=deleteEmployee;window.openWorktypeModal=openWorktypeModal;window.deleteWorktype=deleteWorktype;window.openShiftModal=openShiftModal;window.deleteShift=deleteShift;window.closeModal=closeModal;window.selectDate=selectDate;
+window.hoursSortBy=hoursSortBy;window.hoursToggle=hoursToggle;window.setShiftActual=setShiftActual;window.toggleShiftVerified=toggleShiftVerified;window.verifyAll=verifyAll;
 document.addEventListener("DOMContentLoaded",init);
 
 window.openAvailabilityWindowModal=openAvailabilityWindowModal;window.deleteAvailabilityWindow=deleteAvailabilityWindow;
