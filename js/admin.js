@@ -203,7 +203,7 @@ function renderDashboard(){
   const selected=state.data.shifts.filter(s=>s.date===todayKey).sort((a,b)=>mins(a.start)-mins(b.start));
   byId("todayShifts").innerHTML=selected.length?selected.map(shiftListItem).join(""):`<div class="empty-state">今天尚未排班</div>`;
   const warns=[];
-  if(fill&&fill.unfilled.length)warns.push({t:`${fill.unfilled.length} 人尚未填寫可上班時間`,d:fill.unfilled.map(e=>e.name).join("、")});
+  if(fill&&fill.unfilled.length&&!fill.window.defaultAvailable)warns.push({t:`${fill.unfilled.length} 人尚未填寫可上班時間`,d:fill.unfilled.map(e=>e.name).join("、")});
   // 固定班次缺額（未來 14 天）：只提醒「已經開始排、但還沒排滿」的日子，避免整批未排的未來日誤報
   const demandWarns=[];
   for(let i=0;i<14;i++){
@@ -763,10 +763,10 @@ function effectiveAvail(employeeId,dateKey){
   }
   return undefined;
 }
-// 某員工在某填寫區段是否已填（有紀錄，或該區段設為預設全部可上班即視為已覆蓋）
+// 某員工在某填寫區段是否「真的自己填過」（在目標排班日期範圍內有任一筆紀錄）。
+// 註：預設全部可上班的區段不算已填——那只是後台的預設值，不代表員工本人已確認。
 function hasFilled(employeeId,w){
   if(!w)return false;
-  if(w.defaultAvailable)return true;
   return state.data.availability.some(a=>a.employeeId===employeeId&&a.date>=w.targetStart&&a.date<=w.targetEnd);
 }
 function windowFillStatus(w){
@@ -848,11 +848,19 @@ function renderAvailabilityOverview(){
   if(summary){
     if(w){
       const fill=windowFillStatus(w);
-      summary.innerHTML=`<div class="info-banner"><div>
-        <strong>目前開放：${w.name}｜填寫排班日期 ${formatDate(w.targetStart)} ～ ${formatDate(w.targetEnd)}</strong>
-        <span>已填 ${fill.filled.length} 人・未填 ${fill.unfilled.length} 人（共 ${fill.total} 位在職員工）</span>
-        ${fill.unfilled.length&&!w.defaultAvailable?`<span>未填：${fill.unfilled.map(e=>e.name).join("、")}</span>`:""}
-      </div></div>`;
+      if(w.defaultAvailable){
+        summary.innerHTML=`<div class="info-banner"><div>
+          <strong>目前開放：${w.name}｜排班日期 ${formatDate(w.targetStart)} ～ ${formatDate(w.targetEnd)}</strong>
+          <span>此區段「預設全部可上班」——未自行填寫者一律視為整天可上班。</span>
+          <span>目前已有 <b>${fill.filled.length}</b> 人自行登入填寫／修改（共 ${fill.total} 位在職員工）${fill.filled.length?`：${fill.filled.map(e=>e.name).join("、")}`:""}</span>
+        </div></div>`;
+      }else{
+        summary.innerHTML=`<div class="info-banner"><div>
+          <strong>目前開放：${w.name}｜填寫排班日期 ${formatDate(w.targetStart)} ～ ${formatDate(w.targetEnd)}</strong>
+          <span>已填 ${fill.filled.length} 人・未填 ${fill.unfilled.length} 人（共 ${fill.total} 位在職員工）</span>
+          ${fill.unfilled.length?`<span>未填：${fill.unfilled.map(e=>e.name).join("、")}</span>`:""}
+        </div></div>`;
+      }
     }else{
       summary.innerHTML=`<div class="info-banner"><div><strong>目前沒有開放中的填寫區段</strong><span>員工端暫時無法自行填寫；後台仍可在下方直接代填任何日期（例如員工提早告知的休假）。</span></div></div>`;
     }
