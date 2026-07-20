@@ -376,7 +376,7 @@ function isNarrow(){return !!(window.matchMedia&&window.matchMedia("(max-width:7
 function renderSchedule(){
   const grid=byId("scheduleGrid");if(!grid)return;
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.smode===state.scheduleMode));
-  const hint=byId("schedHint");if(hint)hint.textContent=isNarrow()?"點班次可編輯；用下方按鈕或每日的＋新增班次。":"點日曆空白時段可直接新增班次，點色塊可編輯。灰色斜紋＝草稿（員工看不到），公布後才會顯示給員工。";
+  const hint=byId("schedHint");if(hint)hint.textContent=isNarrow()?"點班次可編輯；用下方按鈕或每日的＋新增班次。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿（員工看不到）。";
   if(isNarrow()){renderScheduleList(grid);renderPublishBar();return;}
   const axis=timeAxis();
   if(state.scheduleMode==="week"){
@@ -415,18 +415,47 @@ function renderSchedule(){
   wireScheduleGrid(axis);
 }
 function wireScheduleGrid(axis){
+  const fmtMin=m=>`${pad(Math.floor(m/60))}:${pad(m%60)}`;
+  const yToMin=(track,clientY)=>{
+    const rect=track.getBoundingClientRect();
+    const frac=rect.height?Math.max(0,Math.min(1,(clientY-rect.top)/rect.height)):0;
+    const m=axis.startM+Math.round((frac*axis.total)/axis.step)*axis.step;
+    return Math.max(axis.startM,Math.min(m,axis.endM));
+  };
+  const addShiftAt=(track,startM,endM)=>{
+    const date=track.dataset.date;
+    if(isClosedDay(date)&&!confirm("這一天是公休日，確定要排班？"))return;
+    const workId=track.dataset.work||worksForDate(date)[0]?.id||state.data.workTypes.find(w=>w.active)?.id||"";
+    const prefill={date,workTypeId:workId,start:fmtMin(startM)};
+    if(endM!=null)prefill.end=fmtMin(endM);
+    openShiftModal(null,prefill);
+  };
   document.querySelectorAll("#scheduleGrid .dg-track").forEach(track=>{
+    // 點擊空白：沿用原本「起點＋預設時長」新增（含觸控裝置）
     track.addEventListener("click",ev=>{
       if(ev.target.closest(".dg-block"))return;
-      const date=track.dataset.date;
-      const rect=track.getBoundingClientRect();
-      const frac=Math.max(0,Math.min(1,(ev.clientY-rect.top)/rect.height));
-      let m=axis.startM+Math.round((frac*axis.total)/axis.step)*axis.step;
-      m=Math.max(axis.startM,Math.min(m,axis.endM-axis.step)); // 保留至少一格
-      const start=`${pad(Math.floor(m/60))}:${pad(m%60)}`;
-      if(isClosedDay(date)&&!confirm("這一天是公休日，確定要排班？"))return;
-      const workId=track.dataset.work||worksForDate(date)[0]?.id||state.data.workTypes.find(w=>w.active)?.id||"";
-      openShiftModal(null,{date,workTypeId:workId,start});
+      if(track.__dragged){track.__dragged=false;return;} // 剛剛是拖曳框選，略過這次 click
+      const m=Math.min(yToMin(track,ev.clientY),axis.endM-axis.step); // 保留至少一格
+      addShiftAt(track,m,null);
+    });
+    // 滑鼠拖曳：在時間軸框選一段，放開後帶入起訖時間（觸控維持點擊新增，不進拖曳）
+    track.addEventListener("pointerdown",ev=>{
+      if(ev.pointerType!=="mouse"||ev.button!==0||ev.target.closest(".dg-block"))return;
+      const startM=yToMin(track,ev.clientY);let curM=startM,moved=false;
+      const sel=document.createElement("div");sel.className="dg-select";track.appendChild(sel);
+      const draw=()=>{const a=Math.min(startM,curM),b=Math.max(startM,curM);sel.style.top=((a-axis.startM)/axis.total*axis.height)+"px";sel.style.height=Math.max(2,(b-a)/axis.total*axis.height)+"px";sel.textContent=`${fmtMin(a)}–${fmtMin(b)}`;};
+      draw();
+      const onMove=e=>{curM=yToMin(track,e.clientY);if(Math.abs(curM-startM)>=axis.step)moved=true;draw();};
+      const onUp=()=>{
+        document.removeEventListener("pointermove",onMove);document.removeEventListener("pointerup",onUp);
+        sel.remove();
+        if(!moved)return; // 沒拖動就當點擊，交給 click 處理
+        track.__dragged=true; // 抑制放開後緊接著的 click
+        let a=Math.min(startM,curM),b=Math.max(startM,curM);if(b-a<axis.step)b=a+axis.step;
+        addShiftAt(track,a,b);
+      };
+      document.addEventListener("pointermove",onMove);document.addEventListener("pointerup",onUp);
+      ev.preventDefault(); // 避免拖曳時反白選字
     });
   });
 }
@@ -861,9 +890,13 @@ function openShiftModal(id=null,prefill=null){
   let defStart="09:00",defEnd="17:00";
   if(prefill&&prefill.start){
     defStart=prefill.start;
-    const cfg=settings();
-    const endM=Math.min(mins(defStart)+240,mins(cfg.businessEnd)); // 預設 4 小時，不超過最晚下班
-    defEnd=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
+    if(prefill.end){ // 拖曳框選已帶入結束時間，直接採用
+      defEnd=prefill.end;
+    }else{
+      const cfg=settings();
+      const endM=Math.min(mins(defStart)+240,mins(cfg.businessEnd)); // 預設 4 小時，不超過最晚下班
+      defEnd=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
+    }
   }
   const s=id?state.data.shifts.find(x=>x.id===id):{id:uid("s"),date:(prefill&&prefill.date)||state.selectedDate,employeeId:"",workTypeId:(prefill&&prefill.workTypeId)||state.data.workTypes.find(w=>w.active)?.id||"",start:defStart,end:defEnd,breakMinutes:0,note:"",subWork:(prefill&&prefill.subWork)||"",prepRole:false,status:"draft",published:false};
   openModal(id?"編輯班次":"新增班次","先設定日期、工作與時間，最後再選擇系統整理好的員工",`

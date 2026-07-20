@@ -281,6 +281,8 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .quick-assign .qa-item.cur .qa-tag{color:var(--brand);font-weight:700}
 .quick-assign .qa-clear{border-top:1px solid var(--line);margin-top:4px;color:var(--muted);font-weight:700}
 .quick-assign .qa-empty{padding:10px 8px;color:var(--muted);font-size:13px}
+/* 拖曳框選新增班次時的即時選取範圍 */
+.dg-select{position:absolute;left:2px;right:2px;background:rgba(185,75,47,.22);border:1.5px dashed var(--brand);border-radius:8px;pointer-events:none;z-index:3;font-size:11px;font-weight:800;color:var(--brand);text-align:center;padding-top:2px;overflow:hidden}
 .dg-block.unassigned{background:#8a817b!important;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0,rgba(255,255,255,.18) 6px,transparent 6px,transparent 12px)!important}
 /* 每日需求模板 */
 .demand-card{margin-top:16px}
