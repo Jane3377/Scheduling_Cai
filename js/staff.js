@@ -21,6 +21,26 @@ function updateSyncStatus(s){
   const map={init:["◌","初始化"],connecting:["◌","連線中"],synced:["●","已同步"],saving:["◌","儲存中"],offline:["○","離線暫存"],local:["◍","本機模式"],error:["✕","雲端錯誤"]};
   const m=map[s]||map.local;el.className="sync-badge "+s;el.textContent=`${m[0]} ${m[1]}`;
 }
+/* 非阻斷式提示（Toast）：與後台共用同一套樣式；重要/錯誤 10 秒可暫停與手動關 */
+function toastHost(){let h=byId("toastHost");if(!h){h=document.createElement("div");h.id="toastHost";h.className="toast-host";document.body.appendChild(h);}return h;}
+function toast(msg,type="info",ms){
+  const dur=ms!=null?ms:(type==="success"?4000:10000);
+  const el=document.createElement("div");el.className="toast toast-"+type;el.dataset.dur=dur;
+  el.innerHTML=`<span class="toast-msg"></span><button class="toast-close" type="button" aria-label="關閉">×</button><span class="toast-bar"></span>`;
+  el.querySelector(".toast-msg").textContent=msg;
+  toastHost().appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  const bar=el.querySelector(".toast-bar");
+  let remaining=dur,start=0,timer=null;
+  const dismiss=()=>{if(timer)clearTimeout(timer);el.classList.remove("show");el.classList.add("hide");setTimeout(()=>el.remove(),220);};
+  const run=()=>{if(dur<=0)return;start=Date.now();bar.style.transition=`width ${remaining}ms linear`;requestAnimationFrame(()=>{bar.style.width="0%";});timer=setTimeout(dismiss,remaining);};
+  const pause=()=>{if(dur<=0||!timer)return;clearTimeout(timer);timer=null;remaining=Math.max(0,remaining-(Date.now()-start));bar.style.transition="none";bar.style.width=(remaining/dur*100)+"%";};
+  el.addEventListener("mouseenter",pause);el.addEventListener("mouseleave",run);
+  el.addEventListener("touchstart",pause,{passive:true});el.addEventListener("touchend",run);
+  el.querySelector(".toast-close").addEventListener("click",dismiss);
+  run();
+  return el;
+}
 function storeCfg(){return data?.settings||{}}
 function bizStart(){return storeCfg().businessStart||"08:30"}
 function bizEnd(){return storeCfg().businessEnd||"21:00"}
@@ -43,7 +63,7 @@ function downloadICS(filename,text){const blob=new Blob([text],{type:"text/calen
 function myUpcoming(){if(!data||!staffEmployeeId)return [];const today=toDateKey(new Date());return data.shifts.filter(s=>s.employeeId===staffEmployeeId&&s.date>=today&&s.published!==false).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));}
 function addAllToCalendar(){
   const ups=myUpcoming();
-  if(!ups.length){alert("目前沒有即將到來的已公布班表可加入行事曆。");return;}
+  if(!ups.length){toast("目前沒有即將到來的已公布班表可加入行事曆。");return;}
   downloadICS(`${(storeCfg().storeName||"班表").trim()}_我的班表.ics`,buildICS(ups));
 }
 function addShiftToCalendar(id){const s=data&&data.shifts.find(x=>x.id===id);if(!s)return;downloadICS(`${(storeCfg().storeName||"班表").trim()}_${s.date}.ics`,buildICS([s]));}
@@ -276,9 +296,9 @@ function renderQuickWeekDays(){
 function quickWeekApply(type){
   if(!activeWindow)return;
   const days=[...document.querySelectorAll("#quickWeekDays .qw-day.on")].map(b=>Number(b.dataset.d));
-  if(!days.length){alert("請先勾選要套用的星期");return}
+  if(!days.length){toast("請先勾選要套用的星期","error");return}
   const start=byId("quickWeekStart").value,end=byId("quickWeekEnd").value;
-  if(type==="available"&&mins(end)<=mins(start)){alert("最晚可下班必須晚於最早可上班");return}
+  if(type==="available"&&mins(end)<=mins(start)){toast("最晚可下班必須晚於最早可上班","error");return}
   const endD=new Date(activeWindow.targetEnd+"T00:00:00");let count=0;
   for(let d=new Date(activeWindow.targetStart+"T00:00:00");d<=endD;d.setDate(d.getDate()+1)){
     const key=toDateKey(d);
@@ -294,7 +314,7 @@ function quickWeekApply(type){
 function saveSelectedDay(){
   if(!activeWindow||!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
   const start=byId("availabilityStart").value,end=byId("availabilityEnd").value;
-  if(mins(end)<=mins(start)){alert("結束時間必須晚於開始時間");return}
+  if(mins(end)<=mins(start)){toast("結束時間必須晚於開始時間","error");return}
   let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
   if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:selectedAvailabilityDate};data.availability.push(a)}
   Object.assign(a,{unavailable:false,start,end}); // 指定時段＝可上班；整天不行請用上方按鈕

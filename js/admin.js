@@ -603,7 +603,7 @@ function printWeekSchedule(){
     <div class="noprint"><button onclick="window.print()">🖨 列印 / 另存 PDF</button></div>
   </body></html>`;
   const win=window.open("","_blank");
-  if(!win){alert("瀏覽器阻擋了新視窗，請允許彈出視窗後再試。");return;}
+  if(!win){toast("瀏覽器阻擋了新視窗，請允許彈出視窗後再試。","error");return;}
   win.document.write(html);win.document.close();win.focus();
   setTimeout(()=>{try{win.print()}catch(e){}},400);
 }
@@ -739,15 +739,15 @@ function openAvailabilityWindowModal(id=null,prefill=null){
     ev.preventDefault();
     const fd=new FormData(ev.target);
     const openStart=fd.get("openStart"),openEnd=fd.get("openEnd"),targetStart=fd.get("targetStart"),targetEnd=fd.get("targetEnd");
-    if(!openStart||!openEnd||!targetStart||!targetEnd){alert("請完整填寫開放填寫期間與可填寫排班日期");return}
+    if(!openStart||!openEnd||!targetStart||!targetEnd){toast("請完整填寫開放填寫期間與可填寫排班日期","error");return}
     // 新增時才要求最早今天；編輯既有區段（可能已開始）不強制，避免改一個日期就把其他日期擋掉
-    if(!id&&openStart<tk){alert("開放填寫起日不可早於今天");return}
-    if(openEnd<openStart){alert("開放填寫迄日不可早於起日");return}
-    if(!id&&targetStart<tk){alert("可填寫排班起日不可早於今天");return}
-    if(targetEnd<targetStart){alert("可填寫排班迄日不可早於起日");return}
+    if(!id&&openStart<tk){toast("開放填寫起日不可早於今天","error");return}
+    if(openEnd<openStart){toast("開放填寫迄日不可早於起日","error");return}
+    if(!id&&targetStart<tk){toast("可填寫排班起日不可早於今天","error");return}
+    if(targetEnd<targetStart){toast("可填寫排班迄日不可早於起日","error");return}
     // 不同區段的「可填寫排班日期」不可重疊
     const clash=windows.find(x=>x.id!==w.id&&targetStart<=x.targetEnd&&targetEnd>=x.targetStart);
-    if(clash){alert(`可填寫排班日期與區段「${clash.name}」重疊（${formatDate(clash.targetStart)}～${formatDate(clash.targetEnd)}），請調整日期不要衝突。`);return}
+    if(clash){toast(`可填寫排班日期與區段「${clash.name}」重疊（${formatDate(clash.targetStart)}～${formatDate(clash.targetEnd)}），請調整日期不要衝突。`);return}
     Object.assign(w,{
       name:fd.get("name").trim(),
       openStart,openEnd,targetStart,targetEnd,
@@ -771,6 +771,26 @@ function deleteAvailabilityWindow(id){
 function selectDate(key){state.selectedDate=key;const d=new Date(key+"T00:00:00");state.calendarDate=new Date(d.getFullYear(),d.getMonth(),1);renderAll()}
 function openModal(title,subtitle,html){byId("modalTitle").textContent=title;byId("modalSubtitle").textContent=subtitle||"";byId("modalForm").innerHTML=html;byId("modalBackdrop").classList.remove("hidden")}
 function closeModal(){byId("modalBackdrop").classList.add("hidden")}
+/* ---------- 非阻斷式提示（Toast）：取代事後通知型 alert；重要/錯誤維持 10 秒且可暫停與手動關，不會一閃即過 ---------- */
+function toastHost(){let h=byId("toastHost");if(!h){h=document.createElement("div");h.id="toastHost";h.className="toast-host";document.body.appendChild(h);}return h;}
+function toast(msg,type="info",ms){
+  const dur=ms!=null?ms:(type==="success"?4000:10000); // 重要/錯誤 10 秒，單純確認 4 秒
+  const el=document.createElement("div");el.className="toast toast-"+type;el.dataset.dur=dur;
+  el.innerHTML=`<span class="toast-msg"></span><button class="toast-close" type="button" aria-label="關閉">×</button><span class="toast-bar"></span>`;
+  el.querySelector(".toast-msg").textContent=msg; // textContent：訊息內容不會被當成 HTML
+  toastHost().appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  const bar=el.querySelector(".toast-bar");
+  let remaining=dur,start=0,timer=null;
+  const dismiss=()=>{if(timer)clearTimeout(timer);el.classList.remove("show");el.classList.add("hide");setTimeout(()=>el.remove(),220);};
+  const run=()=>{if(dur<=0)return;start=Date.now();bar.style.transition=`width ${remaining}ms linear`;requestAnimationFrame(()=>{bar.style.width="0%";});timer=setTimeout(dismiss,remaining);};
+  const pause=()=>{if(dur<=0||!timer)return;clearTimeout(timer);timer=null;remaining=Math.max(0,remaining-(Date.now()-start));bar.style.transition="none";bar.style.width=(remaining/dur*100)+"%";};
+  el.addEventListener("mouseenter",pause);el.addEventListener("mouseleave",run);
+  el.addEventListener("touchstart",pause,{passive:true});el.addEventListener("touchend",run);
+  el.querySelector(".toast-close").addEventListener("click",dismiss);
+  run();
+  return el;
+}
 function openEmployeeModal(id=null){
   const e=id?employee(id):{id:uid("e"),employeeNo:"",name:"",phone:"",employmentType:"正職",shiftClass:"一般",noBreak:false,allowedWorkTypeIds:[],primaryWeekday:[],primaryWeekend:[],weeklyLimit:40,dailyLimit:8,active:true,note:"",pinEnabled:false,pinHash:null};
   e.primaryWeekday=e.primaryWeekday||[];e.primaryWeekend=e.primaryWeekend||[];e.shiftClass=e.shiftClass||"一般";e.note=e.note||"";
@@ -808,7 +828,7 @@ function openEmployeeModal(id=null){
   form.elements.shiftClass.addEventListener("change",ev=>{
     if(ev.target.value==="平日早班")byId("empNoBreak").checked=true; // 平日早班自動免扣休息
   });
-  form.onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target),no=fd.get("employeeNo").trim().toUpperCase();if(state.data.employees.some(x=>x.employeeNo.toUpperCase()===no&&x.id!==e.id)){alert("員工編號不可重複");return}
+  form.onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target),no=fd.get("employeeNo").trim().toUpperCase();if(state.data.employees.some(x=>x.employeeNo.toUpperCase()===no&&x.id!==e.id)){toast("員工編號不可重複","error");return}
     const works=fd.getAll("works");
     // 主要工作必須落在可做工作範圍內
     const primaryWeekday=fd.getAll("primaryWeekday").filter(w=>works.includes(w));
@@ -976,10 +996,10 @@ function openShiftModal(id=null,prefill=null){
     form.elements[name].addEventListener("change",()=>{refreshEmployeeOptions();updateWarnings();updateCalc()});
   });
   form.elements.employeeId.addEventListener("change",()=>{updateWarnings();updateCalc()});
-  form.onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);if(!fd.get("employeeId")){alert("請選擇員工");return}
+  form.onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);if(!fd.get("employeeId")){toast("請選擇員工","error");return}
     if(isClosedDay(fd.get("date"))&&!confirm("這一天是公休日，確定仍要排班？")){return}
     Object.assign(s,{date:fd.get("date"),workTypeId:fd.get("workTypeId"),subWork:(fd.get("subWork")||"").trim(),employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end"),breakMinutes:breakForShift({workTypeId:fd.get("workTypeId"),employeeId:fd.get("employeeId"),start:fd.get("start"),end:fd.get("end")}),note:fd.get("note").trim()});
-    if(mins(s.end)<=mins(s.start)){alert("結束時間必須晚於開始時間");return}
+    if(mins(s.end)<=mins(s.start)){toast("結束時間必須晚於開始時間","error");return}
     if(!id)state.data.shifts.push(s);state.selectedDate=s.date;save();closeModal()
   }
 }
@@ -1091,9 +1111,9 @@ function renderStoreSettings(){
   box.onsubmit=ev=>{
     ev.preventDefault();const fd=new FormData(box);
     const bs=fd.get("businessStart"),be=fd.get("businessEnd");
-    if(mins(be)<=mins(bs)){alert("最晚下班時間必須晚於最早上班時間");return}
+    if(mins(be)<=mins(bs)){toast("最晚下班時間必須晚於最早上班時間","error");return}
     const brs=fd.get("breakStart"),bre=fd.get("breakEnd");
-    if(mins(bre)<=mins(brs)){alert("休息結束時間必須晚於開始時間");return}
+    if(mins(bre)<=mins(brs)){toast("休息結束時間必須晚於開始時間","error");return}
     Object.assign(cfg,{
       storeName:fd.get("storeName").trim(),
       timeStep:Number(fd.get("timeStep")),
@@ -1102,7 +1122,7 @@ function renderStoreSettings(){
       foreignDefaultLimit:Number(fd.get("foreignDefaultLimit")||0),
       closedDays:fd.getAll("closedDays").map(Number)
     });
-    save();alert("已儲存店家設定");
+    save();toast("已儲存店家設定","success");
   };
 }
 
@@ -1405,7 +1425,7 @@ function openAvailEditModal(employeeId,dateKey){
     let list=state.data.availability;
     if(st==="none"){state.data.availability=list.filter(x=>!(x.employeeId===employeeId&&x.date===dateKey));save();closeModal();return}
     const s=byId("avStart").value,e=byId("avEnd").value;
-    if(st==="on"&&mins(e)<=mins(s)){alert("結束時間必須晚於開始時間");return}
+    if(st==="on"&&mins(e)<=mins(s)){toast("結束時間必須晚於開始時間","error");return}
     let rec=list.find(x=>x.employeeId===employeeId&&x.date===dateKey);
     if(!rec){rec={id:uid("a"),employeeId,date:dateKey};list.push(rec)}
     Object.assign(rec,{unavailable:st==="off",start:s,end:e});
@@ -1424,7 +1444,7 @@ function renderHolidays(){
 }
 function addHoliday(){
   const date=byId("holidayDate").value;
-  if(!date){alert("請先選擇日期");return}
+  if(!date){toast("請先選擇日期","error");return}
   const note=(byId("holidayNote").value||"").trim();
   const list=holidays();
   const existing=list.find(h=>h.date===date);
@@ -1449,11 +1469,11 @@ function importTaiwanHolidays(){
   const list=nationalHolidays();let added=0;
   TW_HOLIDAYS.forEach(([date,name])=>{if(!list.some(h=>h.date===date)){list.push({date,name});added++}});
   save();
-  alert(`已匯入 ${added} 個臺灣國定假日（2026–2027），僅作標示。是否公休請在各假日按「設為公休」自行決定。`);
+  toast(`已匯入 ${added} 個臺灣國定假日（2026–2027），僅作標示。是否公休請在各假日按「設為公休」自行決定。`);
 }
 function addNationalHoliday(){
-  const date=byId("nhDate").value;if(!date){alert("請先選擇日期");return}
-  const name=(byId("nhName").value||"").trim();if(!name){alert("請輸入假日名稱");return}
+  const date=byId("nhDate").value;if(!date){toast("請先選擇日期","error");return}
+  const name=(byId("nhName").value||"").trim();if(!name){toast("請輸入假日名稱","error");return}
   const list=nationalHolidays();const ex=list.find(h=>h.date===date);
   if(ex)ex.name=name;else list.push({date,name});
   byId("nhName").value="";save();
@@ -1477,11 +1497,11 @@ function parseHolidayLines(text){
 }
 function importPastedHolidays(){
   const parsed=parseHolidayLines(byId("nhPasteText").value);
-  if(!parsed.length){alert("找不到可辨識的日期，請確認每行含有日期，例如「2028-01-01 元旦」。");return}
+  if(!parsed.length){toast("找不到可辨識的日期，請確認每行含有日期，例如「2028-01-01 元旦」。","error");return}
   const list=nationalHolidays();let added=0,updated=0;
   parsed.forEach(({date,name})=>{const ex=list.find(h=>h.date===date);if(ex){ex.name=name;updated++}else{list.push({date,name});added++}});
   byId("nhPasteText").value="";save();
-  alert(`已匯入 ${added} 筆、更新 ${updated} 筆假日。`);
+  toast(`已匯入 ${added} 筆、更新 ${updated} 筆假日。`);
 }
 function toggleHolidayClosed(date,name){
   const list=holidays();const i=list.findIndex(h=>h.date===date);
@@ -1522,7 +1542,7 @@ function openDemandModal(id=null){
       <div class="modal-actions span-2">${id?`<button type="button" class="danger-btn" onclick="deleteDemand('${r.id}')">刪除</button>`:""}<button type="button" class="ghost-btn" onclick="closeModal()">取消</button><button class="primary-btn">儲存</button></div>
     </div>`);
   byId("modalForm").onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);const start=fd.get("start"),end=fd.get("end");
-    if(mins(end)<=mins(start)){alert("結束時間必須晚於開始時間");return}
+    if(mins(end)<=mins(start)){toast("結束時間必須晚於開始時間","error");return}
     Object.assign(r,{workTypeId:fd.get("workTypeId"),start,end,count:Math.max(1,Number(fd.get("count")||1)),subWork:(fd.get("subWork")||"").trim(),note:(fd.get("note")||"").trim()});
     if(!id)list.push(r);save();closeModal()};
 }
@@ -1530,7 +1550,7 @@ function deleteDemand(id){if(confirm("確定刪除這筆需求？")){settings().
 // 把某一天的需求整批複製到其他星期，省去逐日重設（平日大多相同，只有假日不同時特別方便）
 function openCopyDemandModal(){
   const src=state.demandWeekday, srcRows=demandForWeekday(src);
-  if(!srcRows.length){alert("這一天還沒有固定班次可以複製。");return}
+  if(!srcRows.length){toast("這一天還沒有固定班次可以複製。");return}
   const others=[1,2,3,4,5,6,0,7].filter(d=>d!==src);
   const boxes=others.map(d=>`<label class="checkbox-card"><input type="checkbox" name="days" value="${d}"><span>${dayLabel(d)}</span></label>`).join("");
   openModal("複製固定班次",`把「${dayLabel(src)}」的 ${srcRows.length} 筆固定班次複製到其他天`,`
@@ -1546,11 +1566,11 @@ function openCopyDemandModal(){
   });
   form.onsubmit=ev=>{ev.preventDefault();
     const targets=[...form.querySelectorAll("[name=days]:checked")].map(cb=>Number(cb.value));
-    if(!targets.length){alert("請至少勾選一個要複製到的星期。");return}
+    if(!targets.length){toast("請至少勾選一個要複製到的星期。","error");return}
     const all=getDemand().filter(r=>!targets.includes(r.weekday)); // 移除目標日原有需求
     targets.forEach(d=>srcRows.forEach(r=>all.push({...r,id:uid("dd"),weekday:d})));
     settings().dailyDemand=all;save();closeModal();
-    alert(`已複製到 ${targets.map(dayLabel).join("、")}。`);
+    toast(`已複製到 ${targets.map(dayLabel).join("、")}。`);
   };
 }
 // 選出最適合的員工（可排班、依主要負責與工時排序）
@@ -1565,7 +1585,7 @@ function copyLastWeek(){
   const [a,b]=weekRange(state.selectedDate);
   const prevA=addDays(a,-7),prevB=addDays(b,-7);
   const src=state.data.shifts.filter(s=>s.date>=prevA&&s.date<=prevB).sort((x,y)=>x.date.localeCompare(y.date));
-  if(!src.length){alert(`上一週（${formatDate(prevA)}～${formatDate(prevB)}）沒有班次可以複製。`);return}
+  if(!src.length){toast(`上一週（${formatDate(prevA)}～${formatDate(prevB)}）沒有班次可以複製。`);return}
   const existing=state.data.shifts.filter(s=>s.date>=a&&s.date<=b).length;
   const msg=existing
     ? `本週（${formatDate(a)}～${formatDate(b)}）已有 ${existing} 個班次。\n將把上一週的 ${src.length} 個班次「加入」本週（不會刪除原有，之後可自行調整）。確定？`
@@ -1577,22 +1597,22 @@ function copyLastWeek(){
     state.data.shifts.push(ns);
   });
   save();
-  alert(`已複製 ${src.length} 個班次到本週。`);
+  toast(`已複製 ${src.length} 個班次到本週。`);
 }
 // 公布本週：把本週所有班次設為已公布，員工端才看得到
 function publishWeek(){
   const [a,b]=weekRange(state.selectedDate);
   const wsh=state.data.shifts.filter(s=>s.date>=a&&s.date<=b);
-  if(!wsh.length){alert("本週沒有班次可公布。");return}
+  if(!wsh.length){toast("本週沒有班次可公布。");return}
   const drafts=wsh.filter(s=>s.published===false);
-  if(!drafts.length){alert("本週班次都已公布。");return}
+  if(!drafts.length){toast("本週班次都已公布。");return}
   if(!confirm(`公布本週（${formatDate(a)}～${formatDate(b)}）？\n共 ${wsh.length} 個班次，其中 ${drafts.length} 個為新的／未公布。公布後員工就能在自己的班表看到。`))return;
   wsh.forEach(s=>s.published=true);
   // 記錄公布事件，供員工端顯示「幾號～幾號的班表已更新」
   const log=settings().publishLog;log.push({start:a,end:b,at:Date.now()});
   if(log.length>20)settings().publishLog=log.slice(-20);
   save();
-  alert("已公布本週班表，員工現在可以看到了。");
+  toast("已公布本週班表，員工現在可以看到了。","success");
 }
 // 取消公布本週：員工端暫時看不到（不刪除班次）
 function unpublishWeek(){
@@ -1601,7 +1621,7 @@ function unpublishWeek(){
   if(!wsh.length)return;
   if(!confirm(`取消公布本週（${formatDate(a)}～${formatDate(b)}）班表？\n取消後員工將暫時看不到本週班表（班次不會刪除，可再重新公布）。`))return;
   wsh.forEach(s=>s.published=false);save();
-  alert("已取消公布本週班表。");
+  toast("已取消公布本週班表。","success");
 }
 function renderPublishBar(){
   const el=byId("schedPublish");if(!el)return;
@@ -1625,7 +1645,7 @@ function applyDemand(dateKey){
   const wd=useHoliday?7:new Date(dateKey+"T00:00:00").getDay();
   const all=demandForWeekday(wd);
   if(!all.length){
-    alert(`${dayLabel(wd)}尚未設定固定班次，請先按上方「固定班次設定」${isNH?"的「國定假日」分頁":""}建立。`);return;
+    toast(`${dayLabel(wd)}尚未設定固定班次，請先按上方「固定班次設定」${isNH?"的「國定假日」分頁":""}建立。`);return;
   }
   const rows=all.filter(r=>workAppliesOnDate(worktype(r.workTypeId),dateKey));
   const skipped=all.length-rows.length;
@@ -1650,13 +1670,13 @@ function applyDemand(dateKey){
   rows.forEach(r=>{unfilled+=state.data.shifts.filter(s=>s.date===dateKey&&s.workTypeId===r.workTypeId&&s.start===r.start&&s.end===r.end&&!s.employeeId).length;});
   const skipNote=skipped?`（${skipped} 筆因平日／假日限定不適用本日、已略過）`:"";
   if(!created&&!assignedNow){
-    alert(`本日固定班次已建立且無可補指派的空缺，未變更。${unfilled?`目前仍有 ${unfilled} 個待指派。`:""}${skipNote}`);return;
+    toast(`本日固定班次已建立且無可補指派的空缺，未變更。${unfilled?`目前仍有 ${unfilled} 個待指派。`:""}${skipNote}`);return;
   }
   save();
   const parts=[];
   if(created)parts.push(`新增 ${created} 個班次`);
   if(assignedNow)parts.push(`補指派 ${assignedNow} 人`);
-  alert(`已套用${useHoliday?"國定假日":""}固定班次：${parts.join("、")}。${unfilled?`仍有 ${unfilled} 個待指派——可等可上班時間更新後再按一次「套用固定班次」自動補人（不會重複新增）。`:"皆已指派。"}${skipNote}`);
+  toast(`已套用${useHoliday?"國定假日":""}固定班次：${parts.join("、")}。${unfilled?`仍有 ${unfilled} 個待指派——可等可上班時間更新後再按一次「套用固定班次」自動補人（不會重複新增）。`:"皆已指派。"}${skipNote}`);
 }
 
 function onCloudData(data,info){
@@ -1702,8 +1722,8 @@ function importBackup(kind,file){
       const items=Array.isArray(obj)?obj:(obj.items||[]);
       if(!Array.isArray(items))throw new Error("bad");
       if(!confirm(`將以匯入的 ${items.length} 筆${kind==="employees"?"員工":"工作"}覆蓋目前資料，確定？`))return;
-      state.data[kind]=items;save();alert("匯入完成。");
-    }catch(e){alert("檔案格式不正確，請確認是本系統匯出的備份 JSON。");}
+      state.data[kind]=items;save();toast("匯入完成。","success");
+    }catch(e){toast("檔案格式不正確，請確認是本系統匯出的備份 JSON。","error");}
   };
   reader.readAsText(file);
 }
@@ -1721,8 +1741,8 @@ function importDemandBackup(file){
       const items=Array.isArray(obj)?obj:(obj.items||[]);
       if(!Array.isArray(items))throw new Error("bad");
       if(!confirm(`將以匯入的 ${items.length} 筆固定班次覆蓋目前設定，確定？`))return;
-      settings().dailyDemand=items;save();alert("匯入完成。");
-    }catch(e){alert("檔案格式不正確，請確認是本系統匯出的固定班次備份 JSON。");}
+      settings().dailyDemand=items;save();toast("匯入完成。","success");
+    }catch(e){toast("檔案格式不正確，請確認是本系統匯出的固定班次備份 JSON。","error");}
   };
   reader.readAsText(file);
 }
@@ -1741,8 +1761,8 @@ function importAll(file){
       const d=obj&&obj.data?obj.data:obj; // 容許直接是 data 或包在 {data} 內
       if(!d||!Array.isArray(d.employees)||!Array.isArray(d.shifts))throw new Error("bad");
       if(!confirm(`將以此備份「完全覆蓋」目前所有資料（員工 ${d.employees.length}、工作 ${(d.workTypes||[]).length}、班次 ${d.shifts.length}）。\n此動作無法復原，確定還原？`))return;
-      state.data=migrate(d);save();alert("完整備份已還原。");
-    }catch(e){alert("檔案格式不正確，請確認是本系統匯出的「完整備份」JSON。");}
+      state.data=migrate(d);save();toast("完整備份已還原。","success");
+    }catch(e){toast("檔案格式不正確，請確認是本系統匯出的「完整備份」JSON。","error");}
   };
   reader.readAsText(file);
 }
@@ -1762,9 +1782,9 @@ function purgeNow(){
   const days=180,cutoff=addDays(toDateKey(today),-days);
   const oldShifts=state.data.shifts.filter(s=>s.date<cutoff).length;
   const oldAvail=state.data.availability.filter(a=>a.date<cutoff).length;
-  if(!oldShifts&&!oldAvail){alert(`目前沒有 ${days} 天前（${formatDate(cutoff)} 之前）的舊資料。`);return;}
+  if(!oldShifts&&!oldAvail){toast(`目前沒有 ${days} 天前（${formatDate(cutoff)} 之前）的舊資料。`);return;}
   if(!confirm(`將永久刪除 ${formatDate(cutoff)} 之前的舊資料：\n・排班班次 ${oldShifts} 筆\n・可上班時間 ${oldAvail} 筆\n（工時是依班次即時計算，會一併清掉）\n\n此動作無法復原，建議先用上方「完整備份」匯出。確定清除？`))return;
-  purgeBefore(cutoff);save();alert("已清除 180 天前的舊資料。");
+  purgeBefore(cutoff);save();toast("已清除 180 天前的舊資料。");
 }
 // 開啟系統時依設定自動清除（回傳刪除筆數）
 function autoPurge(){
@@ -1863,7 +1883,7 @@ function init(){
   byId("saveAutoPurgeBtn")?.addEventListener("click",()=>{
     const v=Math.max(0,Math.floor(Number(byId("autoPurgeInput").value)||0));
     settings().autoPurgeDays=v;save();
-    alert(v>0?`已設定：超過 ${v} 天的舊資料會在開啟系統時自動清除。`:"已關閉自動清除（不會自動刪除舊資料）。");
+    toast(v>0?`已設定：超過 ${v} 天的舊資料會在開啟系統時自動清除。`:"已關閉自動清除（不會自動刪除舊資料）。");
   });
   byId("exportAllBtn")?.addEventListener("click",exportAll);
   byId("importAllBtn")?.addEventListener("click",()=>byId("importAllFile").click());
