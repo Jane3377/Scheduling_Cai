@@ -86,6 +86,7 @@ function settings(){
   s.dailyDemand=s.dailyDemand||[];
   s.holidays=s.holidays||[];
   s.nationalHolidays=s.nationalHolidays||[];
+  s.autoAvailableDates=s.autoAvailableDates||[]; // 持久保存的「預設全部可上班」日期，不隨區段增刪而消失
   return s;
 }
 // 內建臺灣國定假日（僅供標示、參考用，可自行增刪；是否公休由店家自訂）
@@ -631,11 +632,6 @@ function openAvailabilityWindowModal(id=null){
     // 不同區段的「可填寫排班日期」不可重疊
     const clash=windows.find(x=>x.id!==w.id&&targetStart<=x.targetEnd&&targetEnd>=x.targetStart);
     if(clash){alert(`可填寫排班日期與區段「${clash.name}」重疊（${formatDate(clash.targetStart)}～${formatDate(clash.targetEnd)}），請調整日期不要衝突。`);return}
-    // 若原本是「預設全部可上班」且仍維持，範圍縮小而被移出的日期，先把預設寫成實際紀錄保留下來（避免改範圍就歸零）
-    if(id&&w.defaultAvailable&&fd.get("defaultAvailable")==="on"&&w.targetStart&&w.targetEnd){
-      const dropped=datesInRange(w.targetStart,w.targetEnd).filter(d=>d<targetStart||d>targetEnd);
-      if(dropped.length)materializeDefaultForDates(dropped);
-    }
     Object.assign(w,{
       name:fd.get("name").trim(),
       openStart,openEnd,targetStart,targetEnd,
@@ -644,6 +640,8 @@ function openAvailabilityWindowModal(id=null){
       note:fd.get("note").trim()
     });
     if(!id)windows.push(w);
+    // 設「預設全部可上班」→ 立即把這段排班日期寫入持久清單（之後刪除/縮小區段都不會歸零）
+    if(w.defaultAvailable)persistAutoAvailable(w.targetStart,w.targetEnd);
     save();closeModal()
   }
 }
@@ -879,12 +877,18 @@ function datesInRange(startKey,endKey){
 function windowForDate(dateKey){
   return getAvailabilityWindows().filter(w=>w.enabled).find(w=>dateKey>=w.targetStart&&dateKey<=w.targetEnd);
 }
-// 取得某員工某日的「實際」可上班狀態：優先用已填紀錄；若該日所屬區段設定「預設全部可上班」且非公休，則視為整天可上班。
+// 某日是否套用「預設全部可上班」：目前有開放中的預設區段涵蓋，或已寫入持久清單（設過就保留，刪區段也不消失）
+function isAutoAvailableDate(dateKey){
+  if(isClosedDay(dateKey))return false;
+  const w=windowForDate(dateKey);
+  if(w&&w.defaultAvailable)return true;
+  return (settings().autoAvailableDates||[]).includes(dateKey);
+}
+// 取得某員工某日的「實際」可上班狀態：優先用已填紀錄；否則若該日為「預設全部可上班」則視為整天可上班。
 function effectiveAvail(employeeId,dateKey){
   const rec=state.data.availability.find(a=>a.employeeId===employeeId&&a.date===dateKey);
   if(rec)return rec;
-  const w=windowForDate(dateKey);
-  if(w&&w.defaultAvailable&&!isClosedDay(dateKey)){
+  if(isAutoAvailableDate(dateKey)){
     return {employeeId,date:dateKey,unavailable:false,start:settings().businessStart,end:settings().businessEnd,_default:true};
   }
   return undefined;
@@ -894,17 +898,12 @@ function hasFilled(employeeId,w){
   if(!w)return false;
   return state.data.availability.some(a=>a.employeeId===employeeId&&!a._default&&a.date>=w.targetStart&&a.date<=w.targetEnd);
 }
-// 把指定日期的「預設全部可上班」寫成實際紀錄（僅補沒有紀錄的員工），讓它不隨區段範圍改變而消失
-function materializeDefaultForDates(dates){
-  const bs=settings().businessStart,be=settings().businessEnd;
-  const actives=state.data.employees.filter(e=>e.active);
-  dates.forEach(d=>{
-    if(isClosedDay(d))return;
-    actives.forEach(e=>{
-      if(!state.data.availability.find(a=>a.employeeId===e.id&&a.date===d))
-        state.data.availability.push({id:uid("a"),employeeId:e.id,date:d,unavailable:false,start:bs,end:be,_default:true});
-    });
-  });
+// 把某區段的排班日期範圍寫入持久「預設可上班」清單（只增不減；僅保留近 90 天內起的日期避免無限膨脹）
+function persistAutoAvailable(targetStart,targetEnd){
+  const cur=new Set(settings().autoAvailableDates||[]);
+  datesInRange(targetStart,targetEnd).forEach(d=>{if(!isClosedDay(d))cur.add(d);});
+  const cutoff=addDays(toDateKey(today),-90);
+  settings().autoAvailableDates=[...cur].filter(d=>d>=cutoff).sort();
 }
 function windowFillStatus(w){
   if(!w)return null;
