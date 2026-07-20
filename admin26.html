@@ -295,6 +295,24 @@
             </div>
           </div>
           <hr class="soft-divider" />
+          <h3>資料清理</h3>
+          <p>清除舊的排班班次與可上班時間，讓資料量不會無限增加。工時是依班次即時計算，清掉舊班次即清掉舊工時。員工、工作、固定班次設定不會被清。此動作無法復原，建議先用上方「完整備份」匯出。</p>
+          <div class="backup-block">
+            <strong>自動清除</strong>
+            <span class="field-help">開啟系統時，會自動清除「超過下列天數」的舊排班與可上班時間。預設 365 天（一年）；填 0 ＝ 不自動清除。</span>
+            <div class="backup-btns">
+              <label class="field" style="max-width:220px;margin:0"><span>超過幾天自動清除</span><input class="input" type="number" min="0" step="1" id="autoPurgeInput"></label>
+              <button type="button" class="secondary-btn" id="saveAutoPurgeBtn">儲存</button>
+            </div>
+          </div>
+          <div class="backup-block">
+            <strong>立即清除</strong>
+            <span class="field-help">馬上清除 180 天前的舊排班與可上班時間（不影響員工、工作、固定班次）。</span>
+            <div class="backup-btns">
+              <button type="button" class="ghost-btn" id="purgeNowBtn">🧹 立即清除 180 天前資料</button>
+            </div>
+          </div>
+          <hr class="soft-divider" />
           <h3>清空所有資料</h3>
           <p>清空所有資料（員工、工作、班次、可上班時間等）。此動作無法復原，建議先用上方「完整備份」匯出保存。</p>
           <button type="button" class="ghost-btn" id="resetDemoBtn">清空所有資料</button>

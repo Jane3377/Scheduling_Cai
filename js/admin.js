@@ -87,6 +87,7 @@ function settings(){
   s.holidays=s.holidays||[];
   s.nationalHolidays=s.nationalHolidays||[];
   s.autoAvailableDates=s.autoAvailableDates||[]; // 持久保存的「預設全部可上班」日期，不隨區段增刪而消失
+  s.autoPurgeDays=s.autoPurgeDays==null?365:Number(s.autoPurgeDays); // 超過幾天自動清除舊資料（0＝不清除），預設 365
   return s;
 }
 // 內建臺灣國定假日（僅供標示、參考用，可自行增刪；是否公休由店家自訂）
@@ -201,7 +202,7 @@ function syncSettingsTab(){
 }
 function renderAll(){
   // 逐一保護：即使某個區塊出錯，也不讓整個畫面變空白
-  [applyBranding,renderDashboard,renderEmployees,renderWorktypes,renderCalendar,renderSchedule,renderAvailabilityWindows,renderHours,renderAvailabilityOverview,syncAvailPage,renderStoreSettings,renderDemand,renderHolidays,renderNationalHolidays,syncSettingsTab]
+  [applyBranding,renderDashboard,renderEmployees,renderWorktypes,renderCalendar,renderSchedule,renderAvailabilityWindows,renderHours,renderAvailabilityOverview,syncAvailPage,renderStoreSettings,renderDemand,renderHolidays,renderNationalHolidays,renderMaintenance,syncSettingsTab]
     .forEach(fn=>{try{fn()}catch(err){console.error("render error:",fn.name,err)}});
 }
 function renderDashboard(){
@@ -898,12 +899,11 @@ function hasFilled(employeeId,w){
   if(!w)return false;
   return state.data.availability.some(a=>a.employeeId===employeeId&&!a._default&&a.date>=w.targetStart&&a.date<=w.targetEnd);
 }
-// 把某區段的排班日期範圍寫入持久「預設可上班」清單（只增不減；僅保留近 90 天內起的日期避免無限膨脹）
+// 把某區段的排班日期範圍寫入持久「預設可上班」清單（只增不減，不自動清理；舊資料由「資料清理」統一處理）
 function persistAutoAvailable(targetStart,targetEnd){
   const cur=new Set(settings().autoAvailableDates||[]);
   datesInRange(targetStart,targetEnd).forEach(d=>{if(!isClosedDay(d))cur.add(d);});
-  const cutoff=addDays(toDateKey(today),-90);
-  settings().autoAvailableDates=[...cur].filter(d=>d>=cutoff).sort();
+  settings().autoAvailableDates=[...cur].sort();
 }
 function windowFillStatus(w){
   if(!w)return null;
@@ -1504,6 +1504,7 @@ function applyDemand(dateKey){
 function onCloudData(data,info){
   if(info&&info.local)return; // 自己剛寫入的回音，畫面已即時更新
   state.data=migrate(data)||defaultData();
+  if(autoPurge()>0){save();return;} // 自動清除舊資料；有清到就存回雲端（save 內含 renderAll）
   renderAll();
 }
 function updateSyncStatus(s){
@@ -1588,6 +1589,36 @@ function importAll(file){
   };
   reader.readAsText(file);
 }
+// 清除「cutoff 日期之前」的舊資料：排班班次、可上班時間、預設可上班日期清單。回傳刪除筆數。
+function purgeBefore(cutoff){
+  const removed=state.data.shifts.filter(s=>s.date<cutoff).length
+    +state.data.availability.filter(a=>a.date<cutoff).length;
+  state.data.shifts=state.data.shifts.filter(s=>s.date>=cutoff);
+  state.data.availability=state.data.availability.filter(a=>a.date>=cutoff);
+  const s=settings();
+  s.autoAvailableDates=(s.autoAvailableDates||[]).filter(d=>d>=cutoff);
+  s.holidays=(s.holidays||[]).filter(h=>h.date>=cutoff); // 過去的特定休息日也一併清
+  return removed;
+}
+// 立即清除 180 天前的舊資料（手動）
+function purgeNow(){
+  const days=180,cutoff=addDays(toDateKey(today),-days);
+  const oldShifts=state.data.shifts.filter(s=>s.date<cutoff).length;
+  const oldAvail=state.data.availability.filter(a=>a.date<cutoff).length;
+  if(!oldShifts&&!oldAvail){alert(`目前沒有 ${days} 天前（${formatDate(cutoff)} 之前）的舊資料。`);return;}
+  if(!confirm(`將永久刪除 ${formatDate(cutoff)} 之前的舊資料：\n・排班班次 ${oldShifts} 筆\n・可上班時間 ${oldAvail} 筆\n（工時是依班次即時計算，會一併清掉）\n\n此動作無法復原，建議先用上方「完整備份」匯出。確定清除？`))return;
+  purgeBefore(cutoff);save();alert("已清除 180 天前的舊資料。");
+}
+// 開啟系統時依設定自動清除（回傳刪除筆數）
+function autoPurge(){
+  const days=Number(settings().autoPurgeDays||0);
+  if(!(days>0))return 0;
+  return purgeBefore(addDays(toDateKey(today),-days));
+}
+function renderMaintenance(){
+  const inp=byId("autoPurgeInput");
+  if(inp&&document.activeElement!==inp)inp.value=settings().autoPurgeDays;
+}
 function openFixedShiftModal(){const b=byId("fixedModalBackdrop");if(!b)return;b.classList.remove("hidden");renderDemand();}
 function closeFixedShiftModal(){const b=byId("fixedModalBackdrop");if(b)b.classList.add("hidden");}
 function init(){
@@ -1668,6 +1699,12 @@ function init(){
   byId("exportWorktypesBtn")?.addEventListener("click",()=>exportBackup("workTypes"));
   byId("importWorktypesBtn")?.addEventListener("click",()=>byId("importWorktypesFile").click());
   byId("importWorktypesFile")?.addEventListener("change",e=>{importBackup("workTypes",e.target.files[0]);e.target.value="";});
+  byId("purgeNowBtn")?.addEventListener("click",purgeNow);
+  byId("saveAutoPurgeBtn")?.addEventListener("click",()=>{
+    const v=Math.max(0,Math.floor(Number(byId("autoPurgeInput").value)||0));
+    settings().autoPurgeDays=v;save();
+    alert(v>0?`已設定：超過 ${v} 天的舊資料會在開啟系統時自動清除。`:"已關閉自動清除（不會自動刪除舊資料）。");
+  });
   byId("exportAllBtn")?.addEventListener("click",exportAll);
   byId("importAllBtn")?.addEventListener("click",()=>byId("importAllFile").click());
   byId("importAllFile")?.addEventListener("change",e=>{importAll(e.target.files[0]);e.target.value="";});
