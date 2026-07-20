@@ -119,11 +119,26 @@
 
       <section class="view" id="scheduleView">
         <div class="section-toolbar end">
+          <button class="ghost-btn" id="fixedShiftBtn">🗓 固定班次設定</button>
           <button class="ghost-btn" id="exportWeekBtn">⬇ 匯出本週</button>
           <button class="ghost-btn" id="exportMonthBtn">⬇ 匯出本月</button>
-          <button class="ghost-btn" id="applyDemandBtn">套用需求</button>
+          <button class="ghost-btn" id="applyDemandBtn">套用固定班次</button>
           <button class="primary-btn" id="schedAddBtn">＋ 班次</button>
         </div>
+        <section class="panel demand-card fixed-shift-panel hidden" id="fixedShiftPanel">
+          <div class="demand-head">
+            <div><h3>固定班次設定</h3><p>設定每個星期各工作固定需要幾人；按上方「套用固定班次」即可依此自動建立班次並指派最適人選。</p></div>
+            <div class="demand-head-actions">
+              <button type="button" class="ghost-btn" id="exportDemandBtn">⬇ 匯出</button>
+              <button type="button" class="ghost-btn" id="importDemandBtn">⬆ 匯入</button>
+              <input type="file" id="importDemandFile" accept="application/json" hidden>
+              <button type="button" class="ghost-btn" id="copyDemandBtn">複製到其他星期</button>
+              <button type="button" class="secondary-btn" id="addDemandBtn">＋ 新增</button>
+            </div>
+          </div>
+          <div class="seg demand-weektabs" id="demandWeekTabs"></div>
+          <div id="demandList" class="demand-list"></div>
+        </section>
         <div class="schedule-stack">
           <section class="panel calendar-panel">
             <div class="calendar-head">
@@ -206,23 +221,11 @@
       <section class="view" id="storeSettingsView">
         <div class="staff-tabs settings-tabs" id="settingsTabs">
           <button class="staff-tab active" data-sec="store">店家設定</button>
-          <button class="staff-tab" data-sec="demand">每日需求</button>
           <button class="staff-tab" data-sec="restday">特定休息日</button>
           <button class="staff-tab" data-sec="holiday">國定假日</button>
           <button class="staff-tab" data-sec="maintenance">資料維護</button>
         </div>
         <form class="panel settings-section" data-sec="store" id="storeSettingsForm" style="padding:22px"></form>
-        <div class="panel demand-card settings-section hidden" data-sec="demand" style="padding:22px">
-          <div class="demand-head">
-            <div><h3>每日需求模板</h3><p>設定每個星期各工作需要幾人；排班頁按「套用需求」即可依此自動建立班次並指派最適人選。</p></div>
-            <div class="demand-head-actions">
-              <button type="button" class="ghost-btn" id="copyDemandBtn">複製到其他星期</button>
-              <button type="button" class="secondary-btn" id="addDemandBtn">＋ 新增需求</button>
-            </div>
-          </div>
-          <div class="seg demand-weektabs" id="demandWeekTabs"></div>
-          <div id="demandList" class="demand-list"></div>
-        </div>
         <div class="panel demand-card settings-section hidden" data-sec="restday" style="padding:22px">
           <div class="demand-head">
             <div><h3>特定休息日（臨時公休）</h3><p>指定單一日期整店休息（例如臨時公休、內部訓練），該日在排班與員工填寫都會鎖起來反灰。每週固定的公休請用上方店家設定的「每週公休日」；國定假日請用下方管理。</p></div>
