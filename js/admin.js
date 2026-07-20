@@ -444,6 +444,7 @@ function renderAvailabilityWindows(){
         <div class="flow-arrow">→</div>
         <div><span>可填寫排班日期</span><strong>${formatDate(w.targetStart)} ～ ${formatDate(w.targetEnd)}</strong></div>
       </div>
+      ${w.defaultAvailable?`<p class="window-note">預設全部可上班：未特別標記的員工當作整天可上班，只需標記請假者。</p>`:""}
       ${w.note?`<p class="window-note">${w.note}</p>`:""}
       <div class="work-card-actions">
         <button class="secondary-btn" onclick="openAvailabilityWindowModal('${w.id}')">編輯設定</button>
@@ -454,7 +455,7 @@ function renderAvailabilityWindows(){
 function openAvailabilityWindowModal(id=null){
   const windows=getAvailabilityWindows();
   const w=id?windows.find(x=>x.id===id):{
-    id:uid("aw"),name:"",openStart:"",openEnd:"",targetStart:"",targetEnd:"",enabled:true,note:""
+    id:uid("aw"),name:"",openStart:"",openEnd:"",targetStart:"",targetEnd:"",enabled:true,note:"",defaultAvailable:false
   };
   openModal(id?"編輯開放區段":"新增開放區段","設定員工可進入填寫的期間，以及實際要填寫的排班日期",`
     <div class="form-grid">
@@ -465,6 +466,7 @@ function openAvailabilityWindowModal(id=null){
       <label class="field"><span>可填寫排班迄日</span><input class="input" type="date" name="targetEnd" required value="${w.targetEnd}"></label>
       <label class="field span-2"><span>員工提示文字</span><textarea name="note" rows="3" placeholder="例如：請於期限內完成填寫">${w.note||""}</textarea></label>
       <label class="check-row span-2"><input type="checkbox" name="enabled" ${w.enabled?"checked":""}> 啟用此填寫區段</label>
+      <label class="check-row span-2"><input type="checkbox" name="defaultAvailable" ${w.defaultAvailable?"checked":""}> 預設全部員工整天可上班（只要標記少數請假的人即可）</label>
       <div class="modal-actions span-2">
         ${id?`<button type="button" class="danger-btn" onclick="deleteAvailabilityWindow('${w.id}')">刪除</button>`:""}
         <button type="button" class="ghost-btn" onclick="closeModal()">取消</button>
@@ -481,6 +483,7 @@ function openAvailabilityWindowModal(id=null){
       name:fd.get("name").trim(),
       openStart,openEnd,targetStart,targetEnd,
       enabled:fd.get("enabled")==="on",
+      defaultAvailable:fd.get("defaultAvailable")==="on",
       note:fd.get("note").trim()
     });
     if(!id)windows.push(w);
@@ -589,7 +592,7 @@ function isPrimaryWork(e,date,workTypeId){
 }
 function getEmployeeEligibility(e,date,start,end,workTypeId,excludeShiftId=null){
   const reasons=[];
-  const a=state.data.availability.find(x=>x.employeeId===e.id&&x.date===date);
+  const a=effectiveAvail(e.id,date);
   const canDo=e.allowedWorkTypeIds.includes(workTypeId);
   const primary=isPrimaryWork(e,date,workTypeId);
   if(!canDo) reasons.push("未設定可做此工作");
@@ -715,9 +718,24 @@ function datesInRange(startKey,endKey){
   while(d<=end){out.push(toDateKey(d));d.setDate(d.getDate()+1)}
   return out;
 }
-// 某員工在某填寫區段是否已填（在目標日期範圍內有任一筆可上班時間紀錄即視為已填）
+// 找出包含某日期、且啟用中的填寫區段（用於「預設全部可上班」判斷）
+function windowForDate(dateKey){
+  return getAvailabilityWindows().filter(w=>w.enabled).find(w=>dateKey>=w.targetStart&&dateKey<=w.targetEnd);
+}
+// 取得某員工某日的「實際」可上班狀態：優先用已填紀錄；若該日所屬區段設定「預設全部可上班」且非公休，則視為整天可上班。
+function effectiveAvail(employeeId,dateKey){
+  const rec=state.data.availability.find(a=>a.employeeId===employeeId&&a.date===dateKey);
+  if(rec)return rec;
+  const w=windowForDate(dateKey);
+  if(w&&w.defaultAvailable&&!isClosedDay(dateKey)){
+    return {employeeId,date:dateKey,unavailable:false,start:settings().businessStart,end:settings().businessEnd,_default:true};
+  }
+  return undefined;
+}
+// 某員工在某填寫區段是否已填（有紀錄，或該區段設為預設全部可上班即視為已覆蓋）
 function hasFilled(employeeId,w){
   if(!w)return false;
+  if(w.defaultAvailable)return true;
   return state.data.availability.some(a=>a.employeeId===employeeId&&a.date>=w.targetStart&&a.date<=w.targetEnd);
 }
 function windowFillStatus(w){
@@ -820,7 +838,7 @@ function availMonthView(w){
     const day=new Date(start);day.setDate(start.getDate()+i);const key=toDateKey(day);
     const inTarget=key>=w.targetStart&&key<=w.targetEnd;
     const closed=isClosedDay(key);
-    const recs=actives.map(e=>availAt(e.id,key)).filter(Boolean);
+    const recs=actives.map(e=>effectiveAvail(e.id,key)).filter(Boolean);
     const yes=recs.filter(a=>!a.unavailable).length;
     const badge=inTarget?(closed?`<div class="ov-closed">公休</div>`:`<div class="ov-count">${yes} 可排</div>`):"";
     const clickable=inTarget&&!closed;
@@ -837,7 +855,7 @@ function availDateView(w){
   const options=days.map(d=>`<option value="${d}" ${d===state.availDate?"selected":""}>${formatDate(d)}</option>`).join("");
   const actives=state.data.employees.filter(e=>e.active);
   const rows=actives.map(e=>availQuickRow(e.id,state.availDate,`<div class="list-icon">${e.name.slice(0,1)}</div>`,e.name,e.employmentType)).join("");
-  return `<div class="ov-toolbar"><span>選擇日期</span><select class="select" onchange="availPickDate(this.value)" style="max-width:220px">${options}</select><span class="ov-hint">直接按「可上班／整天不可」即可，免逐一開編輯</span></div><div class="stack-list panel">${rows}</div>`;
+  return `<div class="ov-toolbar"><span>選擇日期</span><select class="select" onchange="availPickDate(this.value)" style="max-width:200px">${options}</select><button class="ghost-btn small-btn" onclick="availAllForDate()">全部可上班</button><span class="ov-hint">直接按「可上班／整天不可」即可</span></div><div class="stack-list panel">${rows}</div>`;
 }
 function availPickDate(v){state.availDate=v;renderAvailabilityOverview()}
 function availEmployeeView(w){
@@ -852,7 +870,7 @@ function availEmployeeView(w){
   }).join("");
   const emp=employee(eid);
   const filled=emp?hasFilled(emp.id,w):false;
-  return `<div class="ov-toolbar"><span>選擇員工</span><select class="select" onchange="availPickEmployee(this.value)" style="max-width:260px">${options}</select>${emp?`<span class="badge ${filled?"ok":"inactive"}">${filled?"已填寫":"尚未填寫"}</span>`:""}<span class="ov-hint">直接按「可上班／整天不可」即可，免逐一開編輯</span></div><div class="stack-list panel">${rows}</div>`;
+  return `<div class="ov-toolbar"><span>選擇員工</span><select class="select" onchange="availPickEmployee(this.value)" style="max-width:230px">${options}</select><button class="ghost-btn small-btn" onclick="availAllForEmployee()">整段全部可上班</button>${emp?`<span class="badge ${filled?"ok":"inactive"}">${filled?"已填寫":"尚未填寫"}</span>`:""}<span class="ov-hint">直接按「可上班／整天不可」即可</span></div><div class="stack-list panel">${rows}</div>`;
 }
 function availPickEmployee(v){state.availEmployeeId=v;renderAvailabilityOverview()}
 // 快速勾選：整天可上班（沿用既有時間或店家營業時間）／整天不可排
@@ -870,9 +888,9 @@ function availQuickSet(employeeId,dateKey,type){
 }
 // 一列：左側資訊 + 狀態 + 快速勾選（可上班／整天不可／詳細時間）
 function availQuickRow(employeeId,dateKey,iconHtml,title,sub){
-  const a=availAt(employeeId,dateKey);
+  const a=effectiveAvail(employeeId,dateKey);
   const isYes=!!(a&&!a.unavailable),isNo=!!(a&&a.unavailable);
-  const subTxt=isYes?`${a.start}～${a.end}`:(isNo?"整天不可排":(sub||"未填"));
+  const subTxt=isYes?`${a.start}～${a.end}${a._default?"（預設）":""}`:(isNo?"整天不可排":(sub||"未填"));
   const subCls=isYes?"ok":(isNo?"warn":"muted");
   return `<div class="list-item avail-row">${iconHtml}<div class="list-main"><strong>${title}</strong><span class="avail-sub ${subCls}">${subTxt}</span></div>
     <div class="avail-quick">
@@ -881,10 +899,38 @@ function availQuickRow(employeeId,dateKey,iconHtml,title,sub){
       <button class="qbtn edit" onclick="openAvailEditModal('${employeeId}','${dateKey}')">詳細</button>
     </div></div>`;
 }
+// 一鍵：把某一天所有在職員工設為整天可上班
+function availAllForDate(){
+  const dateKey=state.availDate;if(!dateKey)return;
+  const actives=state.data.employees.filter(e=>e.active);
+  if(!actives.length)return;
+  if(!confirm(`將 ${formatDate(dateKey)} 全部 ${actives.length} 位在職員工設為整天可上班？（原本設為不可排的也會改成可上班）`))return;
+  const bs=settings().businessStart,be=settings().businessEnd;
+  actives.forEach(e=>{
+    let rec=state.data.availability.find(a=>a.employeeId===e.id&&a.date===dateKey);
+    if(!rec){rec={id:uid("a"),employeeId:e.id,date:dateKey};state.data.availability.push(rec)}
+    Object.assign(rec,{unavailable:false,start:bs,end:be});
+  });
+  save();
+}
+// 一鍵：把某位員工在此區段的每一天（排除公休）設為整天可上班
+function availAllForEmployee(){
+  const eid=state.availEmployeeId,w=currentWindow();if(!eid||!w)return;
+  const emp=employee(eid);
+  if(!confirm(`將 ${emp?emp.name:""} 在此區段的每一天設為整天可上班？（原本設為不可排的也會改成可上班）`))return;
+  const bs=settings().businessStart,be=settings().businessEnd;
+  datesInRange(w.targetStart,w.targetEnd).forEach(d=>{
+    if(isClosedDay(d))return;
+    let rec=state.data.availability.find(a=>a.employeeId===eid&&a.date===d);
+    if(!rec){rec={id:uid("a"),employeeId:eid,date:d};state.data.availability.push(rec)}
+    Object.assign(rec,{unavailable:false,start:bs,end:be});
+  });
+  save();
+}
 // 老闆代填／修改員工可上班時間（詳細時間）
 function openAvailEditModal(employeeId,dateKey){
   const emp=employee(employeeId);if(!emp)return;
-  const a=availAt(employeeId,dateKey);
+  const a=effectiveAvail(employeeId,dateKey);
   const cur=a?(a.unavailable?"off":"on"):"none";
   const start=a?.start||settings().businessStart,end=a?.end||settings().businessEnd;
   const closedNote=isClosedDay(dateKey)?`<div class="field span-2"><small class="field-help">提醒：這一天是公休日。</small></div>`:"";
@@ -1154,8 +1200,9 @@ function importDemandBackup(file){
 function toggleFixedShiftPanel(){
   const p=byId("fixedShiftPanel");if(!p)return;
   p.classList.toggle("hidden");
-  if(!p.classList.contains("hidden")){renderDemand();if(p.scrollIntoView)p.scrollIntoView({behavior:"smooth",block:"nearest"});}
+  if(!p.classList.contains("hidden")){p.classList.remove("collapsed");renderDemand();if(p.scrollIntoView)p.scrollIntoView({behavior:"smooth",block:"nearest"});}
 }
+function toggleFixedShiftCollapse(){const p=byId("fixedShiftPanel");if(p)p.classList.toggle("collapsed");}
 function init(){
   state.data=defaultData(); // 佔位，待雲端載入後覆蓋
   document.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>setView(b.dataset.view));
@@ -1168,6 +1215,8 @@ function init(){
   byId("addDemandBtn").onclick=()=>openDemandModal();
   byId("copyDemandBtn").onclick=()=>openCopyDemandModal();
   byId("fixedShiftBtn").onclick=()=>toggleFixedShiftPanel();
+  byId("fixedShiftCollapse").onclick=()=>toggleFixedShiftCollapse();
+  byId("fixedShiftTitle").onclick=()=>toggleFixedShiftCollapse();
   byId("exportDemandBtn").onclick=()=>exportDemandBackup();
   byId("importDemandBtn").onclick=()=>byId("importDemandFile").click();
   byId("importDemandFile").addEventListener("change",e=>{importDemandBackup(e.target.files[0]);e.target.value="";});
@@ -1229,6 +1278,6 @@ window.openEmployeeModal=openEmployeeModal;window.deleteEmployee=deleteEmployee;
 document.addEventListener("DOMContentLoaded",init);
 
 window.openAvailabilityWindowModal=openAvailabilityWindowModal;window.deleteAvailabilityWindow=deleteAvailabilityWindow;
-window.availMonthNav=availMonthNav;window.availPickDate=availPickDate;window.availPickEmployee=availPickEmployee;window.openAvailEditModal=openAvailEditModal;window.availOpenDate=availOpenDate;window.availQuickSet=availQuickSet;
+window.availMonthNav=availMonthNav;window.availPickDate=availPickDate;window.availPickEmployee=availPickEmployee;window.openAvailEditModal=openAvailEditModal;window.availOpenDate=availOpenDate;window.availQuickSet=availQuickSet;window.availAllForDate=availAllForDate;window.availAllForEmployee=availAllForEmployee;
 window.openDemandModal=openDemandModal;window.deleteDemand=deleteDemand;window.openCopyDemandModal=openCopyDemandModal;window.deleteHoliday=deleteHoliday;
 window.toggleHolidayClosed=toggleHolidayClosed;window.deleteNationalHoliday=deleteNationalHoliday;

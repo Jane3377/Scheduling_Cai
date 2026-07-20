@@ -70,7 +70,18 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .qbtn.edit{color:var(--muted)}
 .qbtn:hover{border-color:var(--brand)}
 @media(max-width:560px){.avail-quick{gap:4px}.qbtn{padding:7px 8px;font-size:12px}}
-.fixed-shift-panel{margin-bottom:16px}
+.fixed-shift-panel{padding:20px 22px;margin-bottom:16px}
+.fixed-shift-head{display:flex;align-items:flex-start;gap:12px}
+.fs-collapse{border:1px solid var(--line);background:#fff;border-radius:9px;width:32px;height:32px;line-height:1;cursor:pointer;font-size:14px;flex-shrink:0;color:var(--muted);transition:transform .15s}
+.fs-collapse:hover{border-color:var(--brand);color:var(--brand)}
+.fs-title{flex:1;min-width:0;cursor:pointer}
+.fs-title h3{margin:0;font-size:17px}
+.fs-title p{margin:5px 0 0;color:var(--muted);font-size:13px;line-height:1.55;max-width:560px}
+.fs-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.fs-body{margin-top:16px}
+.fixed-shift-panel.collapsed .fs-body{display:none}
+.fixed-shift-panel.collapsed .fs-collapse{transform:rotate(-90deg)}
+@media(max-width:720px){.fixed-shift-head{flex-wrap:wrap}.fs-actions{width:100%;justify-content:flex-start;margin-top:8px}}
 .ov-day{font-weight:700}
 .ov-count{font-size:12px;color:var(--ok);background:#e8f5ed;border-radius:999px;padding:2px 8px;align-self:flex-start}
 .ov-toolbar{display:flex;align-items:center;gap:12px;margin:6px 0 14px}
