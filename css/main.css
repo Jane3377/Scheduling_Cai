@@ -164,6 +164,12 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .demand-note{color:var(--brand)!important;font-size:12.5px}
 .note-sub{color:var(--brand)}
 .dg-block .dg-note{display:block;font-size:11px;line-height:1.2;opacity:.95;white-space:normal;overflow:hidden;margin-top:2px}
+.dg-block .dg-draft{display:block;font-size:10.5px;font-weight:700;margin-top:2px;opacity:.95}
+.dg-block.is-draft{opacity:.62;box-shadow:none;outline:2px dashed rgba(255,255,255,.7);outline-offset:-3px;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.22) 0,rgba(255,255,255,.22) 5px,transparent 5px,transparent 11px)}
+.sched-publish{display:flex;align-items:center;gap:8px;margin-right:auto}
+.pub-badge{font-size:12.5px;font-weight:700;padding:5px 10px;border-radius:999px}
+.pub-badge.pub{background:#e8f5ed;color:var(--ok)}
+.pub-badge.draft{background:#fff2dc;color:var(--warn)}
 .holiday-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .holiday-add .input{max-width:200px}
 .holiday-add .input[type=text]{flex:1;min-width:180px;max-width:none}

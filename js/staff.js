@@ -94,7 +94,8 @@ function renderStaff(){
   // 顯示前後約三個月的班表
   const lo=new Date();lo.setMonth(lo.getMonth()-3);const loKey=toDateKey(lo);
   const hi=new Date();hi.setMonth(hi.getMonth()+3);const hiKey=toDateKey(hi);
-  const mine=data.shifts.filter(s=>s.employeeId===e.id&&s.date>=loKey&&s.date<=hiKey);
+  // 只顯示「已公布」的班次（未公布/草稿的 published===false 不顯示；舊資料無此欄位視為已公布）
+  const mine=data.shifts.filter(s=>s.employeeId===e.id&&s.date>=loKey&&s.date<=hiKey&&s.published!==false);
   const upcoming=mine.filter(s=>s.date>=today).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));
   const ended=mine.filter(s=>s.date<today).sort((a,b)=>(b.date+b.start).localeCompare(a.date+a.start));
   const next=upcoming[0];

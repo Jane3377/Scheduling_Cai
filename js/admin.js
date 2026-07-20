@@ -50,6 +50,8 @@ function migrate(d){
     w.applyDays=w.applyDays||"all"; // all=不限、weekday=僅平日、weekend=僅假日
   });
   ((d.settings&&d.settings.dailyDemand)||[]).forEach(r=>{r.note=r.note||""});
+  // 既有班次一律視為已公布（沿用先前行為，避免升級後員工端班表突然消失）；新建班次才是草稿
+  (d.shifts||[]).forEach(s=>{if(s.published===undefined)s.published=true});
   return d;
 }
 function save(){Cloud.save(state.data);renderAll()}
@@ -222,6 +224,12 @@ function renderDashboard(){
     const dates=[...new Set(unassignedShifts.map(s=>formatDate(s.date)))];
     warns.push({t:`${unassignedShifts.length} 個班次尚未指派員工`,d:`日期：${dates.slice(0,5).join("、")}${dates.length>5?" 等":""}｜請於排班頁點該班次指派`});
   }
+  // 未公布的即將到來班次（員工看不到）
+  const draftUpcoming=state.data.shifts.filter(s=>s.published===false&&s.date>=todayKey);
+  if(draftUpcoming.length){
+    const dw=[...new Set(draftUpcoming.map(s=>formatDate(s.date)))];
+    warns.push({t:`${draftUpcoming.length} 個班次尚未公布`,d:`日期：${dw.slice(0,5).join("、")}${dw.length>5?" 等":""}｜員工看不到，請於排班頁按「公布本週」`});
+  }
   selected.forEach(s=>{
     const e=employee(s.employeeId);if(!e)return; // 未指派的班次不在此提醒
     const a=state.data.availability.find(x=>x.employeeId===s.employeeId&&x.date===s.date);
@@ -323,15 +331,19 @@ function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
   const who=e?e.name:"待指派";
   const note=(s.note||"").trim();
-  const tip=note?` title="${note.replace(/"/g,'&quot;')}"`:"";
+  const draft=s.published===false; // 草稿：員工看不到
+  const draftCls=draft?" is-draft":"";
+  const draftTag=draft?"（草稿）":"";
+  const tipAttr=(note||draft)?` title="${((draft?"未公布草稿 ":"")+note).replace(/"/g,'&quot;')}"`:"";
   const style=`top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}`;
   if(showWork){ // 週檢視：直式文字，先工作＋子工作、再員工，最後備註
-    const txt=`${w?w.name:""}${subTxt}｜${who}${note?`｜📝${note}`:""}`;
-    return `<button class="dg-block dg-block-vert ${e?"":"unassigned"}"${tip} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><span class="dg-vert">${txt}</span></button>`;
+    const txt=`${w?w.name:""}${subTxt}｜${who}${note?`｜📝${note}`:""}${draftTag}`;
+    return `<button class="dg-block dg-block-vert ${e?"":"unassigned"}${draftCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><span class="dg-vert">${txt}</span></button>`;
   }
   const label=`${s.start}–${s.end}${subTxt}`;
   const noteLine=note?`<span class="dg-note">📝 ${note}</span>`:"";
-  return `<button class="dg-block ${e?"":"unassigned"}"${tip} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><strong>${who}</strong><span>${label}</span>${noteLine}</button>`;
+  const draftLine=draft?`<span class="dg-draft">草稿・未公布</span>`:"";
+  return `<button class="dg-block ${e?"":"unassigned"}${draftCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><strong>${who}</strong><span>${label}</span>${noteLine}${draftLine}</button>`;
 }
 function renderSchedule(){
   const grid=byId("scheduleGrid");if(!grid)return;
@@ -369,6 +381,7 @@ function renderSchedule(){
     }).join("");
     grid.innerHTML=`<div class="dg">${timeGutter(axis)}${cols||`<div class="empty-state">尚未設定任何工作</div>`}</div>`;
   }
+  renderPublishBar();
   wireScheduleGrid(axis);
 }
 function wireScheduleGrid(axis){
@@ -647,7 +660,7 @@ function openShiftModal(id=null,prefill=null){
     const endM=Math.min(mins(defStart)+240,mins(cfg.businessEnd)); // 預設 4 小時，不超過最晚下班
     defEnd=`${pad(Math.floor(endM/60))}:${pad(endM%60)}`;
   }
-  const s=id?state.data.shifts.find(x=>x.id===id):{id:uid("s"),date:(prefill&&prefill.date)||state.selectedDate,employeeId:"",workTypeId:(prefill&&prefill.workTypeId)||state.data.workTypes.find(w=>w.active)?.id||"",start:defStart,end:defEnd,breakMinutes:0,note:"",subWork:(prefill&&prefill.subWork)||"",prepRole:false,status:"draft"};
+  const s=id?state.data.shifts.find(x=>x.id===id):{id:uid("s"),date:(prefill&&prefill.date)||state.selectedDate,employeeId:"",workTypeId:(prefill&&prefill.workTypeId)||state.data.workTypes.find(w=>w.active)?.id||"",start:defStart,end:defEnd,breakMinutes:0,note:"",subWork:(prefill&&prefill.subWork)||"",prepRole:false,status:"draft",published:false};
   openModal(id?"編輯班次":"新增班次","先設定日期、工作與時間，最後再選擇系統整理好的員工",`
   <div class="form-grid">
     <label class="field"><span>日期</span><input class="input" type="date" name="date" value="${s.date}"></label>
@@ -1139,12 +1152,44 @@ function copyLastWeek(){
     : `將上一週的 ${src.length} 個班次複製到本週（${formatDate(a)}～${formatDate(b)}）？`;
   if(!confirm(msg))return;
   src.forEach(s=>{
-    const ns={...s,id:uid("s"),date:addDays(s.date,7)};
+    const ns={...s,id:uid("s"),date:addDays(s.date,7),published:false}; // 複製過來先當草稿，確認後再公布
     ns.breakMinutes=breakForShift(ns);
     state.data.shifts.push(ns);
   });
   save();
   alert(`已複製 ${src.length} 個班次到本週。`);
+}
+// 公布本週：把本週所有班次設為已公布，員工端才看得到
+function publishWeek(){
+  const [a,b]=weekRange(state.selectedDate);
+  const wsh=state.data.shifts.filter(s=>s.date>=a&&s.date<=b);
+  if(!wsh.length){alert("本週沒有班次可公布。");return}
+  const drafts=wsh.filter(s=>s.published===false);
+  if(!drafts.length){alert("本週班次都已公布。");return}
+  if(!confirm(`公布本週（${formatDate(a)}～${formatDate(b)}）？\n共 ${wsh.length} 個班次，其中 ${drafts.length} 個為新的／未公布。公布後員工就能在自己的班表看到。`))return;
+  wsh.forEach(s=>s.published=true);save();
+  alert("已公布本週班表，員工現在可以看到了。");
+}
+// 取消公布本週：員工端暫時看不到（不刪除班次）
+function unpublishWeek(){
+  const [a,b]=weekRange(state.selectedDate);
+  const wsh=state.data.shifts.filter(s=>s.date>=a&&s.date<=b);
+  if(!wsh.length)return;
+  if(!confirm(`取消公布本週（${formatDate(a)}～${formatDate(b)}）班表？\n取消後員工將暫時看不到本週班表（班次不會刪除，可再重新公布）。`))return;
+  wsh.forEach(s=>s.published=false);save();
+  alert("已取消公布本週班表。");
+}
+function renderPublishBar(){
+  const el=byId("schedPublish");if(!el)return;
+  const [a,b]=weekRange(state.selectedDate);
+  const wsh=state.data.shifts.filter(s=>s.date>=a&&s.date<=b);
+  if(!wsh.length){el.innerHTML="";return}
+  const drafts=wsh.filter(s=>s.published===false).length;
+  const allPub=drafts===0;
+  el.innerHTML=`<span class="pub-badge ${allPub?"pub":"draft"}">${allPub?"● 本週已公布":`◍ ${drafts} 筆未公布`}</span>`
+    +(allPub
+      ? `<button class="ghost-btn small-btn" onclick="unpublishWeek()">取消公布</button>`
+      : `<button class="primary-btn small-btn" onclick="publishWeek()">公布本週</button>`);
 }
 function applyDemand(dateKey){
   const allGaps=demandGaps(dateKey);
@@ -1156,7 +1201,7 @@ function applyDemand(dateKey){
   gaps.forEach(r=>{
     for(let i=0;i<r.gap;i++){
       const pick=bestEmployeeFor(dateKey,r.start,r.end,r.workTypeId);
-      const s={id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end}),note:(r.note||"").trim(),subWork:(r.subWork||"").trim(),prepRole:false,status:"draft"};
+      const s={id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end}),note:(r.note||"").trim(),subWork:(r.subWork||"").trim(),prepRole:false,status:"draft",published:false};
       state.data.shifts.push(s);created++;if(!pick)unfilled++;
     }
   });
@@ -1312,5 +1357,5 @@ document.addEventListener("DOMContentLoaded",init);
 
 window.openAvailabilityWindowModal=openAvailabilityWindowModal;window.deleteAvailabilityWindow=deleteAvailabilityWindow;
 window.availMonthNav=availMonthNav;window.availPickDate=availPickDate;window.availPickEmployee=availPickEmployee;window.openAvailEditModal=openAvailEditModal;window.availOpenDate=availOpenDate;window.availQuickSet=availQuickSet;window.availAllForDate=availAllForDate;window.availAllForEmployee=availAllForEmployee;
-window.openDemandModal=openDemandModal;window.deleteDemand=deleteDemand;window.openCopyDemandModal=openCopyDemandModal;window.deleteHoliday=deleteHoliday;
+window.openDemandModal=openDemandModal;window.deleteDemand=deleteDemand;window.openCopyDemandModal=openCopyDemandModal;window.deleteHoliday=deleteHoliday;window.publishWeek=publishWeek;window.unpublishWeek=unpublishWeek;
 window.toggleHolidayClosed=toggleHolidayClosed;window.deleteNationalHoliday=deleteNationalHoliday;
