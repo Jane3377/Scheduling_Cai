@@ -365,12 +365,12 @@ function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const style=`top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}`;
   if(showWork){ // 週檢視：直式文字，先工作＋子工作、再員工，最後備註
     const txt=`${w?w.name:""}${subTxt}｜${who}${note?`｜📝${note}`:""}${draftTag}`;
-    return `<button class="dg-block dg-block-vert ${e?"":"unassigned"}${draftCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><span class="dg-vert">${txt}</span></button>`;
+    return `<button class="dg-block dg-block-vert ${e?"":"unassigned"}${draftCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><span class="dg-vert">${txt}</span></button>`;
   }
   const label=`${s.start}–${s.end}${subTxt}`;
   const noteLine=note?`<span class="dg-note">📝 ${note}</span>`:"";
   const draftLine=draft?`<span class="dg-draft">草稿・未公布</span>`:"";
-  return `<button class="dg-block ${e?"":"unassigned"}${draftCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><strong>${who}</strong><span>${label}</span>${noteLine}${draftLine}</button>`;
+  return `<button class="dg-block ${e?"":"unassigned"}${draftCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><strong>${who}</strong><span>${label}</span>${noteLine}${draftLine}</button>`;
 }
 function isNarrow(){return !!(window.matchMedia&&window.matchMedia("(max-width:760px)").matches);}
 function renderSchedule(){
@@ -440,6 +440,7 @@ function scheduleListRow(s){
     <span class="sl-time">${s.start}<i>${s.end}</i></span>
     <span class="sl-chip" style="background:${w?.color||'#888'}">${w?w.name:"（已刪除）"}${subTxt}</span>
     <span class="sl-main"><strong>${e?e.name:"待指派"}</strong>${note?`<span class="sl-note">📝 ${note}</span>`:""}${draft?`<span class="sl-draft">草稿・未公布</span>`:""}</span>
+    <span class="sl-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span>
     <span class="sl-go">✎</span>
   </button>`;
 }
@@ -937,6 +938,35 @@ function openShiftModal(id=null,prefill=null){
   }
 }
 function deleteShift(id){if(confirm("確定刪除這個班次？")){state.data.shifts=state.data.shifts.filter(x=>x.id!==id);save();closeModal()}}
+/* ---------- 就地快速換人：不開完整視窗，直接在班次上換指派員工 ---------- */
+function closeQuickAssign(){const m=byId("quickAssign");if(m)m.remove();document.removeEventListener("click",quickAssignOutside,true);window.removeEventListener("scroll",closeQuickAssign,true);window.removeEventListener("resize",closeQuickAssign);}
+function quickAssignOutside(ev){if(!ev.target.closest("#quickAssign"))closeQuickAssign();}
+function openQuickAssign(ev,shiftId){
+  ev.stopPropagation();ev.preventDefault();
+  const s=state.data.shifts.find(x=>x.id===shiftId);if(!s)return;
+  closeQuickAssign();
+  const rows=state.data.employees.filter(e=>e.active).map(e=>({e,...getEmployeeEligibility(e,s.date,s.start,s.end,s.workTypeId,s.id)})).sort((a,b)=>b.score-a.score);
+  const item=x=>`<button type="button" class="qa-item${x.eligible?"":" warn"}${x.e.id===s.employeeId?" cur":""}" onclick="quickAssignPick('${s.id}','${x.e.id}')"><span class="qa-name">${x.primary?"★ ":""}${x.e.name}</span><span class="qa-tag">${x.e.id===s.employeeId?"目前":(x.eligible?"可排":(x.reasons[0]||"需確認"))}</span></button>`;
+  const menu=document.createElement("div");menu.className="quick-assign";menu.id="quickAssign";
+  menu.innerHTML=`<div class="qa-head">換人指派・${s.start}–${s.end}</div><div class="qa-list">${rows.map(item).join("")||'<div class="qa-empty">沒有在職員工</div>'}</div><button type="button" class="qa-item qa-clear${s.employeeId?"":" cur"}" onclick="quickAssignPick('${s.id}','')">設為待指派</button>`;
+  document.body.appendChild(menu);
+  // 定位：貼齊觸發元素，超出視窗邊界時夾回可視範圍
+  const r=(ev.currentTarget.closest(".dg-block,.sl-shift")||ev.currentTarget).getBoundingClientRect();
+  const mw=menu.offsetWidth,mh=menu.offsetHeight,gap=6;
+  let left=r.left,top=r.bottom+gap;
+  if(left+mw>window.innerWidth-8)left=window.innerWidth-mw-8;
+  if(left<8)left=8;
+  if(top+mh>window.innerHeight-8)top=Math.max(8,r.top-mh-gap);
+  menu.style.left=left+"px";menu.style.top=top+"px";
+  setTimeout(()=>{document.addEventListener("click",quickAssignOutside,true);window.addEventListener("scroll",closeQuickAssign,true);window.addEventListener("resize",closeQuickAssign);},0);
+}
+function quickAssignPick(shiftId,empId){
+  const s=state.data.shifts.find(x=>x.id===shiftId);if(!s)return;
+  s.employeeId=empId;
+  s.breakMinutes=breakForShift(s); // 換人後休息時段可能改變（例如固定早班免扣），一併重算
+  closeQuickAssign();
+  save();
+}
 
 /* ---------- 可上班時間填寫狀態 ---------- */
 function currentWindow(){
@@ -1795,7 +1825,7 @@ function init(){
   Cloud.init(onCloudData,updateSyncStatus);
 }
 window.openEmployeeModal=openEmployeeModal;window.deleteEmployee=deleteEmployee;window.openWorktypeModal=openWorktypeModal;window.deleteWorktype=deleteWorktype;window.openShiftModal=openShiftModal;window.deleteShift=deleteShift;window.closeModal=closeModal;window.selectDate=selectDate;
-window.hoursSortBy=hoursSortBy;window.hoursToggle=hoursToggle;window.setShiftActual=setShiftActual;window.toggleShiftVerified=toggleShiftVerified;window.verifyAll=verifyAll;window.gotoScheduleDay=gotoScheduleDay;
+window.hoursSortBy=hoursSortBy;window.hoursToggle=hoursToggle;window.setShiftActual=setShiftActual;window.toggleShiftVerified=toggleShiftVerified;window.verifyAll=verifyAll;window.gotoScheduleDay=gotoScheduleDay;window.openQuickAssign=openQuickAssign;window.quickAssignPick=quickAssignPick;
 document.addEventListener("DOMContentLoaded",init);
 
 window.openAvailabilityWindowModal=openAvailabilityWindowModal;window.deleteAvailabilityWindow=deleteAvailabilityWindow;

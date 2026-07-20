@@ -265,6 +265,22 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .shift-conflicts .sc-head{font-weight:800;color:var(--danger);margin-bottom:6px;font-size:14px}
 .shift-conflicts .sc-list{margin:0;padding-left:20px;color:#8a3a33}
 .shift-conflicts .sc-list li{margin:2px 0;font-size:13.5px}
+/* 就地快速換人：班次上的觸發鈕 + 浮動選單 */
+.dg-block .dg-swap{position:absolute;top:2px;right:2px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;background:rgba(0,0,0,.28);border-radius:6px;color:#fff;opacity:.9;cursor:pointer;z-index:2;padding:0}
+.dg-block .dg-swap:hover{background:rgba(0,0,0,.55);opacity:1}
+.sl-swap{color:var(--brand);font-size:16px;padding:4px 8px;border-radius:8px;background:var(--brand-soft);flex:none}
+.quick-assign{position:fixed;z-index:1000;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 34px rgba(60,42,31,.22);width:236px;max-width:calc(100vw - 16px);padding:6px}
+.quick-assign .qa-head{font-size:12px;font-weight:800;color:var(--muted);padding:6px 8px 8px}
+.quick-assign .qa-list{max-height:280px;overflow-y:auto}
+.quick-assign .qa-item{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;background:transparent;border:0;border-radius:8px;padding:9px 8px;cursor:pointer;font:inherit;color:var(--ink)}
+.quick-assign .qa-item:hover{background:var(--brand-soft)}
+.quick-assign .qa-name{font-weight:700;font-size:14px}
+.quick-assign .qa-tag{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.quick-assign .qa-item.warn .qa-tag{color:var(--danger)}
+.quick-assign .qa-item.cur{background:var(--brand-soft)}
+.quick-assign .qa-item.cur .qa-tag{color:var(--brand);font-weight:700}
+.quick-assign .qa-clear{border-top:1px solid var(--line);margin-top:4px;color:var(--muted);font-weight:700}
+.quick-assign .qa-empty{padding:10px 8px;color:var(--muted);font-size:13px}
 .dg-block.unassigned{background:#8a817b!important;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0,rgba(255,255,255,.18) 6px,transparent 6px,transparent 12px)!important}
 /* 每日需求模板 */
 .demand-card{margin-top:16px}
