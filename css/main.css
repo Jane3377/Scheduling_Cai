@@ -284,6 +284,10 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .shift-group-head span{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--brand-soft);color:var(--brand-dark);font-size:12px}
 .shift-note{color:var(--brand-dark)!important;background:var(--brand-soft);border-radius:8px;padding:2px 8px;margin-top:5px;display:inline-block!important;font-size:12px}
 .shift-break{color:var(--muted)!important;margin-top:4px;display:block!important;font-size:12px}
+.shift-cal{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.cal-mini{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:#fff;color:var(--brand-dark);border-radius:9px;padding:6px 10px;font-size:12.5px;font-weight:600;text-decoration:none;cursor:pointer}
+.cal-mini:hover{border-color:var(--brand);color:var(--brand)}
+.cal-mini.google{color:var(--muted)}
 .avail-disclaimer{margin:0 18px 6px;padding:10px 12px;background:#fff7ed;border:1px solid #f3d2aa;border-radius:10px;color:#8a5a1f;font-size:12px;line-height:1.6}
 /* 員工端：快速填寫 */
 .quick-week{margin:4px 18px 6px;padding:14px;background:#faf7f4;border:1px solid var(--line);border-radius:14px}

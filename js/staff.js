@@ -18,6 +18,37 @@ function persist(){Cloud.save(data)}
 function storeCfg(){return data?.settings||{}}
 function bizStart(){return storeCfg().businessStart||"08:30"}
 function bizEnd(){return storeCfg().businessEnd||"21:00"}
+
+/* ---------- 加入行事曆（.ics 下載 + Google 一鍵，iPhone / Google 通用） ---------- */
+function icsDT(dateKey,hhmm){const [h,m]=hhmm.split(":");return dateKey.replace(/-/g,"")+"T"+pad(Number(h))+pad(Number(m))+"00";} // 浮動當地時間
+function icsEsc(s){return String(s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");}
+function shiftTitle(s){const w=worktype(s.workTypeId);const sub=(s.subWork||"").trim()?"＋"+s.subWork.trim():"";const store=(storeCfg().storeName||"").trim();return (store?store+" ":"")+((w&&w.name)||"班次")+sub;}
+function shiftDesc(s){const d=[];const br=shiftBreakLabel(s);if(br)d.push("休息 "+br+"（不計薪）");if((s.note||"").trim())d.push("備註："+s.note.trim());return d.join("\n");}
+function shiftVEvent(s){
+  const dtstamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
+  const desc=shiftDesc(s),loc=(storeCfg().storeName||"").trim();
+  return ["BEGIN:VEVENT","UID:"+(s.id||uid("s"))+"@tsai-scheduler","DTSTAMP:"+dtstamp,
+    "DTSTART:"+icsDT(s.date,s.start),"DTEND:"+icsDT(s.date,s.end),
+    "SUMMARY:"+icsEsc(shiftTitle(s)),desc?"DESCRIPTION:"+icsEsc(desc):"",loc?"LOCATION:"+icsEsc(loc):"",
+    "END:VEVENT"].filter(Boolean).join("\r\n");
+}
+function buildICS(shifts){return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Tsai Scheduler//TW//ZH","CALSCALE:GREGORIAN",...shifts.map(shiftVEvent),"END:VCALENDAR"].join("\r\n");}
+function downloadICS(filename,text){const blob=new Blob([text],{type:"text/calendar;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
+function myUpcoming(){if(!data||!staffEmployeeId)return [];const today=toDateKey(new Date());return data.shifts.filter(s=>s.employeeId===staffEmployeeId&&s.date>=today&&s.published!==false).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));}
+function addAllToCalendar(){
+  const ups=myUpcoming();
+  if(!ups.length){alert("目前沒有即將到來的已公布班表可加入行事曆。");return;}
+  downloadICS(`${(storeCfg().storeName||"班表").trim()}_我的班表.ics`,buildICS(ups));
+}
+function addShiftToCalendar(id){const s=data&&data.shifts.find(x=>x.id===id);if(!s)return;downloadICS(`${(storeCfg().storeName||"班表").trim()}_${s.date}.ics`,buildICS([s]));}
+function googleCalUrl(s){
+  const p=new URLSearchParams({action:"TEMPLATE",text:shiftTitle(s),dates:icsDT(s.date,s.start)+"/"+icsDT(s.date,s.end)});
+  const desc=shiftDesc(s);if(desc)p.set("details",desc);
+  const loc=(storeCfg().storeName||"").trim();if(loc)p.set("location",loc);
+  return "https://calendar.google.com/calendar/render?"+p.toString();
+}
+window.addShiftToCalendar=addShiftToCalendar;
+window.addAllToCalendar=addAllToCalendar;
 function bizStep(){return Number(storeCfg().timeStep)||30}
 function timeOptions(selected=""){
   const s=mins(bizStart()),e=mins(bizEnd()),step=bizStep();
@@ -109,9 +140,12 @@ function renderStaff(){
     <div class="next-shift-time">${next.start}</div>
   `:`<div><span class="eyebrow">下一班</span><h2>目前尚未排班</h2><p>完成排班後會顯示在這裡。</p></div>`;
 
-  const shiftItem=s=>{const w=worktype(s.workTypeId),c=w?.color||"#999",br=shiftBreakLabel(s);const subTxt=(s.subWork||"").trim()?`＋${s.subWork.trim()}`:"";return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||"未命名工作"}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span>${br?`<span class="shift-break">休息 ${br}（不計薪）</span>`:""}${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}</div></div>`};
-  const group=(title,arr,empty)=>`<div class="shift-group"><div class="shift-group-head">${title}<span>${arr.length}</span></div>${arr.length?arr.map(shiftItem).join(""):`<div class="empty-state">${empty}</div>`}</div>`;
-  byId("staffShiftList").innerHTML=group("即將到來",upcoming,"目前沒有即將到來的班表")+group("已結束",ended,"近三個月沒有已結束的班表");
+  const shiftItem=(s,withCal)=>{const w=worktype(s.workTypeId),c=w?.color||"#999",br=shiftBreakLabel(s);const subTxt=(s.subWork||"").trim()?`＋${s.subWork.trim()}`:"";
+    const cal=withCal?`<div class="shift-cal"><button type="button" class="cal-mini" onclick="addShiftToCalendar('${s.id}')">📅 加入行事曆</button><a class="cal-mini google" href="${googleCalUrl(s)}" target="_blank" rel="noopener">Google 行事曆</a></div>`:"";
+    return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||"未命名工作"}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span>${br?`<span class="shift-break">休息 ${br}（不計薪）</span>`:""}${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}${cal}</div></div>`};
+  const group=(title,arr,empty,withCal)=>`<div class="shift-group"><div class="shift-group-head">${title}<span>${arr.length}</span></div>${arr.length?arr.map(s=>shiftItem(s,withCal)).join(""):`<div class="empty-state">${empty}</div>`}</div>`;
+  byId("staffShiftList").innerHTML=group("即將到來",upcoming,"目前沒有即將到來的班表",true)+group("已結束",ended,"近三個月沒有已結束的班表",false);
+  const calAllBtn=byId("addAllCalBtn");if(calAllBtn)calAllBtn.style.display=upcoming.length?"":"none";
 
   activeWindow=getActiveWindow();
   const nextWindow=getNextWindow();
@@ -252,6 +286,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("staffLoginBtn").onclick=login;
   byId("staffNoInput").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
   byId("staffLogoutBtn").onclick=logout;
+  byId("addAllCalBtn").onclick=addAllToCalendar;
   document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active")});
   byId("availabilityStart").innerHTML=timeOptions("16:00");
   byId("availabilityEnd").innerHTML=timeOptions("22:00");
