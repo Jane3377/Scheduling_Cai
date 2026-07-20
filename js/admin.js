@@ -168,8 +168,15 @@ function setView(view){
     storeSettings:["設定與維護","店名、上班時間、公休、休息時段與資料維護"],
   }[view];
   byId("pageTitle").textContent=meta[0];byId("pageSubtitle").textContent=meta[1];
-  byId("sidebar").classList.remove("open");
+  toggleSidebar(false);
   renderAll();
+}
+// 手機側欄開關（含背景遮罩）；force=false 強制關閉
+function toggleSidebar(force){
+  const sb=byId("sidebar"),bd=byId("sidebarBackdrop");if(!sb)return;
+  const open=force===undefined?!sb.classList.contains("open"):force;
+  sb.classList.toggle("open",open);
+  if(bd)bd.classList.toggle("hidden",!open);
 }
 function applyBranding(){
   const name=(settings().storeName||"").trim();
@@ -1532,7 +1539,8 @@ function init(){
   byId("schedPrev").onclick=()=>shiftSchedule(-1);
   byId("schedNext").onclick=()=>shiftSchedule(1);
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.onclick=()=>{state.scheduleMode=b.dataset.smode;renderSchedule()});
-  byId("menuBtn").onclick=()=>byId("sidebar").classList.toggle("open");
+  byId("menuBtn").onclick=()=>toggleSidebar();
+  byId("sidebarBackdrop").onclick=()=>toggleSidebar(false);
   byId("modalCloseBtn").onclick=closeModal;byId("modalBackdrop").onclick=e=>{if(e.target===byId("modalBackdrop"))closeModal()};
   byId("addEmployeeBtn").onclick=()=>openEmployeeModal();byId("addWorktypeBtn").onclick=()=>openWorktypeModal();
   byId("addAvailabilityWindowBtn").onclick=()=>openAvailabilityWindowModal();

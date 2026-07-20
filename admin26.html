@@ -46,6 +46,7 @@
         <span id="sidebarNoteDesc">資料儲存於雲端，多裝置同步</span>
       </div>
     </aside>
+    <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
 
     <main class="main">
       <header class="topbar">
@@ -58,13 +59,6 @@
       </header>
 
       <section class="view active" id="dashboardView">
-        <div class="quick-actions">
-          <button class="qa-btn" data-quick="add-shift"><b>＋ 新增班次</b><span>直接排一筆班</span></button>
-          <button class="qa-btn" data-view-target="schedule"><b>排班管理</b><span>週／日時間軸排班</span></button>
-          <button class="qa-btn" data-view-target="availability"><b>可上班時間</b><span>檢視與代填</span></button>
-          <button class="qa-btn" data-view-target="hours"><b>工時統計</b><span>工時與打卡核對</span></button>
-        </div>
-
         <section class="panel week-strip-panel">
           <div class="panel-head">
             <div><h3>本週概況</h3><p id="weekStripLabel"></p></div>
@@ -77,7 +71,7 @@
           <section class="panel">
             <div class="panel-head">
               <div><h3>今日班表</h3><p id="todayLabel"></p></div>
-              <button class="text-btn" data-view-target="schedule">查看排班</button>
+              <button class="text-btn" data-quick="add-shift">＋ 新增班次</button>
             </div>
             <div id="todayShifts" class="stack-list"></div>
           </section>
