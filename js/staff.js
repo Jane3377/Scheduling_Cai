@@ -15,6 +15,12 @@ let availEditable=true;
 
 function save(){Cloud.save(data);renderStaff()}
 function persist(){Cloud.save(data)}
+// 雲端連線狀態燈：沿用後台的視覺，讓員工也能看出資料是否已同步
+function updateSyncStatus(s){
+  const el=byId("syncStatus");if(!el)return;
+  const map={init:["◌","初始化"],connecting:["◌","連線中"],synced:["●","已同步"],saving:["◌","儲存中"],offline:["○","離線暫存"],local:["◍","本機模式"],error:["✕","雲端錯誤"]};
+  const m=map[s]||map.local;el.className="sync-badge "+s;el.textContent=`${m[0]} ${m[1]}`;
+}
 function storeCfg(){return data?.settings||{}}
 function bizStart(){return storeCfg().businessStart||"08:30"}
 function bizEnd(){return storeCfg().businessEnd||"21:00"}
@@ -322,6 +328,6 @@ document.addEventListener("DOMContentLoaded",()=>{
     applyStaffBranding();
     if(!data)byId("staffLoginError").textContent="尚未有資料，請先在後台建立員工。";
     if(staffEmployeeId&&data)renderStaff();
-  },()=>{});
+  },updateSyncStatus);
 });
 window.selectAvailabilityDate=selectAvailabilityDate;

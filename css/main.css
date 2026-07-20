@@ -134,6 +134,9 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .ov-cal-hint{color:var(--muted);font-size:12.5px;margin:2px 0 10px}
 .list-item.clickable{cursor:pointer;border-radius:10px;padding-left:8px;padding-right:8px}
 .list-item.clickable:hover{background:var(--brand-soft)}
+/* 提醒項目做成可點按鈕：跳到對應日期的排班畫面 */
+.list-item-link{width:100%;text-align:left;background:transparent;border:none;border-bottom:1px solid #f0ebe7;font:inherit;color:inherit;cursor:pointer;border-radius:8px;transition:background .12s}
+.list-item-link:hover{background:var(--brand-soft)}
 .row-edit-hint{color:var(--brand);font-size:12px;font-weight:700;margin-left:10px;white-space:nowrap}
 .ov-hint{margin-left:auto;color:var(--brand)!important;font-size:12.5px}
 .avail-row{gap:10px}
@@ -257,6 +260,11 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .sync-badge.offline{background:#eef1fb;color:#4a4a94}
 .sync-badge.local{background:#efe9e5;color:#6b6259}
 .sync-badge.error{background:#fdeaea;color:var(--danger)}
+/* 排班衝突即時警示（不阻擋儲存，只提醒） */
+.shift-conflicts{background:#fdeaea;border:1px solid #f3c4c0;border-radius:12px;padding:12px 14px;margin-top:4px}
+.shift-conflicts .sc-head{font-weight:800;color:var(--danger);margin-bottom:6px;font-size:14px}
+.shift-conflicts .sc-list{margin:0;padding-left:20px;color:#8a3a33}
+.shift-conflicts .sc-list li{margin:2px 0;font-size:13.5px}
 .dg-block.unassigned{background:#8a817b!important;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0,rgba(255,255,255,.18) 6px,transparent 6px,transparent 12px)!important}
 /* 每日需求模板 */
 .demand-card{margin-top:16px}
@@ -316,7 +324,7 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .employee-smart-select optgroup{font-weight:800;color:var(--ink)}
 .staff-page{background:linear-gradient(180deg,#fff8f4 0,#f6f3f0 45%)}
 .staff-page-main{min-height:100vh;padding:0 20px 50px}
-.staff-brandbar{max-width:980px;margin:0 auto;padding:22px 0}
+.staff-brandbar{max-width:980px;margin:0 auto;padding:22px 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .staff-brandbar .brand{color:var(--ink)}
 .staff-brandbar .brand span{color:var(--muted)}
 .staff-summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0}

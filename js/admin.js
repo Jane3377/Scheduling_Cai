@@ -220,13 +220,13 @@ function renderDashboard(){
   const unassignedShifts=state.data.shifts.filter(s=>!s.employeeId&&s.date>=todayKey).sort((a,b)=>a.date.localeCompare(b.date));
   if(unassignedShifts.length){
     const dates=[...new Set(unassignedShifts.map(s=>formatDate(s.date)))];
-    warns.push({t:`${unassignedShifts.length} 個班次尚未指派員工`,d:`日期：${dates.slice(0,5).join("、")}${dates.length>5?" 等":""}｜請於排班頁點該班次指派`});
+    warns.push({t:`${unassignedShifts.length} 個班次尚未指派員工`,d:`日期：${dates.slice(0,5).join("、")}${dates.length>5?" 等":""}｜點此跳到該日排班指派`,go:unassignedShifts[0].date});
   }
   // 未公布的即將到來班次（員工看不到）
-  const draftUpcoming=state.data.shifts.filter(s=>s.published===false&&s.date>=todayKey);
+  const draftUpcoming=state.data.shifts.filter(s=>s.published===false&&s.date>=todayKey).sort((a,b)=>a.date.localeCompare(b.date));
   if(draftUpcoming.length){
     const dw=[...new Set(draftUpcoming.map(s=>formatDate(s.date)))];
-    warns.push({t:`${draftUpcoming.length} 個班次尚未公布`,d:`日期：${dw.slice(0,5).join("、")}${dw.length>5?" 等":""}｜員工看不到，請於排班頁按「公布本週」`});
+    warns.push({t:`${draftUpcoming.length} 個班次尚未公布`,d:`日期：${dw.slice(0,5).join("、")}${dw.length>5?" 等":""}｜點此跳到該週按「公布本週」`,go:draftUpcoming[0].date});
   }
   selected.forEach(s=>{
     const e=employee(s.employeeId);if(!e)return; // 未指派的班次不在此提醒
@@ -238,7 +238,10 @@ function renderDashboard(){
     const wh=weeklyHours(e.id,state.selectedDate);
     if(e.weeklyLimit&&wh>e.weeklyLimit)warns.push({t:`外籍學生 ${e.name} 本週 ${fmtHours(wh)}，超過 ${e.weeklyLimit} 小時上限`,d:"僅提醒，仍可排班"});
   });
-  byId("dashboardWarnings").innerHTML=warns.length?warns.map(w=>`<div class="list-item"><div class="list-icon">⚠</div><div class="list-main"><strong>${w.t}</strong><span>${w.d}</span></div></div>`).join(""):`<div class="empty-state">目前沒有明顯衝突</div>`;
+  byId("dashboardWarnings").innerHTML=warns.length?warns.map(w=>{
+    const inner=`<div class="list-icon">⚠</div><div class="list-main"><strong>${w.t}</strong><span>${w.d}</span></div>`;
+    return w.go?`<button class="list-item list-item-link" onclick="gotoScheduleDay('${w.go}')">${inner}</button>`:`<div class="list-item">${inner}</div>`;
+  }).join(""):`<div class="empty-state">目前沒有明顯衝突</div>`;
 }
 // 本週概況：一週七天的班次數與待處理標記，點某天跳到排班
 function renderDashboardWeek(todayKey){
@@ -873,7 +876,7 @@ function openShiftModal(id=null,prefill=null){
     <label class="field span-2"><span>選擇員工</span><select class="select employee-smart-select" name="employeeId" id="shiftEmployeeSelect"></select><small class="field-help">名單會依主要負責、可做工作、可上班時間、重疊班次及每週工時自動排序分組。</small></label>
     <label class="field span-2"><span>備註</span><textarea name="note" rows="3">${s.note||""}</textarea></label>
     <div id="shiftWarnings" class="span-2"></div>
-    <div class="modal-actions span-2">${id?`<button type="button" class="danger-btn" onclick="deleteShift('${s.id}')">刪除</button>`:""}<button type="button" class="ghost-btn" onclick="closeModal()">取消</button><button class="primary-btn">儲存班次</button></div>
+    <div class="modal-actions span-2">${id?`<button type="button" class="danger-btn" onclick="deleteShift('${s.id}')">刪除</button>`:""}<button type="button" class="ghost-btn" onclick="closeModal()">取消</button><button class="primary-btn" id="shiftSaveBtn">儲存班次</button></div>
   </div>`);
   const form=byId("modalForm");
   function refreshEmployeeOptions(){
@@ -904,7 +907,15 @@ function openShiftModal(id=null,prefill=null){
       const week=weeklyHours(eid,date,id)+durationHours({workTypeId:fd.get("workTypeId"),start,end});
       if(e.weeklyLimit&&week>e.weeklyLimit&&!warnings.some(x=>x.includes("每週")||x.includes("上限")))warnings.push(`排入後本週 ${fmtHours(week)}，超過上限 ${e.weeklyLimit} 小時`);
     }
-    byId("shiftWarnings").innerHTML=warnings.map(w=>`<div class="list-item"><div class="list-icon">⚠</div><div class="list-main"><strong>${w}</strong><span>第一版仍允許主管儲存，以保留例外彈性</span></div></div>`).join("")
+    // 即時衝突警示：明顯提示但不阻擋，主管仍可儲存以保留例外彈性
+    const box=byId("shiftWarnings"),btn=byId("shiftSaveBtn");
+    if(warnings.length){
+      box.innerHTML=`<div class="shift-conflicts"><div class="sc-head">⚠ 這個排班有 ${warnings.length} 項衝突（仍可儲存）</div><ul class="sc-list">${warnings.map(w=>`<li>${w}</li>`).join("")}</ul></div>`;
+      if(btn)btn.textContent="仍要儲存班次";
+    }else{
+      box.innerHTML="";
+      if(btn)btn.textContent="儲存班次";
+    }
   }
   function refreshWorkOptions(){ // 換日期時，依平日／假日重新篩選可選工作
     const sel=byId("shiftWorkSelect");const cur=sel.value;const date=new FormData(form).get("date");
