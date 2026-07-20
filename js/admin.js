@@ -59,8 +59,10 @@ function worktype(id){return state.data.workTypes.find(x=>x.id===id)}
 function isWeekendDay(wd){return wd===0||wd===6} // 六日為假日
 // 工作是否適用於某個星期（wd：0=日…6=六）。all=不限、weekday=僅平日、weekend=僅假日
 function workAppliesOnWeekday(w,wd){const d=(w&&w.applyDays)||"all";return d==="all"||(d==="weekend"?isWeekendDay(wd):!isWeekendDay(wd))}
-function workAppliesOnDate(w,dateKey){return workAppliesOnWeekday(w,new Date(dateKey+"T00:00:00").getDay())}
+// 依實際日期判斷（含國定假日）。all=不限、weekday=僅平日、weekend=僅假日
+function workAppliesOnDate(w,dateKey){const d=(w&&w.applyDays)||"all";return d==="all"||(d==="weekend"?isHolidayDate(dateKey):!isHolidayDate(dateKey))}
 function worksForWeekday(wd,selectedId=""){return state.data.workTypes.filter(w=>w.active&&(workAppliesOnWeekday(w,wd)||w.id===selectedId))}
+function worksForDate(dateKey,selectedId=""){return state.data.workTypes.filter(w=>w.active&&(workAppliesOnDate(w,dateKey)||w.id===selectedId))}
 function mins(t){const [h,m]=t.split(":").map(Number);return h*60+m}
 function settings(){
   const s=state.data.settings=state.data.settings||{};
@@ -114,7 +116,9 @@ function closedReason(dateKey){
   if(settings().closedDays.includes(new Date(dateKey+"T00:00:00").getDay()))return "每週公休";
   return "";
 }
-function isWeekend(dateKey){const d=new Date(dateKey+"T00:00:00").getDay();return d===0||d===6}
+// 全站統一「假日」定義：週六、週日，或有標示的國定假日；其餘為平日。
+function isHolidayDate(dateKey){const d=new Date(dateKey+"T00:00:00").getDay();if(d===0||d===6)return true;return !!nationalHolidayName(dateKey)}
+function isWeekend(dateKey){return isHolidayDate(dateKey)}
 function fmtHours(n){return Number.isInteger(n)?`${n} 小時`:`${n.toFixed(1)} 小時`}
 function formatDate(key){const d=new Date(key+"T00:00:00");return `${d.getMonth()+1}/${d.getDate()}（${"日一二三四五六"[d.getDay()]}）`}
 function weekRange(dateKey){
@@ -340,7 +344,8 @@ function renderSchedule(){
     byId("selectedDateTitle").textContent=formatDate(state.selectedDate)+(nh?`・${nh}`:"");
     const dayShifts=state.data.shifts.filter(s=>s.date===state.selectedDate);
     byId("selectedDateSummary").textContent=`${dayShifts.length} 個班次・共 ${fmtHours(dayShifts.reduce((n,s)=>n+durationHours(s),0))}`;
-    const works=state.data.workTypes.filter(w=>w.active).sort((a,b)=>a.sort-b.sort);
+    const usedIds=new Set(dayShifts.map(s=>s.workTypeId)); // 已有班次的工作一律保留顯示
+    const works=state.data.workTypes.filter(w=>w.active&&(workAppliesOnDate(w,state.selectedDate)||usedIds.has(w.id))).sort((a,b)=>a.sort-b.sort);
     const closed=isClosedDay(state.selectedDate);
     const cols=works.map(w=>{
       const shifts=dayShifts.filter(s=>s.workTypeId===w.id);
@@ -365,7 +370,7 @@ function wireScheduleGrid(axis){
       m=Math.max(axis.startM,Math.min(m,axis.endM-axis.step)); // 保留至少一格
       const start=`${pad(Math.floor(m/60))}:${pad(m%60)}`;
       if(isClosedDay(date)&&!confirm("這一天是公休日，確定要排班？"))return;
-      const workId=track.dataset.work||state.data.workTypes.find(w=>w.active)?.id||"";
+      const workId=track.dataset.work||worksForDate(date)[0]?.id||state.data.workTypes.find(w=>w.active)?.id||"";
       openShiftModal(null,{date,workTypeId:workId,start});
     });
   });
@@ -625,7 +630,7 @@ function openShiftModal(id=null,prefill=null){
   openModal(id?"編輯班次":"新增班次","先設定日期、工作與時間，最後再選擇系統整理好的員工",`
   <div class="form-grid">
     <label class="field"><span>日期</span><input class="input" type="date" name="date" value="${s.date}"></label>
-    <label class="field"><span>工作</span><select class="select" name="workTypeId" id="shiftWorkSelect">${worksForWeekday(new Date(s.date+"T00:00:00").getDay(),s.workTypeId).map(w=>`<option value="${w.id}" ${w.id===s.workTypeId?"selected":""}>${w.name}</option>`).join("")}</select></label>
+    <label class="field"><span>工作</span><select class="select" name="workTypeId" id="shiftWorkSelect">${worksForDate(s.date,s.workTypeId).map(w=>`<option value="${w.id}" ${w.id===s.workTypeId?"selected":""}>${w.name}</option>`).join("")}</select></label>
     <label class="field"><span>開始時間</span><select class="select" name="start">${timeOptions(s.start)}</select></label>
     <label class="field"><span>結束時間</span><select class="select" name="end">${timeOptions(s.end)}</select></label>
     <div class="field span-2"><span>休息與計薪</span><div class="calc-box" id="shiftCalc"></div></div>
@@ -666,7 +671,14 @@ function openShiftModal(id=null,prefill=null){
     }
     byId("shiftWarnings").innerHTML=warnings.map(w=>`<div class="list-item"><div class="list-icon">⚠</div><div class="list-main"><strong>${w}</strong><span>第一版仍允許主管儲存，以保留例外彈性</span></div></div>`).join("")
   }
+  function refreshWorkOptions(){ // 換日期時，依平日／假日重新篩選可選工作
+    const sel=byId("shiftWorkSelect");const cur=sel.value;const date=new FormData(form).get("date");
+    const list=worksForDate(date,cur);
+    sel.innerHTML=list.map(w=>`<option value="${w.id}" ${w.id===cur?"selected":""}>${w.name}</option>`).join("");
+    if(!list.some(w=>w.id===cur))sel.value=list[0]?.id||"";
+  }
   refreshEmployeeOptions();updateWarnings();updateCalc();
+  form.elements.date.addEventListener("change",refreshWorkOptions);
   ["date","workTypeId","start","end"].forEach(name=>{
     form.elements[name].addEventListener("change",()=>{refreshEmployeeOptions();updateWarnings();updateCalc()});
   });
@@ -805,7 +817,8 @@ function availMonthView(w){
     const recs=actives.map(e=>availAt(e.id,key)).filter(Boolean);
     const yes=recs.filter(a=>!a.unavailable).length;
     const badge=inTarget?(closed?`<div class="ov-closed">公休</div>`:`<div class="ov-count">${yes} 可排</div>`):"";
-    cells+=`<div class="ov-cell ${day.getMonth()!==m?"muted":""} ${inTarget&&!closed?"":"disabled"}"><div class="ov-day">${day.getDate()}</div>${badge}</div>`;
+    const clickable=inTarget&&!closed;
+    cells+=`<div class="ov-cell ${day.getMonth()!==m?"muted":""} ${clickable?"clickable":"disabled"}" ${clickable?`onclick="availOpenDate('${key}')"`:""}><div class="ov-day">${day.getDate()}</div>${badge}</div>`;
   }
   return `<div class="ov-cal-head"><button class="icon-btn" onclick="availMonthNav(-1)">‹</button><strong>${y} 年 ${m+1} 月</strong><button class="icon-btn" onclick="availMonthNav(1)">›</button></div>
     <div class="weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
@@ -823,9 +836,9 @@ function availDateView(w){
     if(!a)status=`<span class="badge inactive">未填</span>`;
     else if(a.unavailable)status=`<span class="badge warn">不可排</span>`;
     else status=`<span class="badge ok">${a.start}～${a.end}</span>`;
-    return `<div class="list-item"><div class="list-icon">${e.name.slice(0,1)}</div><div class="list-main"><strong>${e.name}</strong><span>${e.employmentType}</span></div>${status}</div>`;
+    return `<div class="list-item clickable" onclick="openAvailEditModal('${e.id}','${state.availDate}')"><div class="list-icon">${e.name.slice(0,1)}</div><div class="list-main"><strong>${e.name}</strong><span>${e.employmentType}</span></div>${status}<span class="row-edit-hint">編輯</span></div>`;
   }).join("");
-  return `<div class="ov-toolbar"><span>選擇日期</span><select class="select" onchange="availPickDate(this.value)" style="max-width:220px">${options}</select></div><div class="stack-list panel">${rows}</div>`;
+  return `<div class="ov-toolbar"><span>選擇日期</span><select class="select" onchange="availPickDate(this.value)" style="max-width:220px">${options}</select><span class="ov-hint">點員工即可代填／修改</span></div><div class="stack-list panel">${rows}</div>`;
 }
 function availPickDate(v){state.availDate=v;renderAvailabilityOverview()}
 function availEmployeeView(w){
@@ -839,13 +852,49 @@ function availEmployeeView(w){
     if(!a)status=`<span class="badge inactive">未填</span>`;
     else if(a.unavailable)status=`<span class="badge warn">不可排</span>`;
     else status=`<span class="badge ok">${a.start}～${a.end}</span>`;
-    return `<div class="list-item"><div class="list-main"><strong>${formatDate(d)}</strong></div>${status}</div>`;
+    const eid=state.availEmployeeId;
+    return `<div class="list-item clickable" onclick="openAvailEditModal('${eid}','${d}')"><div class="list-main"><strong>${formatDate(d)}</strong><span>${"日一二三四五六"[new Date(d+"T00:00:00").getDay()]}${isHolidayDate(d)?"・假日":""}</span></div>${status}<span class="row-edit-hint">編輯</span></div>`;
   }).join("");
   const emp=employee(state.availEmployeeId);
   const filled=emp?hasFilled(emp.id,w):false;
-  return `<div class="ov-toolbar"><span>選擇員工</span><select class="select" onchange="availPickEmployee(this.value)" style="max-width:260px">${options}</select>${emp?`<span class="badge ${filled?"ok":"inactive"}">${filled?"已填寫":"尚未填寫"}</span>`:""}</div><div class="stack-list panel">${rows}</div>`;
+  return `<div class="ov-toolbar"><span>選擇員工</span><select class="select" onchange="availPickEmployee(this.value)" style="max-width:260px">${options}</select>${emp?`<span class="badge ${filled?"ok":"inactive"}">${filled?"已填寫":"尚未填寫"}</span>`:""}<span class="ov-hint">點日期即可代填／修改</span></div><div class="stack-list panel">${rows}</div>`;
 }
 function availPickEmployee(v){state.availEmployeeId=v;renderAvailabilityOverview()}
+// 老闆代填／修改員工可上班時間
+function openAvailEditModal(employeeId,dateKey){
+  const emp=employee(employeeId);if(!emp)return;
+  const a=availAt(employeeId,dateKey);
+  const cur=a?(a.unavailable?"off":"on"):"none";
+  const start=a?.start||settings().businessStart,end=a?.end||settings().businessEnd;
+  const closedNote=isClosedDay(dateKey)?`<div class="field span-2"><small class="field-help">提醒：這一天是公休日。</small></div>`:"";
+  openModal("代填可上班時間",`${emp.name}（${emp.employeeNo}）｜${formatDate(dateKey)}`,`
+    <div class="form-grid">
+      <label class="field span-2"><span>狀態</span><select class="select" name="st" id="avSt">
+        <option value="on" ${cur==="on"?"selected":""}>可上班</option>
+        <option value="off" ${cur==="off"?"selected":""}>整天不可排</option>
+        <option value="none" ${cur==="none"?"selected":""}>清除（改為未填）</option>
+      </select></label>
+      <label class="field"><span>最早可上班</span><select class="select" name="start" id="avStart">${timeOptions(start)}</select></label>
+      <label class="field"><span>最晚可下班</span><select class="select" name="end" id="avEnd">${timeOptions(end)}</select></label>
+      ${closedNote}
+      <div class="modal-actions span-2"><button type="button" class="ghost-btn" onclick="closeModal()">取消</button><button class="primary-btn">儲存</button></div>
+    </div>`);
+  const form=byId("modalForm"),stSel=byId("avSt");
+  const syncDisabled=()=>{const on=stSel.value==="on";byId("avStart").disabled=!on;byId("avEnd").disabled=!on;};
+  stSel.addEventListener("change",syncDisabled);syncDisabled();
+  form.onsubmit=ev=>{ev.preventDefault();const st=stSel.value;
+    let list=state.data.availability;
+    if(st==="none"){state.data.availability=list.filter(x=>!(x.employeeId===employeeId&&x.date===dateKey));save();closeModal();return}
+    const s=byId("avStart").value,e=byId("avEnd").value;
+    if(st==="on"&&mins(e)<=mins(s)){alert("結束時間必須晚於開始時間");return}
+    let rec=list.find(x=>x.employeeId===employeeId&&x.date===dateKey);
+    if(!rec){rec={id:uid("a"),employeeId,date:dateKey};list.push(rec)}
+    Object.assign(rec,{unavailable:st==="off",start:s,end:e});
+    save();closeModal();
+  };
+}
+// 由月檢視點格子跳到當天的日檢視
+function availOpenDate(dateKey){state.availMode="date";state.availDate=dateKey;renderAvailabilityOverview()}
 
 /* ---------- 特定休息日（國定假日／臨時公休） ---------- */
 function renderHolidays(){
@@ -999,8 +1048,11 @@ function demandGaps(dateKey){
   });
 }
 function applyDemand(dateKey){
-  const gaps=demandGaps(dateKey);
-  if(!gaps.length){alert(`星期${"日一二三四五六"[new Date(dateKey+"T00:00:00").getDay()]}尚未設定每日需求，請先到「設定與維護 → 每日需求模板」建立。`);return}
+  const allGaps=demandGaps(dateKey);
+  if(!allGaps.length){alert(`星期${"日一二三四五六"[new Date(dateKey+"T00:00:00").getDay()]}尚未設定每日需求，請先到「設定與維護 → 每日需求模板」建立。`);return}
+  // 依平日／假日規則過濾：只在假日出現的工作不會排進平日，反之亦然
+  const gaps=allGaps.filter(r=>workAppliesOnDate(worktype(r.workTypeId),dateKey));
+  const skipped=allGaps.length-gaps.length;
   let created=0,unfilled=0;
   gaps.forEach(r=>{
     for(let i=0;i<r.gap;i++){
@@ -1009,9 +1061,10 @@ function applyDemand(dateKey){
       state.data.shifts.push(s);created++;if(!pick)unfilled++;
     }
   });
-  if(!created){alert("這一天的需求都已排滿，未新增班次。");return}
+  const skipNote=skipped?`（${skipped} 筆因平日／假日限定不適用本日、已略過）`:"";
+  if(!created){alert(`這一天的需求都已排滿，未新增班次。${skipNote}`);return}
   save();
-  alert(`已依需求建立 ${created} 個班次${unfilled?`，其中 ${unfilled} 個找不到合適員工、需手動指派`:"，皆已自動指派最適人選"}。`);
+  alert(`已依需求建立 ${created} 個班次${unfilled?`，其中 ${unfilled} 個找不到合適員工、需手動指派`:"，皆已自動指派最適人選"}。${skipNote}`);
 }
 
 function onCloudData(data,info){
@@ -1127,6 +1180,6 @@ window.openEmployeeModal=openEmployeeModal;window.deleteEmployee=deleteEmployee;
 document.addEventListener("DOMContentLoaded",init);
 
 window.openAvailabilityWindowModal=openAvailabilityWindowModal;window.deleteAvailabilityWindow=deleteAvailabilityWindow;
-window.availMonthNav=availMonthNav;window.availPickDate=availPickDate;window.availPickEmployee=availPickEmployee;
+window.availMonthNav=availMonthNav;window.availPickDate=availPickDate;window.availPickEmployee=availPickEmployee;window.openAvailEditModal=openAvailEditModal;window.availOpenDate=availOpenDate;
 window.openDemandModal=openDemandModal;window.deleteDemand=deleteDemand;window.openCopyDemandModal=openCopyDemandModal;window.deleteHoliday=deleteHoliday;
 window.toggleHolidayClosed=toggleHolidayClosed;window.deleteNationalHoliday=deleteNationalHoliday;
