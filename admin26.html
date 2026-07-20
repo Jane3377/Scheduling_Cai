@@ -153,7 +153,7 @@
                 <button class="icon-btn" id="schedNext">›</button>
               </div>
             </div>
-            <p class="sched-hint">點日曆空白時段可直接新增班次，點色塊可編輯。灰色斜紋＝草稿（員工看不到），公布後才會顯示給員工。</p>
+            <p class="sched-hint" id="schedHint">點日曆空白時段可直接新增班次，點色塊可編輯。灰色斜紋＝草稿（員工看不到），公布後才會顯示給員工。</p>
             <div class="sched-grid-wrap" id="scheduleGrid"></div>
           </section>
         </div>
@@ -168,12 +168,6 @@
         <div class="avail-tab-panel" id="availSettingsPanel">
           <div class="section-toolbar end">
             <button class="primary-btn" id="addAvailabilityWindowBtn">＋ 新增開放區段</button>
-          </div>
-          <div class="info-banner">
-            <div>
-              <strong>設定範例</strong>
-              <span>7/17～7/20 開放填寫，員工填寫 8/1～8/15 的可上班時間。</span>
-            </div>
           </div>
           <div id="availabilityWindowCards" class="window-card-grid"></div>
         </div>
@@ -216,7 +210,6 @@
         </div>
         <div class="info-banner">
           <div>
-            <strong id="hoursWeekLabel"></strong>
             <span>黃底＝接近上限（達 90%）、紅底＝有任一週超過每週上限。點員工可展開明細，並輸入實際打卡時間與班表核對；點「合計」欄可排序。</span>
           </div>
         </div>

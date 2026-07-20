@@ -377,9 +377,12 @@ function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const draftLine=draft?`<span class="dg-draft">草稿・未公布</span>`:"";
   return `<button class="dg-block ${e?"":"unassigned"}${draftCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><strong>${who}</strong><span>${label}</span>${noteLine}${draftLine}</button>`;
 }
+function isNarrow(){return !!(window.matchMedia&&window.matchMedia("(max-width:760px)").matches);}
 function renderSchedule(){
   const grid=byId("scheduleGrid");if(!grid)return;
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.smode===state.scheduleMode));
+  const hint=byId("schedHint");if(hint)hint.textContent=isNarrow()?"點班次可編輯；用下方按鈕或每日的＋新增班次。":"點日曆空白時段可直接新增班次，點色塊可編輯。灰色斜紋＝草稿（員工看不到），公布後才會顯示給員工。";
+  if(isNarrow()){renderScheduleList(grid);renderPublishBar();return;}
   const axis=timeAxis();
   if(state.scheduleMode==="week"){
     const [a,b]=weekRange(state.selectedDate),days=datesInRange(a,b);
@@ -431,6 +434,44 @@ function wireScheduleGrid(axis){
       openShiftModal(null,{date,workTypeId:workId,start});
     });
   });
+}
+// 手機版排班：清單式（每日分段、點班次即可編輯），取代擠壓的時間軸
+function scheduleListRow(s){
+  const w=worktype(s.workTypeId),e=employee(s.employeeId);
+  const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
+  const note=(s.note||"").trim();
+  const draft=s.published===false;
+  return `<button class="sl-shift ${draft?"draft":""} ${e?"":"unassigned"}" onclick="openShiftModal('${s.id}')">
+    <span class="sl-time">${s.start}<i>${s.end}</i></span>
+    <span class="sl-chip" style="background:${w?.color||'#888'}">${w?w.name:"（已刪除）"}${subTxt}</span>
+    <span class="sl-main"><strong>${e?e.name:"待指派"}</strong>${note?`<span class="sl-note">📝 ${note}</span>`:""}${draft?`<span class="sl-draft">草稿・未公布</span>`:""}</span>
+    <span class="sl-go">✎</span>
+  </button>`;
+}
+function renderScheduleList(grid){
+  const isWeek=state.scheduleMode==="week";
+  let days;
+  if(isWeek){
+    const [a,b]=weekRange(state.selectedDate);days=datesInRange(a,b);
+    byId("selectedDateTitle").textContent=`${formatDate(a)} ～ ${formatDate(b)}`;
+    const ws=state.data.shifts.filter(s=>s.date>=a&&s.date<=b);
+    byId("selectedDateSummary").textContent=`本週 ${ws.length} 個班次・共 ${fmtHours(ws.reduce((n,s)=>n+durationHours(s),0))}`;
+  }else{
+    const nh=nationalHolidayName(state.selectedDate);
+    byId("selectedDateTitle").textContent=formatDate(state.selectedDate)+(nh?`・${nh}`:"");
+    const ds=state.data.shifts.filter(s=>s.date===state.selectedDate);
+    byId("selectedDateSummary").textContent=`${ds.length} 個班次・共 ${fmtHours(ds.reduce((n,s)=>n+durationHours(s),0))}`;
+    days=[state.selectedDate];
+  }
+  const sections=days.map(d=>{
+    const dd=new Date(d+"T00:00:00"),closed=isClosedDay(d);
+    const shifts=state.data.shifts.filter(s=>s.date===d).sort((a,b)=>mins(a.start)-mins(b.start));
+    const head=isWeek?`<div class="sl-dayhead ${d===toDateKey(today)?"today":""}"><strong>${dd.getMonth()+1}/${dd.getDate()}（${"日一二三四五六"[dd.getDay()]}）</strong><span>${closed?"公休":shifts.length+" 班"}</span><button class="text-btn" onclick="openShiftModal(null,{date:'${d}'})">＋ 班次</button></div>`:"";
+    const body=closed?`<div class="sl-empty">公休日</div>`:(shifts.length?shifts.map(scheduleListRow).join(""):`<div class="sl-empty">尚未排班</div>`);
+    return `<div class="sl-day">${head}${body}</div>`;
+  }).join("");
+  const addBtn=isWeek?"":`<button class="primary-btn full" style="margin-top:12px" onclick="openShiftModal(null,{date:'${state.selectedDate}'})">＋ 新增班次</button>`;
+  grid.innerHTML=`<div class="sched-list">${sections}${addBtn}</div>`;
 }
 function shiftSchedule(delta){
   const d=new Date(state.selectedDate+"T00:00:00");
@@ -1541,6 +1582,8 @@ function init(){
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.onclick=()=>{state.scheduleMode=b.dataset.smode;renderSchedule()});
   byId("menuBtn").onclick=()=>toggleSidebar();
   byId("sidebarBackdrop").onclick=()=>toggleSidebar(false);
+  let _wasNarrow=isNarrow();
+  window.addEventListener("resize",()=>{const n=isNarrow();if(n!==_wasNarrow){_wasNarrow=n;if(state.view==="schedule")renderSchedule();}});
   byId("modalCloseBtn").onclick=closeModal;byId("modalBackdrop").onclick=e=>{if(e.target===byId("modalBackdrop"))closeModal()};
   byId("addEmployeeBtn").onclick=()=>openEmployeeModal();byId("addWorktypeBtn").onclick=()=>openWorktypeModal();
   byId("addAvailabilityWindowBtn").onclick=()=>openAvailabilityWindowModal();
