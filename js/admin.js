@@ -63,7 +63,9 @@ function save(){Cloud.save(state.data);renderAll()}
 function byId(id){return document.getElementById(id)}
 function employee(id){return state.data.employees.find(x=>x.id===id)}
 function worktype(id){return state.data.workTypes.find(x=>x.id===id)}
-function isWeekendDay(wd){return wd===0||wd===6} // 六日為假日
+function isWeekendDay(wd){return wd===0||wd===6||wd===7} // 六、日、以及固定班次的「國定假日(7)」都算假日
+// 固定班次分頁的標籤：7 = 國定假日
+function dayLabel(wd){return wd===7?"國定假日":"星期"+"日一二三四五六"[wd]}
 // 工作是否適用於某個星期（wd：0=日…6=六）。all=不限、weekday=僅平日、weekend=僅假日
 function workAppliesOnWeekday(w,wd){const d=(w&&w.applyDays)||"all";return d==="all"||(d==="weekend"?isWeekendDay(wd):!isWeekendDay(wd))}
 // 依實際日期判斷（含國定假日）。all=不限、weekday=僅平日、weekend=僅假日
@@ -1312,7 +1314,7 @@ function getDemand(){return settings().dailyDemand}
 function demandForWeekday(wd){return getDemand().filter(r=>r.weekday===wd).sort((a,b)=>mins(a.start)-mins(b.start))}
 function renderDemand(){
   const tabs=byId("demandWeekTabs");if(!tabs)return;
-  tabs.innerHTML=[1,2,3,4,5,6,0].map(d=>`<button type="button" class="seg-btn ${d===state.demandWeekday?"active":""}" data-dw="${d}">星期${"日一二三四五六"[d]}</button>`).join("");
+  tabs.innerHTML=[1,2,3,4,5,6,0,7].map(d=>`<button type="button" class="seg-btn ${d===state.demandWeekday?"active":""}" data-dw="${d}">${dayLabel(d)}</button>`).join("");
   tabs.querySelectorAll(".seg-btn").forEach(b=>b.onclick=()=>{state.demandWeekday=Number(b.dataset.dw);renderDemand()});
   const copyBtn=byId("copyDemandBtn");if(copyBtn)copyBtn.disabled=demandForWeekday(state.demandWeekday).length===0;
   const list=demandForWeekday(state.demandWeekday);
@@ -1320,13 +1322,13 @@ function renderDemand(){
     const w=worktype(r.workTypeId);const subTxt=(r.subWork||"").trim()?`＋${r.subWork.trim()}`:"";
     const noteTxt=(r.note||"").trim()?`<span class="demand-note">📝 ${r.note.trim()}</span>`:"";
     return `<div class="demand-row"><div class="list-icon" style="background:${w?.color||'#999'}22;color:${w?.color||'#999'}">●</div><div class="list-main"><strong>${w?.name||"未命名工作"}${subTxt}｜${r.count} 人</strong><span>${r.start}～${r.end}</span>${noteTxt}</div><button class="text-btn" onclick="openDemandModal('${r.id}')">編輯</button></div>`;
-  }).join(""):`<div class="empty-state">星期${"日一二三四五六"[state.demandWeekday]}尚未設定固定班次</div>`;
+  }).join(""):`<div class="empty-state">${dayLabel(state.demandWeekday)}尚未設定固定班次${state.demandWeekday===7?"（落在平日的國定假日會套用這組）":""}</div>`;
 }
 function openDemandModal(id=null){
   const list=getDemand();
   const r=id?list.find(x=>x.id===id):{id:uid("dd"),weekday:state.demandWeekday,workTypeId:worksForWeekday(state.demandWeekday)[0]?.id||"",start:settings().businessStart,end:settings().businessEnd,count:1,subWork:"",note:""};
   const dayWorks=worksForWeekday(r.weekday,r.workTypeId);
-  openModal(id?"編輯固定班次":"新增固定班次",`星期${"日一二三四五六"[r.weekday]}的固定人力`,`
+  openModal(id?"編輯固定班次":"新增固定班次",`${dayLabel(r.weekday)}的固定人力`,`
     <div class="form-grid">
       <label class="field"><span>工作</span><select class="select" name="workTypeId">${dayWorks.map(w=>`<option value="${w.id}" ${w.id===r.workTypeId?"selected":""}>${w.name}</option>`).join("")}</select></label>
       <label class="field"><span>需要人數</span><input class="input" type="number" name="count" min="1" step="1" value="${r.count}"></label>
@@ -1346,9 +1348,9 @@ function deleteDemand(id){if(confirm("確定刪除這筆需求？")){settings().
 function openCopyDemandModal(){
   const src=state.demandWeekday, srcRows=demandForWeekday(src);
   if(!srcRows.length){alert("這一天還沒有固定班次可以複製。");return}
-  const others=[1,2,3,4,5,6,0].filter(d=>d!==src);
-  const boxes=others.map(d=>`<label class="checkbox-card"><input type="checkbox" name="days" value="${d}"><span>星期${"日一二三四五六"[d]}</span></label>`).join("");
-  openModal("複製固定班次",`把「星期${"日一二三四五六"[src]}」的 ${srcRows.length} 筆固定班次複製到其他星期`,`
+  const others=[1,2,3,4,5,6,0,7].filter(d=>d!==src);
+  const boxes=others.map(d=>`<label class="checkbox-card"><input type="checkbox" name="days" value="${d}"><span>${dayLabel(d)}</span></label>`).join("");
+  openModal("複製固定班次",`把「${dayLabel(src)}」的 ${srcRows.length} 筆固定班次複製到其他天`,`
     <div class="form-grid">
       <div class="field span-2"><span>複製到（可多選）</span><div class="checkbox-grid">${boxes}</div></div>
       <label class="check-row span-2"><input type="checkbox" name="quickWeekdays"> 快速勾選：平日一～五</label>
@@ -1365,7 +1367,7 @@ function openCopyDemandModal(){
     const all=getDemand().filter(r=>!targets.includes(r.weekday)); // 移除目標日原有需求
     targets.forEach(d=>srcRows.forEach(r=>all.push({...r,id:uid("dd"),weekday:d})));
     settings().dailyDemand=all;save();closeModal();
-    alert(`已複製到 ${targets.map(d=>"星期"+"日一二三四五六"[d]).join("、")}。`);
+    alert(`已複製到 ${targets.map(dayLabel).join("、")}。`);
   };
 }
 // 選出最適合的員工（可排班、依主要負責與工時排序）
@@ -1434,24 +1436,48 @@ function renderPublishBar(){
       ? `<button class="ghost-btn small-btn" onclick="unpublishWeek()">取消公布</button>`
       : `<button class="primary-btn small-btn" onclick="publishWeek()">公布本週</button>`);
 }
+// 套用固定班次：
+// 1) 國定假日（落在平日）自動套用「國定假日」那組模板，而不是看星期幾。
+// 2) 就地更新：既有的待指派班次先補人（用最新可上班時間），只有真的不夠才補建，不會重複新增。
 function applyDemand(dateKey){
-  const allGaps=demandGaps(dateKey);
-  if(!allGaps.length){alert(`星期${"日一二三四五六"[new Date(dateKey+"T00:00:00").getDay()]}尚未設定固定班次，請先按上方「固定班次設定」建立。`);return}
-  // 依平日／假日規則過濾：只在假日出現的工作不會排進平日，反之亦然
-  const gaps=allGaps.filter(r=>workAppliesOnDate(worktype(r.workTypeId),dateKey));
-  const skipped=allGaps.length-gaps.length;
-  let created=0,unfilled=0;
-  gaps.forEach(r=>{
-    for(let i=0;i<r.gap;i++){
+  const isNH=!!nationalHolidayName(dateKey);
+  // 國定假日優先套「國定假日」那組；若沒設定就退回當天星期的模板
+  const useHoliday=isNH&&demandForWeekday(7).length>0;
+  const wd=useHoliday?7:new Date(dateKey+"T00:00:00").getDay();
+  const all=demandForWeekday(wd);
+  if(!all.length){
+    alert(`${dayLabel(wd)}尚未設定固定班次，請先按上方「固定班次設定」${isNH?"的「國定假日」分頁":""}建立。`);return;
+  }
+  const rows=all.filter(r=>workAppliesOnDate(worktype(r.workTypeId),dateKey));
+  const skipped=all.length-rows.length;
+  let created=0,assignedNow=0;
+  rows.forEach(r=>{
+    const match=s=>s.date===dateKey&&s.workTypeId===r.workTypeId&&s.start===r.start&&s.end===r.end;
+    // 先把既有「待指派」的補上人（用最新可上班時間）
+    state.data.shifts.filter(s=>match(s)&&!s.employeeId).forEach(s=>{
       const pick=bestEmployeeFor(dateKey,r.start,r.end,r.workTypeId);
-      const s={id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end}),note:(r.note||"").trim(),subWork:(r.subWork||"").trim(),prepRole:false,status:"draft",published:false};
-      state.data.shifts.push(s);created++;if(!pick)unfilled++;
+      if(pick){s.employeeId=pick;s.breakMinutes=breakForShift(s);assignedNow++;}
+    });
+    // 只補建「還不夠」的數量（既有的含待指派都算數，不重複新增）
+    const have=state.data.shifts.filter(match).length;
+    for(let i=0;i<r.count-have;i++){
+      const pick=bestEmployeeFor(dateKey,r.start,r.end,r.workTypeId);
+      state.data.shifts.push({id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end}),note:(r.note||"").trim(),subWork:(r.subWork||"").trim(),prepRole:false,status:"draft",published:false});
+      created++;
     }
   });
+  // 套用後這些時段仍待指派的數量
+  let unfilled=0;
+  rows.forEach(r=>{unfilled+=state.data.shifts.filter(s=>s.date===dateKey&&s.workTypeId===r.workTypeId&&s.start===r.start&&s.end===r.end&&!s.employeeId).length;});
   const skipNote=skipped?`（${skipped} 筆因平日／假日限定不適用本日、已略過）`:"";
-  if(!created){alert(`這一天的需求都已排滿，未新增班次。${skipNote}`);return}
+  if(!created&&!assignedNow){
+    alert(`本日固定班次已建立且無可補指派的空缺，未變更。${unfilled?`目前仍有 ${unfilled} 個待指派。`:""}${skipNote}`);return;
+  }
   save();
-  alert(`已依需求建立 ${created} 個班次${unfilled?`，其中 ${unfilled} 個找不到合適員工、需手動指派`:"，皆已自動指派最適人選"}。${skipNote}`);
+  const parts=[];
+  if(created)parts.push(`新增 ${created} 個班次`);
+  if(assignedNow)parts.push(`補指派 ${assignedNow} 人`);
+  alert(`已套用${useHoliday?"國定假日":""}固定班次：${parts.join("、")}。${unfilled?`仍有 ${unfilled} 個待指派——可等可上班時間更新後再按一次「套用固定班次」自動補人（不會重複新增）。`:"皆已指派。"}${skipNote}`);
 }
 
 function onCloudData(data,info){
