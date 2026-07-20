@@ -161,9 +161,9 @@ function setView(view){
   const meta={
     dashboard:["營運總覽","快速掌握本月排班與人力狀況"],
     employees:["員工管理","設定員工編號、可做工作與工時上限"],
-    worktypes:["工作管理","設定工作名稱、顏色與休息規則"],
+    worktypes:["工作項目","設定工作名稱、顏色與休息規則"],
     schedule:["排班管理","以月曆與日時間軸快速完成排班"],
-    hours:["工時總覽","查看每位員工每週的計薪工時"],
+    hours:["工時統計","查看每位員工的計薪工時（可切週／月），並核對打卡"],
     availability:["可上班時間","開放員工填寫，並檢視每個人填寫的可上班時間"],
     storeSettings:["設定與維護","店名、上班時間、公休、休息時段與資料維護"],
   }[view];
@@ -451,9 +451,19 @@ function exportSchedule(mode){
   const period=mode==="week"?`${start}_至_${end}`:start.slice(0,7);
   downloadCSV(reportFileName(mode==="week"?"週班表":"月班表",period),rows);
 }
-// 工時統計匯出（依目前週/月、篩選、排序）
-function exportHours(){
-  const p=hoursPeriod();
+// 統一的「下載 CSV」選擇器：先選週統計或月統計，再下載
+function openCsvChooser(subtitle,onPick){
+  openModal("下載 CSV",subtitle,`
+    <div class="csv-choose">
+      <button type="button" class="secondary-btn" data-pick="week">📅 週統計<span>目前選取日期所屬的那一週</span></button>
+      <button type="button" class="secondary-btn" data-pick="month">🗓 月統計<span>目前選取日期所屬的整個月</span></button>
+    </div>
+    <div class="modal-actions"><button type="button" class="ghost-btn" onclick="closeModal()">取消</button></div>`);
+  document.querySelectorAll(".csv-choose [data-pick]").forEach(b=>b.onclick=()=>{const m=b.dataset.pick;closeModal();onPick(m);});
+}
+// 工時統計匯出（週或月、依篩選與排序）
+function exportHours(mode){
+  const p=hoursPeriod(mode);
   const q=state.hoursSearch.trim().toLowerCase();
   const list=state.data.employees.filter(e=>e.active
     &&(state.hoursType==="all"||e.employmentType===state.hoursType)
@@ -471,11 +481,11 @@ function exportHours(){
   const period=p.mode==="month"?p.start.slice(0,7):`${p.start}_至_${p.end}`;
   downloadCSV(reportFileName(p.mode==="month"?"月工時統計":"週工時統計",period),rows);
 }
-// 可上班時間匯出（有開放區段用其排班日期範圍，否則用目前月份）
-function exportAvailability(){
-  const w=currentWindow();let start,end,period;
-  if(w){start=w.targetStart;end=w.targetEnd;period=`${start}_至_${end}`;}
-  else{const d=state.availCalDate;start=toDateKey(new Date(d.getFullYear(),d.getMonth(),1));end=toDateKey(new Date(d.getFullYear(),d.getMonth()+1,0));period=start.slice(0,7);}
+// 可上班時間匯出（週或月，以檢視中的日期／月份為準）
+function exportAvailability(mode){
+  let start,end,period;
+  if(mode==="month"){const d=state.availCalDate;start=toDateKey(new Date(d.getFullYear(),d.getMonth(),1));end=toDateKey(new Date(d.getFullYear(),d.getMonth()+1,0));period=start.slice(0,7);}
+  else{[start,end]=weekRange(state.availDate||toDateKey(today));period=`${start}_至_${end}`;}
   const days=datesInRange(start,end);
   const dayHead=k=>{const dd=new Date(k+"T00:00:00");return `${dd.getMonth()+1}/${dd.getDate()}(${"日一二三四五六"[dd.getDay()]})`};
   const rows=[["員工",...days.map(dayHead)]];
@@ -872,9 +882,10 @@ function renderStoreSettings(){
 function shiftDayHours(employeeId,dateKey){
   return state.data.shifts.filter(s=>s.employeeId===employeeId&&s.date===dateKey).reduce((n,s)=>n+durationHours(s),0);
 }
-// 依目前模式（週／月）與錨點日期算出期間
-function hoursPeriod(){
-  if(state.hoursMode==="month"){
+// 依模式（週／月）與錨點日期算出期間；不給 mode 時用目前檢視模式
+function hoursPeriod(mode){
+  mode=mode||state.hoursMode;
+  if(mode==="month"){
     const d=new Date(state.hoursWeek+"T00:00:00"),y=d.getFullYear(),m=d.getMonth();
     const start=toDateKey(new Date(y,m,1)),end=toDateKey(new Date(y,m+1,0));
     return {start,end,label:`${y} 年 ${m+1} 月`,mode:"month"};
@@ -1489,8 +1500,7 @@ function init(){
   byId("schedAddBtn").onclick=()=>openShiftModal();
   byId("applyDemandBtn").onclick=()=>applyDemand(state.selectedDate);
   byId("copyLastWeekBtn").onclick=()=>copyLastWeek();
-  byId("exportWeekBtn").onclick=()=>exportSchedule("week");
-  byId("exportMonthBtn").onclick=()=>exportSchedule("month");
+  byId("exportScheduleBtn").onclick=()=>openCsvChooser("要下載哪個範圍的班表？",m=>exportSchedule(m));
   byId("addDemandBtn").onclick=()=>openDemandModal();
   byId("copyDemandBtn").onclick=()=>openCopyDemandModal();
   byId("fixedShiftBtn").onclick=()=>openFixedShiftModal();
@@ -1531,8 +1541,8 @@ function init(){
   document.querySelectorAll("#hoursModeTabs .seg-btn").forEach(b=>b.addEventListener("click",()=>{state.hoursMode=b.dataset.hmode;state.hoursExpanded=null;renderHours()}));
   byId("hoursTypeFilter")?.addEventListener("change",e=>{state.hoursType=e.target.value;renderHours()});
   byId("hoursSearchInput")?.addEventListener("input",e=>{state.hoursSearch=e.target.value;renderHours()});
-  byId("exportHoursBtn")?.addEventListener("click",exportHours);
-  byId("exportAvailBtn")?.addEventListener("click",exportAvailability);
+  byId("exportHoursBtn")?.addEventListener("click",()=>openCsvChooser("要下載哪個範圍的工時統計？",m=>exportHours(m)));
+  byId("exportAvailBtn")?.addEventListener("click",()=>openCsvChooser("要下載哪個範圍的可上班時間？",m=>exportAvailability(m)));
   syncHoursDateInput();
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availMode=b.dataset.mode;renderAvailabilityOverview()});
   document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availPage=b.dataset.atab;syncAvailPage()});

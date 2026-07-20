@@ -35,10 +35,10 @@
         <div class="nav-group">作業</div>
         <button class="nav-item" data-view="availability">可上班時間</button>
         <button class="nav-item" data-view="schedule">排班管理</button>
-        <button class="nav-item" data-view="hours">工時總覽</button>
+        <button class="nav-item" data-view="hours">工時統計</button>
         <div class="nav-group">設定</div>
         <button class="nav-item" data-view="employees">員工管理</button>
-        <button class="nav-item" data-view="worktypes">工作管理</button>
+        <button class="nav-item" data-view="worktypes">工作項目</button>
         <button class="nav-item" data-view="storeSettings">設定與維護</button>
       </nav>
       <div class="sidebar-note">
@@ -114,8 +114,7 @@
       <section class="view" id="scheduleView">
         <div class="section-toolbar end">
           <button class="ghost-btn" id="fixedShiftBtn">🗓 固定班次設定</button>
-          <button class="ghost-btn" id="exportWeekBtn">⬇ 匯出本週</button>
-          <button class="ghost-btn" id="exportMonthBtn">⬇ 匯出本月</button>
+          <button class="ghost-btn" id="exportScheduleBtn">⬇ 下載 CSV</button>
           <button class="ghost-btn" id="copyLastWeekBtn">📋 複製上週</button>
           <button class="ghost-btn" id="applyDemandBtn">套用固定班次</button>
           <button class="primary-btn" id="schedAddBtn">＋ 班次</button>
@@ -180,7 +179,7 @@
               <button class="staff-tab" data-mode="date">日期模式</button>
               <button class="staff-tab" data-mode="employee">員工模式</button>
             </div>
-            <button class="ghost-btn" id="exportAvailBtn">⬇ 匯出</button>
+            <button class="ghost-btn" id="exportAvailBtn">⬇ 下載 CSV</button>
           </div>
           <div id="availabilityOverviewBody"></div>
         </div>
@@ -206,7 +205,7 @@
             <option value="其他">其他</option>
           </select>
           <input class="input" id="hoursSearchInput" placeholder="搜尋員工姓名／編號" style="max-width:200px">
-          <button class="ghost-btn" id="exportHoursBtn" style="margin-left:auto">⬇ 匯出</button>
+          <button class="ghost-btn" id="exportHoursBtn" style="margin-left:auto">⬇ 下載 CSV</button>
         </div>
         <div class="info-banner">
           <div>
