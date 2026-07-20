@@ -196,18 +196,8 @@ function renderAll(){
 }
 function renderDashboard(){
   const todayKey=toDateKey(today);
-  const active=state.data.employees.filter(e=>e.active).length, month=todayKey.slice(0,7);
-  const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
-  const hours=shifts.reduce((n,s)=>n+durationHours(s),0);
-  const avail=state.data.availability.filter(a=>a.date.startsWith(month)).length;
   const fill=windowFillStatus(currentWindow());
-  const monthNum=Number(month.slice(5));
-  byId("dashboardStats").innerHTML=[
-    ["在職員工",active,"可安排人力"],
-    ["本月班次",shifts.length,`${monthNum} 月已建立`],
-    ["本月計薪工時",fmtHours(hours),`${monthNum} 月依班次自動計算`],
-    ["可上班時間填寫",fill?`${fill.filled.length}／${fill.total}`:avail+" 筆",fill?`${fill.unfilled.length} 人未填`:"員工提交紀錄"]
-  ].map(x=>`<div class="stat-card"><span>${x[0]}</span><strong>${x[1]}</strong><small>${x[2]}</small></div>`).join("");
+  renderDashboardWeek(todayKey);
   byId("todayLabel").textContent=formatDate(todayKey);
   const selected=state.data.shifts.filter(s=>s.date===todayKey).sort((a,b)=>mins(a.start)-mins(b.start));
   byId("todayShifts").innerHTML=selected.length?selected.map(shiftListItem).join(""):`<div class="empty-state">今天尚未排班</div>`;
@@ -251,6 +241,32 @@ function renderDashboard(){
   });
   byId("dashboardWarnings").innerHTML=warns.length?warns.map(w=>`<div class="list-item"><div class="list-icon">⚠</div><div class="list-main"><strong>${w.t}</strong><span>${w.d}</span></div></div>`).join(""):`<div class="empty-state">目前沒有明顯衝突</div>`;
 }
+// 本週概況：一週七天的班次數與待處理標記，點某天跳到排班
+function renderDashboardWeek(todayKey){
+  const el=byId("dashboardWeek");if(!el)return;
+  const [a,b]=weekRange(todayKey);
+  const days=datesInRange(a,b);
+  const lbl=byId("weekStripLabel");if(lbl)lbl.textContent=`${formatDate(a)} ～ ${formatDate(b)}`;
+  el.innerHTML=days.map(d=>{
+    const dd=new Date(d+"T00:00:00");
+    const sh=state.data.shifts.filter(s=>s.date===d);
+    const closed=isClosedDay(d);
+    const drafts=sh.filter(s=>s.published===false).length;
+    const unassigned=sh.filter(s=>!s.employeeId).length;
+    const isToday=d===todayKey;
+    const badge=closed?`<span class="ws-badge closed">公休</span>`:(sh.length?`<span class="ws-badge">${sh.length} 班</span>`:`<span class="ws-badge empty">－</span>`);
+    const flags=[
+      unassigned?`<span class="ws-flag warn">待指派 ${unassigned}</span>`:"",
+      drafts?`<span class="ws-flag draft">未公布 ${drafts}</span>`:""
+    ].join("");
+    return `<button class="ws-day ${isToday?"today":""} ${closed?"closed":""}" onclick="gotoScheduleDay('${d}')">
+      <span class="ws-dow">${"日一二三四五六"[dd.getDay()]}${isToday?"・今天":""}</span>
+      <span class="ws-date">${dd.getMonth()+1}/${dd.getDate()}</span>
+      ${badge}${flags}
+    </button>`;
+  }).join("");
+}
+function gotoScheduleDay(d){state.selectedDate=d;state.scheduleMode="day";setView("schedule");}
 function shiftListItem(s){
   const e=employee(s.employeeId),w=worktype(s.workTypeId),c=w?.color||"#999";
   const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
@@ -1575,7 +1591,7 @@ function init(){
   Cloud.init(onCloudData,updateSyncStatus);
 }
 window.openEmployeeModal=openEmployeeModal;window.deleteEmployee=deleteEmployee;window.openWorktypeModal=openWorktypeModal;window.deleteWorktype=deleteWorktype;window.openShiftModal=openShiftModal;window.deleteShift=deleteShift;window.closeModal=closeModal;window.selectDate=selectDate;
-window.hoursSortBy=hoursSortBy;window.hoursToggle=hoursToggle;window.setShiftActual=setShiftActual;window.toggleShiftVerified=toggleShiftVerified;window.verifyAll=verifyAll;
+window.hoursSortBy=hoursSortBy;window.hoursToggle=hoursToggle;window.setShiftActual=setShiftActual;window.toggleShiftVerified=toggleShiftVerified;window.verifyAll=verifyAll;window.gotoScheduleDay=gotoScheduleDay;
 document.addEventListener("DOMContentLoaded",init);
 
 window.openAvailabilityWindowModal=openAvailabilityWindowModal;window.deleteAvailabilityWindow=deleteAvailabilityWindow;

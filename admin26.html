@@ -58,7 +58,20 @@
       </header>
 
       <section class="view active" id="dashboardView">
-        <div class="stats-grid" id="dashboardStats"></div>
+        <div class="quick-actions">
+          <button class="qa-btn" data-quick="add-shift"><b>＋ 新增班次</b><span>直接排一筆班</span></button>
+          <button class="qa-btn" data-view-target="schedule"><b>排班管理</b><span>週／日時間軸排班</span></button>
+          <button class="qa-btn" data-view-target="availability"><b>可上班時間</b><span>檢視與代填</span></button>
+          <button class="qa-btn" data-view-target="hours"><b>工時統計</b><span>工時與打卡核對</span></button>
+        </div>
+
+        <section class="panel week-strip-panel">
+          <div class="panel-head">
+            <div><h3>本週概況</h3><p id="weekStripLabel"></p></div>
+            <button class="text-btn" data-view-target="schedule">前往排班</button>
+          </div>
+          <div id="dashboardWeek" class="week-strip"></div>
+        </section>
 
         <div class="two-col">
           <section class="panel">
@@ -69,7 +82,7 @@
             <div id="todayShifts" class="stack-list"></div>
           </section>
           <section class="panel">
-            <div class="panel-head"><div><h3>排班提醒</h3><p>系統依目前資料自動提示</p></div></div>
+            <div class="panel-head"><div><h3>待辦與提醒</h3><p>系統依目前資料自動提示</p></div></div>
             <div id="dashboardWarnings" class="stack-list"></div>
           </section>
         </div>
