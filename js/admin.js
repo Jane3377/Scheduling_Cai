@@ -5,20 +5,20 @@ const COLORS = ["#b23b2e","#c0561f","#8a6d1f","#4f7a34","#2e7d52","#0f7d70","#1f
 const pad = n => String(n).padStart(2,"0");
 const toDateKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const today = new Date();
-const demoDate = new Date(2026,6,18);
+const todayKeyInit = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
 const state = {
   view:"dashboard",
-  calendarDate:new Date(2026,6,1),
-  selectedDate:"2026-07-18",
+  calendarDate:new Date(today.getFullYear(),today.getMonth(),1),
+  selectedDate:todayKeyInit,
   scheduleMode:"day",
   calendarExpanded:false,
   settingsTab:"store",
-  demandWeekday:6,
-  hoursWeek:"2026-07-18",
+  demandWeekday:new Date().getDay(),
+  hoursWeek:todayKeyInit,
   availPage:"settings",
   availMode:"month",
-  availCalDate:new Date(2026,7,1),
-  availDate:"2026-08-05",
+  availCalDate:new Date(today.getFullYear(),today.getMonth(),1),
+  availDate:todayKeyInit,
   availEmployeeId:null,
   data:null
 };
@@ -186,7 +186,8 @@ function renderAll(){
     .forEach(fn=>{try{fn()}catch(err){console.error("render error:",fn.name,err)}});
 }
 function renderDashboard(){
-  const active=state.data.employees.filter(e=>e.active).length, month=toDateKey(today).slice(0,7);
+  const todayKey=toDateKey(today);
+  const active=state.data.employees.filter(e=>e.active).length, month=todayKey.slice(0,7);
   const shifts=state.data.shifts.filter(s=>s.date.startsWith(month));
   const hours=shifts.reduce((n,s)=>n+durationHours(s),0);
   const avail=state.data.availability.filter(a=>a.date.startsWith(month)).length;
@@ -198,9 +199,9 @@ function renderDashboard(){
     ["本月計薪工時",fmtHours(hours),`${monthNum} 月依班次自動計算`],
     ["可上班時間填寫",fill?`${fill.filled.length}／${fill.total}`:avail+" 筆",fill?`${fill.unfilled.length} 人未填`:"員工提交紀錄"]
   ].map(x=>`<div class="stat-card"><span>${x[0]}</span><strong>${x[1]}</strong><small>${x[2]}</small></div>`).join("");
-  byId("todayLabel").textContent=formatDate(state.selectedDate);
-  const selected=state.data.shifts.filter(s=>s.date===state.selectedDate);
-  byId("todayShifts").innerHTML=selected.length?selected.map(shiftListItem).join(""):`<div class="empty-state">這一天尚未排班</div>`;
+  byId("todayLabel").textContent=formatDate(todayKey);
+  const selected=state.data.shifts.filter(s=>s.date===todayKey).sort((a,b)=>mins(a.start)-mins(b.start));
+  byId("todayShifts").innerHTML=selected.length?selected.map(shiftListItem).join(""):`<div class="empty-state">今天尚未排班</div>`;
   const warns=[];
   if(fill&&fill.unfilled.length)warns.push({t:`${fill.unfilled.length} 人尚未填寫可上班時間`,d:fill.unfilled.map(e=>e.name).join("、")});
   // 固定班次缺額（未來 14 天）：只提醒「已經開始排、但還沒排滿」的日子，避免整批未排的未來日誤報
@@ -218,7 +219,6 @@ function renderDashboard(){
   }
   demandWarns.slice(0,6).forEach(x=>warns.push(x));
   // 未指派員工的班次（只看今天以後，過去的不再提醒；附上日期方便找）
-  const todayKey=toDateKey(today);
   const unassignedShifts=state.data.shifts.filter(s=>!s.employeeId&&s.date>=todayKey).sort((a,b)=>a.date.localeCompare(b.date));
   if(unassignedShifts.length){
     const dates=[...new Set(unassignedShifts.map(s=>formatDate(s.date)))];
@@ -482,13 +482,14 @@ function openAvailabilityWindowModal(id=null){
   const w=id?windows.find(x=>x.id===id):{
     id:uid("aw"),name:"",openStart:"",openEnd:"",targetStart:"",targetEnd:"",enabled:true,note:"",defaultAvailable:false
   };
+  const tk=toDateKey(today);
   openModal(id?"編輯開放區段":"新增開放區段","設定員工可進入填寫的期間，以及實際要填寫的排班日期",`
     <div class="form-grid">
       <label class="field span-2"><span>區段名稱</span><input class="input" name="name" required value="${w.name}" placeholder="例如 8月上半月可上班時間"></label>
-      <label class="field"><span>開放填寫起日</span><input class="input" type="date" name="openStart" required value="${w.openStart}"></label>
-      <label class="field"><span>開放填寫迄日</span><input class="input" type="date" name="openEnd" required value="${w.openEnd}"></label>
-      <label class="field"><span>可填寫排班起日</span><input class="input" type="date" name="targetStart" required value="${w.targetStart}"></label>
-      <label class="field"><span>可填寫排班迄日</span><input class="input" type="date" name="targetEnd" required value="${w.targetEnd}"></label>
+      <label class="field"><span>開放填寫起日</span><input class="input" type="date" name="openStart" min="${tk}" required value="${w.openStart}"></label>
+      <label class="field"><span>開放填寫迄日</span><input class="input" type="date" name="openEnd" min="${tk}" required value="${w.openEnd}"></label>
+      <label class="field"><span>可填寫排班起日</span><input class="input" type="date" name="targetStart" min="${tk}" required value="${w.targetStart}"></label>
+      <label class="field"><span>可填寫排班迄日</span><input class="input" type="date" name="targetEnd" min="${tk}" required value="${w.targetEnd}"></label>
       <label class="field span-2"><span>員工提示文字</span><textarea name="note" rows="3" placeholder="例如：請於期限內完成填寫">${w.note||""}</textarea></label>
       <label class="check-row span-2"><input type="checkbox" name="enabled" ${w.enabled?"checked":""}> 啟用此填寫區段</label>
       <label class="check-row span-2"><input type="checkbox" name="defaultAvailable" ${w.defaultAvailable?"checked":""}> 預設全部員工整天可上班（只要標記少數請假的人即可）</label>
@@ -502,8 +503,13 @@ function openAvailabilityWindowModal(id=null){
     ev.preventDefault();
     const fd=new FormData(ev.target);
     const openStart=fd.get("openStart"),openEnd=fd.get("openEnd"),targetStart=fd.get("targetStart"),targetEnd=fd.get("targetEnd");
+    if(openStart<tk){alert("開放填寫起日不可早於今天");return}
     if(openEnd<openStart){alert("開放填寫迄日不可早於起日");return}
+    if(targetStart<tk){alert("可填寫排班起日不可早於今天");return}
     if(targetEnd<targetStart){alert("可填寫排班迄日不可早於起日");return}
+    // 不同區段的「可填寫排班日期」不可重疊
+    const clash=windows.find(x=>x.id!==w.id&&targetStart<=x.targetEnd&&targetEnd>=x.targetStart);
+    if(clash){alert(`可填寫排班日期與區段「${clash.name}」重疊（${formatDate(clash.targetStart)}～${formatDate(clash.targetEnd)}），請調整日期不要衝突。`);return}
     Object.assign(w,{
       name:fd.get("name").trim(),
       openStart,openEnd,targetStart,targetEnd,
@@ -838,64 +844,73 @@ function renderAvailabilityOverview(){
   const root=byId("availabilityOverviewBody");if(!root)return;
   const w=currentWindow();
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.classList.toggle("active",b.dataset.mode===state.availMode));
-  const fill=windowFillStatus(w);
   const summary=byId("availOverviewSummary");
   if(summary){
-    summary.innerHTML=w?`
-      <div class="info-banner"><div>
-        <strong>${w.name}｜可填寫 ${formatDate(w.targetStart)} ～ ${formatDate(w.targetEnd)}</strong>
+    if(w){
+      const fill=windowFillStatus(w);
+      summary.innerHTML=`<div class="info-banner"><div>
+        <strong>目前開放：${w.name}｜填寫排班日期 ${formatDate(w.targetStart)} ～ ${formatDate(w.targetEnd)}</strong>
         <span>已填 ${fill.filled.length} 人・未填 ${fill.unfilled.length} 人（共 ${fill.total} 位在職員工）</span>
-        ${fill.unfilled.length?`<span>未填：${fill.unfilled.map(e=>e.name).join("、")}</span>`:""}
-      </div></div>`:`<div class="empty-state">尚未建立開放填寫區段，請先到「開放設定」分頁新增。</div>`;
+        ${fill.unfilled.length&&!w.defaultAvailable?`<span>未填：${fill.unfilled.map(e=>e.name).join("、")}</span>`:""}
+      </div></div>`;
+    }else{
+      summary.innerHTML=`<div class="info-banner"><div><strong>目前沒有開放中的填寫區段</strong><span>員工端暫時無法自行填寫；後台仍可在下方直接代填任何日期（例如員工提早告知的休假）。</span></div></div>`;
+    }
   }
-  if(!w){root.innerHTML="";return}
-  if(state.availMode==="month")root.innerHTML=availMonthView(w);
-  else if(state.availMode==="date")root.innerHTML=availDateView(w);
-  else root.innerHTML=availEmployeeView(w);
+  // 後台不受開放區段限制，任何日期都可檢視／代填
+  if(state.availMode==="month")root.innerHTML=availMonthView();
+  else if(state.availMode==="date")root.innerHTML=availDateView();
+  else root.innerHTML=availEmployeeView();
 }
 function availAt(employeeId,dateKey){return state.data.availability.find(a=>a.employeeId===employeeId&&a.date===dateKey)}
-function availMonthView(w){
+function availMonthView(){
   const d=state.availCalDate,y=d.getFullYear(),m=d.getMonth();
   const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
   const actives=state.data.employees.filter(e=>e.active);
   let cells="";
   for(let i=0;i<42;i++){
     const day=new Date(start);day.setDate(start.getDate()+i);const key=toDateKey(day);
-    const inTarget=key>=w.targetStart&&key<=w.targetEnd;
     const closed=isClosedDay(key);
+    const inMonth=day.getMonth()===m;
     const recs=actives.map(e=>effectiveAvail(e.id,key)).filter(Boolean);
-    const yes=recs.filter(a=>!a.unavailable).length;
-    const badge=inTarget?(closed?`<div class="ov-closed">公休</div>`:`<div class="ov-count">${yes} 可排</div>`):"";
-    const clickable=inTarget&&!closed;
-    cells+=`<div class="ov-cell ${day.getMonth()!==m?"muted":""} ${clickable?"clickable":"disabled"}" ${clickable?`onclick="availOpenDate('${key}')"`:""}><div class="ov-day">${day.getDate()}</div>${badge}</div>`;
+    const yes=recs.filter(a=>!a.unavailable).length,off=recs.filter(a=>a.unavailable).length;
+    const inWin=!!windowForDate(key);
+    const badge=closed?`<div class="ov-closed">公休</div>`:`<div class="ov-count">${yes} 可排${off?`／${off} 休`:""}</div>`;
+    const clickable=!closed;
+    cells+=`<div class="ov-cell ${inMonth?"":"muted"} ${clickable?"clickable":"disabled"} ${inWin?"in-window":""}" ${clickable?`onclick="availOpenDate('${key}')"`:""}><div class="ov-day">${day.getDate()}</div>${badge}</div>`;
   }
   return `<div class="ov-cal-head"><button class="icon-btn" onclick="availMonthNav(-1)">‹</button><strong>${y} 年 ${m+1} 月</strong><button class="icon-btn" onclick="availMonthNav(1)">›</button></div>
+    <div class="ov-cal-hint">點任一天可代填當天所有員工；淺色外框＝該日在開放區段內。</div>
     <div class="weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
     <div class="ov-grid">${cells}</div>`;
 }
 function availMonthNav(delta){state.availCalDate.setMonth(state.availCalDate.getMonth()+delta);renderAvailabilityOverview()}
-function availDateView(w){
-  const days=datesInRange(w.targetStart,w.targetEnd);
-  if(!days.includes(state.availDate))state.availDate=days[0];
-  const options=days.map(d=>`<option value="${d}" ${d===state.availDate?"selected":""}>${formatDate(d)}</option>`).join("");
+function availDateView(){
+  const dateKey=state.availDate||toDateKey(today);
   const actives=state.data.employees.filter(e=>e.active);
-  const rows=actives.map(e=>availQuickRow(e.id,state.availDate,`<div class="list-icon">${e.name.slice(0,1)}</div>`,e.name,e.employmentType)).join("");
-  return `<div class="ov-toolbar"><span>選擇日期</span><select class="select" onchange="availPickDate(this.value)" style="max-width:200px">${options}</select><button class="ghost-btn small-btn" onclick="availAllForDate()">全部可上班</button><span class="ov-hint">直接按「可上班／整天不可」即可</span></div><div class="stack-list panel">${rows}</div>`;
+  const rows=actives.length?actives.map(e=>availQuickRow(e.id,dateKey,`<div class="list-icon">${e.name.slice(0,1)}</div>`,e.name,e.employmentType)).join(""):`<div class="empty-state">尚無在職員工</div>`;
+  const inWin=windowForDate(dateKey);
+  const winNote=inWin?`<span class="ov-hint">此日在開放區段「${inWin.name}」內</span>`:`<span class="ov-hint muted">此日未開放員工填寫，僅後台代填</span>`;
+  return `<div class="ov-toolbar"><span>日期</span><input type="date" class="input" style="max-width:180px" value="${dateKey}" onchange="availPickDate(this.value)"><button class="ghost-btn small-btn" onclick="availAllForDate()">全部可上班</button>${winNote}</div><div class="stack-list panel">${rows}</div>`;
 }
-function availPickDate(v){state.availDate=v;renderAvailabilityOverview()}
-function availEmployeeView(w){
+function availPickDate(v){if(v)state.availDate=v;renderAvailabilityOverview()}
+function availEmployeeView(){
   const actives=state.data.employees.filter(e=>e.active);
   if(!state.availEmployeeId||!actives.some(e=>e.id===state.availEmployeeId))state.availEmployeeId=actives[0]?.id||null;
-  const options=actives.map(e=>`<option value="${e.id}" ${e.id===state.availEmployeeId?"selected":""}>${e.name}（${e.employeeNo}）</option>`).join("");
-  const days=datesInRange(w.targetStart,w.targetEnd);
   const eid=state.availEmployeeId;
-  const rows=days.map(d=>{
-    const sub=`${"日一二三四五六"[new Date(d+"T00:00:00").getDay()]}${isHolidayDate(d)?"・假日":""}`;
-    return availQuickRow(eid,d,"",formatDate(d),sub);
-  }).join("");
-  const emp=employee(eid);
-  const filled=emp?hasFilled(emp.id,w):false;
-  return `<div class="ov-toolbar"><span>選擇員工</span><select class="select" onchange="availPickEmployee(this.value)" style="max-width:230px">${options}</select><button class="ghost-btn small-btn" onclick="availAllForEmployee()">整段全部可上班</button>${emp?`<span class="badge ${filled?"ok":"inactive"}">${filled?"已填寫":"尚未填寫"}</span>`:""}<span class="ov-hint">直接按「可上班／整天不可」即可</span></div><div class="stack-list panel">${rows}</div>`;
+  const options=actives.map(e=>`<option value="${e.id}" ${e.id===eid?"selected":""}>${e.name}（${e.employeeNo}）</option>`).join("")||`<option>（尚無員工）</option>`;
+  const d=state.availCalDate,y=d.getFullYear(),m=d.getMonth(),daysInMonth=new Date(y,m+1,0).getDate();
+  const rows=[];
+  for(let i=1;i<=daysInMonth;i++){
+    const key=toDateKey(new Date(y,m,i));
+    if(isClosedDay(key))continue; // 公休日不需填
+    const sub=`${"日一二三四五六"[new Date(key+"T00:00:00").getDay()]}${isHolidayDate(key)?"・假日":""}`;
+    rows.push(availQuickRow(eid,key,"",formatDate(key),sub));
+  }
+  return `<div class="ov-toolbar"><span>員工</span><select class="select" onchange="availPickEmployee(this.value)" style="max-width:200px">${options}</select>
+    <button class="icon-btn" onclick="availMonthNav(-1)">‹</button><strong style="font-size:14px">${y} 年 ${m+1} 月</strong><button class="icon-btn" onclick="availMonthNav(1)">›</button>
+    <button class="ghost-btn small-btn" onclick="availAllForEmployee()">整月全部可上班</button></div>
+    <div class="stack-list panel">${rows.join("")||`<div class="empty-state">本月都是公休日</div>`}</div>`;
 }
 function availPickEmployee(v){state.availEmployeeId=v;renderAvailabilityOverview()}
 // 快速勾選：整天可上班（沿用既有時間或店家營業時間）／整天不可排
@@ -938,18 +953,20 @@ function availAllForDate(){
   });
   save();
 }
-// 一鍵：把某位員工在此區段的每一天（排除公休）設為整天可上班
+// 一鍵：把某位員工在「目前顯示的月份」每一天（排除公休）設為整天可上班
 function availAllForEmployee(){
-  const eid=state.availEmployeeId,w=currentWindow();if(!eid||!w)return;
+  const eid=state.availEmployeeId;if(!eid)return;
   const emp=employee(eid);
-  if(!confirm(`將 ${emp?emp.name:""} 在此區段的每一天設為整天可上班？（原本設為不可排的也會改成可上班）`))return;
-  const bs=settings().businessStart,be=settings().businessEnd;
-  datesInRange(w.targetStart,w.targetEnd).forEach(d=>{
-    if(isClosedDay(d))return;
-    let rec=state.data.availability.find(a=>a.employeeId===eid&&a.date===d);
-    if(!rec){rec={id:uid("a"),employeeId:eid,date:d};state.data.availability.push(rec)}
+  const d=state.availCalDate,y=d.getFullYear(),m=d.getMonth();
+  if(!confirm(`將 ${emp?emp.name:""} 在 ${y} 年 ${m+1} 月的每一天設為整天可上班？（原本設為不可排的也會改成可上班）`))return;
+  const bs=settings().businessStart,be=settings().businessEnd,daysInMonth=new Date(y,m+1,0).getDate();
+  for(let i=1;i<=daysInMonth;i++){
+    const key=toDateKey(new Date(y,m,i));
+    if(isClosedDay(key))continue;
+    let rec=state.data.availability.find(a=>a.employeeId===eid&&a.date===key);
+    if(!rec){rec={id:uid("a"),employeeId:eid,date:key};state.data.availability.push(rec)}
     Object.assign(rec,{unavailable:false,start:bs,end:be});
-  });
+  }
   save();
 }
 // 老闆代填／修改員工可上班時間（詳細時間）
