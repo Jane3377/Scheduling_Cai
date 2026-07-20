@@ -69,17 +69,19 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .htotal{white-space:nowrap}
 .htotal.near{background:#fff2dc;color:var(--warn)}
 .htotal.over{background:#fdeaea;color:var(--danger)}
-.hours-toolbar{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
-.ht-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.hours-nav{display:flex;align-items:center;gap:6px}
-.hours-nav .input{max-width:170px}
-.hours-toolbar #hoursTypeFilter{max-width:140px}
-.hours-toolbar #hoursSearchInput{max-width:220px}
-.ht-filter #exportHoursBtn{margin-left:auto}
+.hours-toolbar{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;align-items:flex-start}
+/* iPad／桌機：每行不換行，靠左對齊，寬度不夠時輸入框自動壓縮 → 保證兩行 */
+.ht-row{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;max-width:100%}
+.ht-row .input,.ht-row .select{min-width:0}
+.hours-nav{display:flex;align-items:center;gap:6px;min-width:0}
+.hours-nav .input{width:160px}
+.hours-toolbar #hoursTypeFilter{width:130px;flex:0 0 auto}
+.hours-toolbar #hoursSearchInput{width:220px}
+.ht-row .icon-btn,.ht-row .ghost-btn,.ht-row .seg{flex:0 0 auto}
 @media(max-width:760px){
-  .hours-nav{flex:1}.hours-nav .input{flex:1;max-width:none}
-  .ht-filter #hoursSearchInput{flex:1;max-width:none;min-width:120px}
-  .ht-filter #exportHoursBtn{margin-left:0}
+  .ht-row{flex-wrap:wrap;width:100%}
+  .hours-nav{flex:1}.hours-nav .input{flex:1;width:auto}
+  .ht-filter #hoursSearchInput{flex:1;width:auto;min-width:120px}
 }
 .hours-matrix th.hsort{cursor:pointer;user-select:none;white-space:nowrap}
 .hours-matrix th.hsort:hover{color:var(--brand)}
