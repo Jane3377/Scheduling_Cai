@@ -129,6 +129,11 @@
                     <label class="field"><span>最早可上班</span><select id="availabilityStart" class="select"></select></label>
                     <label class="field"><span>最晚可下班</span><select id="availabilityEnd" class="select"></select></label>
                   </div>
+                  <label class="seg2-toggle"><input type="checkbox" id="availabilitySeg2Toggle"> 加第二時段（例如早班＋晚班）</label>
+                  <div class="time-pair hidden" id="availabilitySeg2Row">
+                    <label class="field"><span>第二段・最早可上班</span><select id="availabilityStart2" class="select"></select></label>
+                    <label class="field"><span>第二段・最晚可下班</span><select id="availabilityEnd2" class="select"></select></label>
+                  </div>
                   <button id="saveAvailabilityBtn" class="primary-btn">儲存這一天</button>
                 </div>
                 <div id="availabilitySaved" class="success-note"></div>

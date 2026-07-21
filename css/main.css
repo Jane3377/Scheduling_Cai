@@ -416,6 +416,10 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .employee-cal-day.available{background:#edf8f1;border-color:#add5bc}
 /* 預設可上班（未自行填寫）：比自己填的可上班更淡、虛線邊框以示區別 */
 .employee-cal-day.available.is-default{background:#f4faf6;border-style:dashed;border-color:#bfdccb;color:#5a7a66}
+/* 第二時段切換（員工填寫與後台代填共用） */
+.seg2-toggle{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted);margin:12px 0 6px;cursor:pointer}
+.seg2-toggle input{width:16px;height:16px;flex:none}
+.time-pair+.time-pair{margin-top:10px}
 .employee-cal-day.unavailable{background:#fff1ed;border-color:#efb6a5}
 .employee-cal-day.pending{background:#fff}
 .employee-cal-day.selected{outline:3px solid #e5a58e}

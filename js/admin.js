@@ -226,7 +226,7 @@ function renderDashboard(){
   selected.forEach(s=>{
     const e=employee(s.employeeId);if(!e)return; // 未指派的班次不在此提醒
     const a=state.data.availability.find(x=>x.employeeId===s.employeeId&&x.date===s.date);
-    if(a&&!a.unavailable&&(s.start<a.start||s.end>a.end))warns.push({t:`${e.name} 的班次超出可上班時間`,d:"請於排班頁確認"});
+    if(a&&!a.unavailable&&!availCovers(a,s.start,s.end))warns.push({t:`${e.name} 的班次超出可上班時間`,d:"請於排班頁確認"});
     if(weeklyHours(e.id,s.date)>e.weeklyLimit)warns.push({t:`${e.name} 本週已超過 ${e.weeklyLimit} 小時`,d:"請於排班頁確認"});
   });
   state.data.employees.filter(e=>e.active&&e.employmentType==="外籍學生").forEach(e=>{
@@ -714,7 +714,7 @@ function exportAvailability(mode){
       const a=effectiveAvail(e.id,k);
       if(!a)return "未填";
       if(a.unavailable)return "不可";
-      return `${a.start}-${a.end}${a._default?"(預設)":""}`;
+      return `${availText(a)}${a._default?"(預設)":""}`;
     });
     rows.push([e.name,...cells]);
   });
@@ -963,7 +963,7 @@ function getEmployeeEligibility(e,date,start,end,workTypeId,excludeShiftId=null)
   if(!canDo) reasons.push("未設定可做此工作");
   if(!a) reasons.push("尚未填可上班時間");
   else if(a.unavailable) reasons.push("當天不可排班");
-  else if(start<a.start||end>a.end) reasons.push(`可排 ${a.start}～${a.end}`);
+  else if(!availCovers(a,start,end)) reasons.push(`可排 ${availText(a)}`);
   const overlap=state.data.shifts.some(x=>x.id!==excludeShiftId&&x.employeeId===e.id&&x.date===date&&mins(start)<mins(x.end)&&mins(end)>mins(x.start));
   if(overlap) reasons.push("已有重疊班次");
   const already=weeklyHours(e.id,date,excludeShiftId);
@@ -1144,6 +1144,17 @@ function effectiveAvail(employeeId,dateKey){
   }
   return undefined;
 }
+// 可上班時段（支援最多兩段：start/end 與選填的 start2/end2）
+function availRanges(a){
+  if(!a||a.unavailable)return [];
+  const out=[{start:a.start,end:a.end}];
+  if(a.start2&&a.end2)out.push({start:a.start2,end:a.end2});
+  return out;
+}
+// 班次時段是否落在「任一」可上班時段內
+function availCovers(a,start,end){return availRanges(a).some(r=>start>=r.start&&end<=r.end);}
+// 顯示用文字：多段以「、」串接
+function availText(a){return availRanges(a).map(r=>`${r.start}～${r.end}`).join("、");}
 // 某員工在某填寫區段是否「真的自己填過」（有非預設的紀錄）。預設值(_default)不算已填。
 function hasFilled(employeeId,w){
   if(!w)return false;
@@ -1431,7 +1442,7 @@ function availQuickSet(employeeId,dateKey,type){
     state.data.availability=list.filter(x=>x!==rec);save();return;
   }
   if(!rec){rec={id:uid("a"),employeeId,date:dateKey};list.push(rec)}
-  Object.assign(rec,{unavailable:type==="no",start:rec.start||bs,end:rec.end||be});
+  Object.assign(rec,{unavailable:type==="no",start:rec.start||bs,end:rec.end||be,start2:null,end2:null});
   delete rec._default; // 主管明確設定 → 不再是「預設」
   save();
 }
@@ -1439,7 +1450,7 @@ function availQuickSet(employeeId,dateKey,type){
 function availQuickRow(employeeId,dateKey,iconHtml,title,sub){
   const a=effectiveAvail(employeeId,dateKey);
   const isYes=!!(a&&!a.unavailable),isNo=!!(a&&a.unavailable);
-  const subTxt=isYes?`${a.start}～${a.end}${a._default?"（預設）":""}`:(isNo?"整天不可排":(sub||"未填"));
+  const subTxt=isYes?`${availText(a)}${a._default?"（預設）":""}`:(isNo?"整天不可排":(sub||"未填"));
   const subCls=isYes?"ok":(isNo?"warn":"muted");
   return `<div class="list-item avail-row">${iconHtml}<div class="list-main"><strong>${title}</strong><span class="avail-sub ${subCls}">${subTxt}</span></div>
     <div class="avail-quick">
@@ -1484,6 +1495,8 @@ function openAvailEditModal(employeeId,dateKey){
   const a=effectiveAvail(employeeId,dateKey);
   const cur=a?(a.unavailable?"off":"on"):"none";
   const start=a?.start||settings().businessStart,end=a?.end||settings().businessEnd;
+  const has2=!!(a&&a.start2&&a.end2);
+  const start2=a?.start2||"17:00",end2=a?.end2||settings().businessEnd;
   const closedNote=isClosedDay(dateKey)?`<div class="field span-2"><small class="field-help">提醒：這一天是公休日。</small></div>`:"";
   openModal("代填可上班時間",`${emp.name}（${emp.employeeNo}）｜${formatDate(dateKey)}`,`
     <div class="form-grid">
@@ -1494,20 +1507,31 @@ function openAvailEditModal(employeeId,dateKey){
       </select></label>
       <label class="field"><span>最早可上班</span><select class="select" name="start" id="avStart">${timeOptions(start)}</select></label>
       <label class="field"><span>最晚可下班</span><select class="select" name="end" id="avEnd">${timeOptions(end)}</select></label>
+      <label class="check-row span-2"><input type="checkbox" id="avSeg2Toggle" ${has2?"checked":""}> 加第二時段（例如早班＋晚班）</label>
+      <label class="field seg2-field"><span>第二段・最早可上班</span><select class="select" id="avStart2">${timeOptions(start2)}</select></label>
+      <label class="field seg2-field"><span>第二段・最晚可下班</span><select class="select" id="avEnd2">${timeOptions(end2)}</select></label>
       ${closedNote}
       <div class="modal-actions span-2"><button type="button" class="ghost-btn" onclick="closeModal()">取消</button><button class="primary-btn">儲存</button></div>
     </div>`);
-  const form=byId("modalForm"),stSel=byId("avSt");
-  const syncDisabled=()=>{const on=stSel.value==="on";byId("avStart").disabled=!on;byId("avEnd").disabled=!on;};
-  stSel.addEventListener("change",syncDisabled);syncDisabled();
+  const form=byId("modalForm"),stSel=byId("avSt"),seg2=byId("avSeg2Toggle");
+  const syncDisabled=()=>{
+    const on=stSel.value==="on";
+    byId("avStart").disabled=!on;byId("avEnd").disabled=!on;seg2.disabled=!on;
+    const show2=on&&seg2.checked;
+    document.querySelectorAll(".seg2-field").forEach(el=>el.classList.toggle("hidden",!show2));
+  };
+  stSel.addEventListener("change",syncDisabled);seg2.addEventListener("change",syncDisabled);syncDisabled();
   form.onsubmit=ev=>{ev.preventDefault();const st=stSel.value;
     let list=state.data.availability;
     if(st==="none"){state.data.availability=list.filter(x=>!(x.employeeId===employeeId&&x.date===dateKey));save();closeModal();return}
     const s=byId("avStart").value,e=byId("avEnd").value;
     if(st==="on"&&mins(e)<=mins(s)){toast("結束時間必須晚於開始時間","error");return}
+    const use2=st==="on"&&seg2.checked;
+    const s2=byId("avStart2").value,e2=byId("avEnd2").value;
+    if(use2&&mins(e2)<=mins(s2)){toast("第二時段的結束必須晚於開始","error");return}
     let rec=list.find(x=>x.employeeId===employeeId&&x.date===dateKey);
     if(!rec){rec={id:uid("a"),employeeId,date:dateKey};list.push(rec)}
-    Object.assign(rec,{unavailable:st==="off",start:s,end:e});
+    Object.assign(rec,{unavailable:st==="off",start:s,end:e,start2:use2?s2:null,end2:use2?e2:null});
     delete rec._default; // 主管明確設定 → 不再是「預設」
     save();closeModal();
   };

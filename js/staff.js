@@ -247,7 +247,7 @@ function renderAvailabilityCalendar(){
     let cls="pending",summary="";
     if(closed&&(inRange||!editable)){cls="closed";summary="公休"}
     else if(record?.unavailable){cls="unavailable";summary="不可排"}
-    else if(record){cls="available";summary=`${record.start}～${record.end}`}
+    else if(record){cls="available";summary=(record.start2&&record.end2)?`${record.start}～${record.end}<br>${record.start2}～${record.end2}`:`${record.start}～${record.end}`}
     else if(isAutoAvail(key)){cls="available is-default";summary="可上班（預設）"}
     else if(inRange){summary="未填"}
     const showSummary=editable?(inRange||isAutoAvail(key)):(!!record||closed||isAutoAvail(key));
@@ -272,6 +272,12 @@ function loadSelectedDay(){
   const a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
   byId("availabilityStart").innerHTML=timeOptions(a&&!a.unavailable?a.start:bizStart());
   byId("availabilityEnd").innerHTML=timeOptions(a&&!a.unavailable?a.end:bizEnd());
+  // 第二時段：有填就帶入並勾選，否則收起
+  const has2=!!(a&&!a.unavailable&&a.start2&&a.end2);
+  byId("availabilityStart2").innerHTML=timeOptions(has2?a.start2:"17:00");
+  byId("availabilityEnd2").innerHTML=timeOptions(has2?a.end2:bizEnd());
+  byId("availabilitySeg2Toggle").checked=has2;
+  byId("availabilitySeg2Row").classList.toggle("hidden",!has2);
   const badge=byId("availabilityDayStatus");
   if(a?.unavailable){badge.textContent="不可排班";badge.className="badge warn"}
   else if(a){badge.textContent="已填寫";badge.className="badge ok"}
@@ -293,7 +299,7 @@ function upsertAvailability(key,fields){
 // 單日快速：整天可上班（帶入店家最早上班~最晚下班）或整天不行
 function quickDaySet(type){
   if(!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
-  upsertAvailability(selectedAvailabilityDate,type==="yes"?{unavailable:false,start:bizStart(),end:bizEnd()}:{unavailable:true,start:bizStart(),end:bizEnd()});
+  upsertAvailability(selectedAvailabilityDate,type==="yes"?{unavailable:false,start:bizStart(),end:bizEnd(),start2:null,end2:null}:{unavailable:true,start:bizStart(),end:bizEnd(),start2:null,end2:null});
   persist();renderAvailabilityCalendar();loadSelectedDay();flashSaved("已儲存");
 }
 function renderQuickWeekDays(){
@@ -312,7 +318,7 @@ function quickWeekApply(type){
   for(let d=new Date(activeWindow.targetStart+"T00:00:00");d<=endD;d.setDate(d.getDate()+1)){
     const key=toDateKey(d);
     if(!canFill(key)||!days.includes(d.getDay()))continue;
-    upsertAvailability(key,type==="available"?{unavailable:false,start,end}:{unavailable:true,start,end});
+    upsertAvailability(key,type==="available"?{unavailable:false,start,end,start2:null,end2:null}:{unavailable:true,start,end,start2:null,end2:null});
     count++;
   }
   persist();renderAvailabilityCalendar();loadSelectedDay();
@@ -324,9 +330,12 @@ function saveSelectedDay(){
   if(!activeWindow||!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
   const start=byId("availabilityStart").value,end=byId("availabilityEnd").value;
   if(mins(end)<=mins(start)){toast("結束時間必須晚於開始時間","error");return}
+  const use2=byId("availabilitySeg2Toggle").checked;
+  const start2=byId("availabilityStart2").value,end2=byId("availabilityEnd2").value;
+  if(use2&&mins(end2)<=mins(start2)){toast("第二時段的結束必須晚於開始","error");return}
   let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
   if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:selectedAvailabilityDate};data.availability.push(a)}
-  Object.assign(a,{unavailable:false,start,end}); // 指定時段＝可上班；整天不行請用上方按鈕
+  Object.assign(a,{unavailable:false,start,end,start2:use2?start2:null,end2:use2?end2:null}); // 指定時段＝可上班；整天不行請用上方按鈕
   persist();
   byId("availabilitySaved").textContent="已儲存";
   setTimeout(()=>byId("availabilitySaved").textContent="",1600);
@@ -342,6 +351,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active")});
   byId("availabilityStart").innerHTML=timeOptions("16:00");
   byId("availabilityEnd").innerHTML=timeOptions("22:00");
+  byId("availabilityStart2").innerHTML=timeOptions("17:00");
+  byId("availabilityEnd2").innerHTML=timeOptions("22:00");
+  byId("availabilitySeg2Toggle").addEventListener("change",e=>byId("availabilitySeg2Row").classList.toggle("hidden",!e.target.checked));
   byId("saveAvailabilityBtn").onclick=saveSelectedDay;
   byId("staffPrevMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);renderAvailabilityCalendar()};
   byId("staffNextMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);renderAvailabilityCalendar()};
