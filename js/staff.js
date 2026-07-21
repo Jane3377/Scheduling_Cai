@@ -120,7 +120,7 @@ function applyStaffBranding(){
   const name=(storeCfg().storeName||"").trim();
   const full=name?`${name} 員工班表系統`:"員工班表系統";
   const bn=byId("staffBrandName");if(bn)bn.textContent=full;
-  const bm=byId("staffBrandMark");if(bm&&name)bm.textContent=name.slice(0,1);
+  // 左上角商標改用 icon 圖檔（HTML 內的 <img>），不再以店名首字覆蓋
   document.title=full;
 }
 function getWindows(){return data?.settings?.availabilityWindows||[]}

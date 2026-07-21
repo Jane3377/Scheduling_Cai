@@ -7,7 +7,8 @@
 *{box-sizing:border-box}html{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Noto Sans TC",sans-serif;color:var(--ink);background:var(--bg)}
 body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}
 #app{min-height:100vh}.sidebar{position:fixed;inset:0 auto 0 0;width:250px;background:#241f1c;color:#fff;padding:28px 20px;display:flex;flex-direction:column;z-index:20}
-.brand{display:flex;gap:12px;align-items:center}.brand-mark{width:44px;height:44px;border-radius:14px;background:var(--brand);display:grid;place-items:center;color:#fff;font-weight:800;font-size:21px}.brand span{display:block;color:#bdb5b0;font-size:12px;margin-top:3px}
+.brand{display:flex;gap:12px;align-items:center}.brand-mark{width:44px;height:44px;border-radius:14px;background:var(--brand);display:grid;place-items:center;color:#fff;font-weight:800;font-size:21px;overflow:hidden}
+.brand-mark img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}.brand span{display:block;color:#bdb5b0;font-size:12px;margin-top:3px}
 .nav{display:grid;gap:6px;margin-top:30px}.nav-item{border:0;background:transparent;color:#d7d0cc;padding:12px 14px;border-radius:12px;text-align:left}.nav-item:hover,.nav-item.active{background:#3a322e;color:#fff}
 .nav-group{color:#8a817b;font-size:11px;font-weight:800;letter-spacing:.12em;padding:14px 14px 4px}
 .sidebar-note{margin-top:auto;padding:14px;border:1px solid #453b36;border-radius:14px}.sidebar-note span{display:block;color:#bdb5b0;font-size:12px;margin-top:5px}

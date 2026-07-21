@@ -188,9 +188,8 @@ function applyBranding(){
   const name=(settings().storeName||"").trim();
   const full=name?`${name}排班管理系統`:"排班管理系統";
   const bn=byId("brandName");if(bn)bn.textContent=name||"排班管理系統";
-  const bm=byId("brandMark");if(bm&&name)bm.textContent=name.slice(0,1);
   const pt=byId("pinTitle");if(pt)pt.textContent=full;
-  const pbm=byId("pinBrandMark");if(pbm&&name)pbm.textContent=name.slice(0,1);
+  // 左上角商標改用 icon 圖檔（HTML 內的 <img>），不再以店名首字覆蓋
   document.title=`${full}｜主管後台`;
 }
 function syncAvailPage(){
