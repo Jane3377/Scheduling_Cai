@@ -345,6 +345,15 @@ function layoutBlocks(shifts){
   return res;
 }
 function subWorkText(s){return (s.subWork||"").trim()}
+// 已指派班次的衝突原因（重疊班次、不符工作、超出可上班時間、超過工時上限、員工停用/刪除）；未指派回傳空陣列
+function shiftConflicts(s){
+  if(!s.employeeId)return [];
+  const e=employee(s.employeeId);
+  if(!e)return ["此員工已被刪除"];
+  const reasons=getEmployeeEligibility(e,s.date,s.start,s.end,s.workTypeId,s.id).reasons.slice();
+  if(!e.active)reasons.push("此員工已停用");
+  return reasons;
+}
 function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const w=worktype(s.workTypeId),e=employee(s.employeeId);
   const top=((mins(s.start)-axis.startM)/axis.total)*axis.height;
@@ -356,22 +365,25 @@ function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const draft=s.published===false; // 草稿：員工看不到
   const draftCls=draft?" is-draft":"";
   const draftTag=draft?"（草稿）":"";
+  const conflicts=shiftConflicts(s);
+  const conflictCls=conflicts.length?" has-conflict":"";
+  const warnBadge=conflicts.length?`<span class="dg-warn" title="${conflicts.join("、").replace(/"/g,"&quot;")}">!</span>`:"";
   const tipAttr=(note||draft)?` title="${((draft?"未公布草稿 ":"")+note).replace(/"/g,'&quot;')}"`:"";
   const style=`top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}`;
   if(showWork){ // 週檢視：直式文字，先工作＋子工作、再員工，最後備註
     const txt=`${w?w.name:""}${subTxt}｜${who}${note?`｜📝${note}`:""}${draftTag}`;
-    return `<button class="dg-block dg-block-vert ${e?"":"unassigned"}${draftCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><span class="dg-vert">${txt}</span></button>`;
+    return `<button class="dg-block dg-block-vert ${e?"":"unassigned"}${draftCls}${conflictCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}">${warnBadge}<span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><span class="dg-vert">${txt}</span></button>`;
   }
   const label=`${s.start}–${s.end}${subTxt}`;
   const noteLine=note?`<span class="dg-note">📝 ${note}</span>`:"";
   const draftLine=draft?`<span class="dg-draft">草稿・未公布</span>`:"";
-  return `<button class="dg-block ${e?"":"unassigned"}${draftCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}"><span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><strong>${who}</strong><span>${label}</span>${noteLine}${draftLine}</button>`;
+  return `<button class="dg-block ${e?"":"unassigned"}${draftCls}${conflictCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}">${warnBadge}<span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><strong>${who}</strong><span>${label}</span>${noteLine}${draftLine}</button>`;
 }
 function isNarrow(){return !!(window.matchMedia&&window.matchMedia("(max-width:760px)").matches);}
 function renderSchedule(){
   const grid=byId("scheduleGrid");if(!grid)return;
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.smode===state.scheduleMode));
-  const hint=byId("schedHint");if(hint)hint.textContent=isNarrow()?"點班次可編輯；用下方按鈕或每日的＋新增班次。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿（員工看不到）。";
+  const hint=byId("schedHint");if(hint)hint.textContent=isNarrow()?"點班次可編輯；紅色「!」＝該班次有衝突，點進去可看原因。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿；紅色「!」＝有衝突（重疊／不符資格等），點進去可看原因。";
   if(isNarrow()){renderScheduleList(grid);renderPublishBar();return;}
   const axis=timeAxis();
   if(state.scheduleMode==="week"){
@@ -460,10 +472,14 @@ function scheduleListRow(s){
   const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
   const note=(s.note||"").trim();
   const draft=s.published===false;
-  return `<button class="sl-shift ${draft?"draft":""} ${e?"":"unassigned"}" onclick="openShiftModal('${s.id}')">
+  const conflicts=shiftConflicts(s);
+  const warnCls=conflicts.length?" has-conflict":"";
+  const warnBadge=conflicts.length?`<span class="sl-warn" title="${conflicts.join("、").replace(/"/g,"&quot;")}">!</span>`:"";
+  return `<button class="sl-shift ${draft?"draft":""} ${e?"":"unassigned"}${warnCls}" onclick="openShiftModal('${s.id}')">
     <span class="sl-time">${s.start}<i>${s.end}</i></span>
     <span class="sl-chip" style="background:${w?.color||'#888'}">${w?w.name:"（已刪除）"}${subTxt}</span>
     <span class="sl-main"><strong>${e?e.name:"待指派"}</strong>${note?`<span class="sl-note">📝 ${note}</span>`:""}${draft?`<span class="sl-draft">草稿・未公布</span>`:""}</span>
+    ${warnBadge}
     <span class="sl-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span>
     <span class="sl-go">✎</span>
   </button>`;

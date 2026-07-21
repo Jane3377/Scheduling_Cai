@@ -269,6 +269,11 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 /* 就地快速換人：班次上的觸發鈕 + 浮動選單 */
 .dg-block .dg-swap{position:absolute;top:2px;right:2px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:1;background:rgba(0,0,0,.28);border-radius:6px;color:#fff;opacity:.9;cursor:pointer;z-index:2;padding:0}
 .dg-block .dg-swap:hover{background:rgba(0,0,0,.55);opacity:1}
+/* 班次衝突提示：紅圈「!」＋整塊紅框，一眼可見 */
+.dg-block.has-conflict{box-shadow:0 0 0 2px var(--danger),0 4px 10px rgba(0,0,0,.16)}
+.dg-block .dg-warn{position:absolute;top:2px;left:2px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;background:var(--danger);color:#fff;border-radius:50%;z-index:3;cursor:help;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.sl-shift.has-conflict{box-shadow:inset 3px 0 0 var(--danger)}
+.sl-warn{flex:none;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:var(--danger);color:#fff;border-radius:50%}
 .sl-swap{color:var(--brand);font-size:16px;padding:4px 8px;border-radius:8px;background:var(--brand-soft);flex:none}
 .quick-assign{position:fixed;z-index:1000;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 34px rgba(60,42,31,.22);width:236px;max-width:calc(100vw - 16px);padding:6px}
 .quick-assign .qa-head{font-size:12px;font-weight:800;color:var(--muted);padding:6px 8px 8px}
