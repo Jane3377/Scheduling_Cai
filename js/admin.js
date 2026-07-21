@@ -810,6 +810,7 @@ function openAvailabilityWindowModal(id=null,prefill=null){
     // 不同區段的「可填寫排班日期」不可重疊
     const clash=windows.find(x=>x.id!==w.id&&targetStart<=x.targetEnd&&targetEnd>=x.targetStart);
     if(clash){toast(`可填寫排班日期與區段「${clash.name}」重疊（${formatDate(clash.targetStart)}～${formatDate(clash.targetEnd)}），請調整日期不要衝突。`);return}
+    const oldTS=w.targetStart,oldTE=w.targetEnd; // 編輯前的舊範圍，取消勾選時一併清掉
     Object.assign(w,{
       name:fd.get("name").trim(),
       openStart,openEnd,targetStart,targetEnd,
@@ -818,8 +819,14 @@ function openAvailabilityWindowModal(id=null,prefill=null){
       note:fd.get("note").trim()
     });
     if(!id)windows.push(w);
-    // 設「預設全部可上班」→ 立即把這段排班日期寫入持久清單（之後刪除/縮小區段都不會歸零）
-    if(w.defaultAvailable)persistAutoAvailable(w.targetStart,w.targetEnd);
+    if(w.defaultAvailable){
+      // 設「預設全部可上班」→ 立即把這段排班日期寫入持久清單（之後刪除/縮小區段都不會歸零）
+      persistAutoAvailable(w.targetStart,w.targetEnd);
+    }else{
+      // 取消勾選並儲存 → 移除此區段（含編輯前舊範圍）的預設可上班，不再顯示可排
+      unpersistAutoAvailable(oldTS,oldTE);
+      unpersistAutoAvailable(w.targetStart,w.targetEnd);
+    }
     save();closeModal()
   }
 }
@@ -1143,6 +1150,12 @@ function persistAutoAvailable(targetStart,targetEnd){
   const cur=new Set(settings().autoAvailableDates||[]);
   datesInRange(targetStart,targetEnd).forEach(d=>{if(!isClosedDay(d))cur.add(d);});
   settings().autoAvailableDates=[...cur].sort();
+}
+// 取消「預設全部可上班」時，把該區段範圍的日期從持久清單移除（員工已自行填寫的實際紀錄不受影響）
+function unpersistAutoAvailable(targetStart,targetEnd){
+  if(!targetStart||!targetEnd)return;
+  const rng=new Set(datesInRange(targetStart,targetEnd));
+  settings().autoAvailableDates=(settings().autoAvailableDates||[]).filter(d=>!rng.has(d));
 }
 function windowFillStatus(w){
   if(!w)return null;
