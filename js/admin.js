@@ -607,6 +607,74 @@ function printWeekSchedule(){
   win.document.write(html);win.document.close();win.focus();
   setTimeout(()=>{try{win.print()}catch(e){}},400);
 }
+// 列印／存 PDF 的一頁式使用說明（給業主當紙本）
+function printGuide(){
+  const store=(settings().storeName||"蔡叔叔比薩屋").trim();
+  const html=`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${store}排班系統 使用說明</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;color:#2f2a26;margin:0;padding:26px 30px;line-height:1.55}
+    h1{font-size:22px;margin:0 0 2px}
+    .sub{color:#8a817b;font-size:13px;margin:0 0 16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 22px}
+    .box{border:1px solid #e6ddd6;border-radius:10px;padding:12px 14px;break-inside:avoid}
+    .box h2{font-size:15px;margin:0 0 7px;color:#b94b2f}
+    .box ol,.box ul{margin:0;padding-left:18px}
+    .box li{font-size:12.5px;margin:3px 0}
+    b{color:#2f2a26}
+    .tip{grid-column:1/3;background:#fff6ef;border:1px solid #f0d9c9;border-radius:10px;padding:10px 14px;font-size:12.5px}
+    .foot{margin-top:14px;color:#8a817b;font-size:11px;display:flex;justify-content:space-between}
+    .noprint{margin-top:16px}
+    .noprint button{font-size:14px;padding:9px 16px;border:0;border-radius:8px;background:#b94b2f;color:#fff;cursor:pointer}
+    @media print{.noprint{display:none}body{padding:0}}
+  </style></head><body>
+    <h1>${store}｜智慧排班系統 使用說明</h1>
+    <p class="sub">兩個入口：後台管理（主管，輸入 PIN）／員工班表系統（員工，輸入編號）。右上角狀態燈可確認資料是否已同步。</p>
+    <div class="grid">
+      <div class="box"><h2>🚀 第一次設定（只做一次）</h2><ol>
+        <li><b>設定與維護→店家設定</b>：店名、營業與休息時段</li>
+        <li><b>工作項目</b>：建立工作、顏色、平日/假日、是否扣休息</li>
+        <li><b>員工管理</b>：編號、身份、時薪、可做工作、主要負責、勞健保備註</li>
+        <li><b>國定假日</b>一鍵匯入；<b>特定休息日</b>設公休</li>
+        <li><b>排班管理→固定班次設定</b>：建好每週固定的樣子</li>
+      </ol></div>
+      <div class="box"><h2>📅 每週怎麼排班</h2><ol>
+        <li>可上班時間→<b>開放填下週/下個月</b>讓員工填</li>
+        <li>排班管理按<b>套用固定班次</b>（自動排、補人、不重複）</li>
+        <li>微調：空白處<b>拖曳框選</b>新增；班次上<b>⇄</b>換人</li>
+        <li>按<b>公布本週</b>員工才看得到；可列印週班表</li>
+      </ol></div>
+      <div class="box"><h2>🔄 開放填可上班時間</h2><ul>
+        <li>用「開放填下週/下個月」快捷，日期自動帶好</li>
+        <li>勾「預設全部可上班」→ 只標記請假的人</li>
+        <li>檢視與代填：主管可直接幫員工勾選</li>
+      </ul></div>
+      <div class="box"><h2>⏱ 對帳與報表</h2><ul>
+        <li>工時統計：週/月、排序、篩選、搜尋、展開明細</li>
+        <li>打卡對照：填實際上下班、打勾確認</li>
+        <li>人力成本（時薪×工時）、下載 CSV 給會計</li>
+      </ul></div>
+      <div class="box"><h2>📱 員工怎麼用</h2><ul>
+        <li>輸入員工編號登入</li>
+        <li>我的班表：看班表、一鍵加入 iPhone／Google 行事曆</li>
+        <li>填寫可上班時間：月曆勾選、快速設定整週</li>
+      </ul></div>
+      <div class="box"><h2>❓ 常見問題</h2><ul>
+        <li><b>草稿/公布</b>：灰斜紋＝草稿，公布後員工才看到</li>
+        <li><b>假日</b>：六日與國定假日算假日</li>
+        <li><b>外籍工時</b>：超時會提醒但仍可排</li>
+        <li><b>備份</b>：定期匯出完整備份保存</li>
+      </ul></div>
+      <div class="tip">💡 <b>總覽</b>會即時提醒「有班次沒排人 / 沒公布」，點提醒可直接跳到那一天處理。刪除、覆蓋等重要動作仍會跳出確認視窗。</div>
+    </div>
+    <div class="foot"><span>${store} 排班系統</span><span>列印時間：${new Date().toLocaleString("zh-TW")}</span></div>
+    <div class="noprint"><button onclick="window.print()">🖨 列印 / 另存 PDF</button></div>
+  </body></html>`;
+  const win=window.open("","_blank");
+  if(!win){toast("瀏覽器阻擋了新視窗，請允許彈出視窗後再試。","error");return;}
+  win.document.write(html);win.document.close();win.focus();
+  setTimeout(()=>{try{win.print()}catch(e){}},400);
+}
 // 統一的「下載 CSV」選擇器：先選週統計或月統計，再下載
 function openCsvChooser(subtitle,onPick){
   openModal("下載 CSV",subtitle,`
@@ -1859,6 +1927,7 @@ function init(){
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availMode=b.dataset.mode;renderAvailabilityOverview()});
   document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availPage=b.dataset.atab;syncAvailPage()});
   document.querySelectorAll("#settingsTabs .staff-tab").forEach(b=>b.onclick=()=>{state.settingsTab=b.dataset.sec;syncSettingsTab()});
+  byId("printGuideBtn")?.addEventListener("click",printGuide);
   byId("resetDemoBtn").onclick=()=>{if(confirm("確定清空所有資料？此動作無法復原（建議先匯出備份）。")){state.data=defaultData();save()}};
   byId("pinChangeForm")?.addEventListener("submit",e=>{
     e.preventDefault();

@@ -295,6 +295,20 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .toast-success{background:#1f6b3f}
 .toast-error{background:#a4342a}
 .toast-info{background:#2f2a26}
+/* 使用說明分頁 */
+.help-card{padding:20px 22px}
+.help-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.help-head h3{margin:0}
+.help-head p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
+.help-sec{border:1px solid var(--line);border-radius:10px;margin-top:10px;overflow:hidden}
+.help-sec>summary{cursor:pointer;list-style:none;padding:13px 15px;font-weight:700;font-size:15px;background:#faf6f3;user-select:none;display:flex;align-items:center;gap:8px}
+.help-sec>summary::-webkit-details-marker{display:none}
+.help-sec>summary::after{content:"▾";margin-left:auto;color:var(--muted);transition:transform .15s}
+.help-sec[open]>summary::after{transform:rotate(180deg)}
+.help-sec>summary:hover{background:var(--brand-soft)}
+.help-sec ol,.help-sec ul{margin:0;padding:6px 18px 14px 34px}
+.help-sec li{margin:5px 0;font-size:14px;line-height:1.6}
+.help-sec .help-tip{margin:0;padding:10px 15px 14px;font-size:13.5px;color:#6b6259;background:#fff6ef}
 .dg-block.unassigned{background:#8a817b!important;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0,rgba(255,255,255,.18) 6px,transparent 6px,transparent 12px)!important}
 /* 每日需求模板 */
 .demand-card{margin-top:16px}
