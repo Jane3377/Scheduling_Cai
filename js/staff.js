@@ -139,15 +139,26 @@ function isClosedDay(key){
   return closedDays().includes(new Date(key+"T00:00:00").getDay());
 }
 function canFill(key){return inTargetRange(key)&&!isClosedDay(key)}
+// 該日是否為後台「預設全部可上班」（與後台 isAutoAvailableDate 同邏輯）：公休不算
+function isAutoAvail(key){
+  if(isClosedDay(key))return false;
+  const w=getWindows().filter(x=>x.enabled).find(x=>key>=x.targetStart&&key<=x.targetEnd);
+  if(w&&w.defaultAvailable)return true;
+  return (data?.settings?.autoAvailableDates||[]).includes(key);
+}
 function login(){
   const no=byId("staffNoInput").value.trim().toUpperCase();
+  const pin=(byId("staffPinInput")?.value||"").trim();
   const e=data?.employees?.find(x=>x.active&&x.employeeNo.toUpperCase()===no);
   if(!e){byId("staffLoginError").textContent="找不到此員工編號，請確認後再試。";return}
-  staffEmployeeId=e.id;sessionStorage.setItem("smartSchedulerStaffId",e.id);byId("staffLoginError").textContent="";renderStaff()
+  if((e.pin||"0000")!==pin){byId("staffLoginError").textContent="PIN 碼不正確，預設為 0000，如有疑問請洽主管。";return}
+  staffEmployeeId=e.id;sessionStorage.setItem("smartSchedulerStaffId",e.id);byId("staffLoginError").textContent="";
+  const pi=byId("staffPinInput");if(pi)pi.value="";
+  renderStaff()
 }
 function logout(){
   staffEmployeeId=null;sessionStorage.removeItem("smartSchedulerStaffId");
-  byId("staffPortal").classList.add("hidden");byId("staffLoginCard").classList.remove("hidden");byId("staffNoInput").value=""
+  byId("staffPortal").classList.add("hidden");byId("staffLoginCard").classList.remove("hidden");byId("staffNoInput").value="";const pi=byId("staffPinInput");if(pi)pi.value=""
 }
 function renderStaff(){
   if(!staffEmployeeId)return;
@@ -237,8 +248,9 @@ function renderAvailabilityCalendar(){
     if(closed&&(inRange||!editable)){cls="closed";summary="公休"}
     else if(record?.unavailable){cls="unavailable";summary="不可排"}
     else if(record){cls="available";summary=`${record.start}～${record.end}`}
+    else if(isAutoAvail(key)){cls="available is-default";summary="可上班（預設）"}
     else if(inRange){summary="未填"}
-    const showSummary=editable?inRange:(!!record||closed);
+    const showSummary=editable?(inRange||isAutoAvail(key)):(!!record||closed||isAutoAvail(key));
     const dim=editable&&!allowed;
     const clickAttr=allowed?`onclick="selectAvailabilityDate('${key}')"`:(editable?"disabled":"");
     const nh=closed?"":nhName(key);
@@ -263,6 +275,7 @@ function loadSelectedDay(){
   const badge=byId("availabilityDayStatus");
   if(a?.unavailable){badge.textContent="不可排班";badge.className="badge warn"}
   else if(a){badge.textContent="已填寫";badge.className="badge ok"}
+  else if(isAutoAvail(selectedAvailabilityDate)){badge.textContent="預設可上班（未修改）";badge.className="badge ok"}
   else{badge.textContent="尚未填寫";badge.className="badge"}
 }
 function flashSaved(msg){byId("availabilitySaved").textContent=msg;setTimeout(()=>byId("availabilitySaved").textContent="",1600)}
@@ -323,6 +336,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   applyStaffBranding();
   byId("staffLoginBtn").onclick=login;
   byId("staffNoInput").addEventListener("keydown",e=>{if(e.key==="Enter")login()});
+  byId("staffPinInput")?.addEventListener("keydown",e=>{if(e.key==="Enter")login()});
   byId("staffLogoutBtn").onclick=logout;
   byId("addAllCalBtn").onclick=addAllToCalendar;
   document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active")});

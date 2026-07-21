@@ -49,6 +49,7 @@ function migrate(d){
     e.noBreak=e.noBreak||false;
     e.note=e.note||""; // 員工備註（例如勞健保註記）
     e.hourlyWage=Number(e.hourlyWage)||0; // 時薪（用於人力成本試算）
+    e.pin=(typeof e.pin==="string"&&/^\d{4}$/.test(e.pin))?e.pin:"0000"; // 員工登入 PIN（4 位數，預設 0000）
     if(e.employmentType==="兼職")e.employmentType="工讀"; // 舊類型對應
   });
   (d.workTypes||[]).forEach(w=>{
@@ -280,7 +281,7 @@ function renderEmployees(){
     const clsTag=(e.shiftClass&&e.shiftClass!=="一般")?`・${e.shiftClass}`:"";
     const noBreakTag=e.noBreak?` <span class="badge ok">免扣休息</span>`:"";
     const noteLine=(e.note||"").trim()?`<span class="cell-sub note-sub">📝 ${e.note.trim()}</span>`:"";
-    return `<tr><td class="employee-name"><strong>${e.name}</strong><span>${typeBadge}${clsTag}${noBreakTag}</span>${noteLine}</td><td>${e.employeeNo}</td><td>${works}${primary}</td><td>${e.weeklyLimit?e.weeklyLimit+" 小時":"未設定"}</td><td><span class="badge ${e.active?"ok":"inactive"}">${e.active?"在職":"停用"}</span></td><td><div class="row-actions"><button class="text-btn" onclick="openEmployeeModal('${e.id}')">編輯</button></div></td></tr>`
+    return `<tr><td class="employee-name"><strong>${e.name}</strong><span>${typeBadge}${clsTag}${noBreakTag}</span>${noteLine}</td><td>${e.employeeNo}<span class="cell-sub">PIN ${e.pin||"0000"}</span></td><td>${works}${primary}</td><td>${e.weeklyLimit?e.weeklyLimit+" 小時":"未設定"}</td><td><span class="badge ${e.active?"ok":"inactive"}">${e.active?"在職":"停用"}</span></td><td><div class="row-actions"><button class="text-btn" onclick="openEmployeeModal('${e.id}')">編輯</button></div></td></tr>`
   }).join("")||`<tr><td colspan="6"><div class="empty-state">找不到員工</div></td></tr>`;
 }
 function renderWorktypes(){
@@ -861,7 +862,7 @@ function toast(msg,type="info",ms){
   return el;
 }
 function openEmployeeModal(id=null){
-  const e=id?employee(id):{id:uid("e"),employeeNo:"",name:"",phone:"",employmentType:"正職",shiftClass:"一般",noBreak:false,allowedWorkTypeIds:[],primaryWeekday:[],primaryWeekend:[],weeklyLimit:40,dailyLimit:8,active:true,note:"",pinEnabled:false,pinHash:null};
+  const e=id?employee(id):{id:uid("e"),employeeNo:"",name:"",phone:"",employmentType:"正職",shiftClass:"一般",noBreak:false,allowedWorkTypeIds:[],primaryWeekday:[],primaryWeekend:[],weeklyLimit:40,dailyLimit:8,active:true,note:"",pin:"0000",pinEnabled:false,pinHash:null};
   e.primaryWeekday=e.primaryWeekday||[];e.primaryWeekend=e.primaryWeekend||[];e.shiftClass=e.shiftClass||"一般";e.note=e.note||"";
   const types=["正職","工讀","外籍學生","其他"];
   const shiftClasses=["一般","平日早班","平日晚班","假日班","其他"];
@@ -878,6 +879,7 @@ function openEmployeeModal(id=null){
     <div class="form-grid">
       <label class="field"><span>姓名</span><input class="input" name="name" required value="${e.name}"></label>
       <label class="field"><span>員工編號</span><input class="input" name="employeeNo" required value="${e.employeeNo}"></label>
+      <label class="field"><span>登入 PIN 碼（4 位數）</span><input class="input" name="pin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" value="${e.pin||"0000"}"><small class="field-help">員工登入用，預設 0000。建議用生日 4 碼（MMDD），例如 7 月 15 日→0715。</small></label>
       <label class="field"><span>身分類型</span><select class="select" name="employmentType" id="empType">${types.map(x=>`<option ${x===e.employmentType?"selected":""}>${x}</option>`).join("")}</select></label>
       <label class="field"><span>班別</span><select class="select" name="shiftClass" id="empShiftClass">${shiftClasses.map(x=>`<option ${x===e.shiftClass?"selected":""}>${x}</option>`).join("")}</select></label>
       <label class="field"><span>每週計薪工時上限</span><input class="input" name="weeklyLimit" id="empWeeklyLimit" type="number" min="0" step=".5" value="${e.weeklyLimit}"><small class="field-help" id="empLimitHint">外籍學生預設 ${foreignLimit} 小時／週。</small></label>
@@ -898,11 +900,13 @@ function openEmployeeModal(id=null){
     if(ev.target.value==="平日早班")byId("empNoBreak").checked=true; // 平日早班自動免扣休息
   });
   form.onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target),no=fd.get("employeeNo").trim().toUpperCase();if(state.data.employees.some(x=>x.employeeNo.toUpperCase()===no&&x.id!==e.id)){toast("員工編號不可重複","error");return}
+    const pin=(fd.get("pin")||"").trim();
+    if(pin&&!/^\d{4}$/.test(pin)){toast("PIN 碼需為 4 位數字","error");return}
     const works=fd.getAll("works");
     // 主要工作必須落在可做工作範圍內
     const primaryWeekday=fd.getAll("primaryWeekday").filter(w=>works.includes(w));
     const primaryWeekend=fd.getAll("primaryWeekend").filter(w=>works.includes(w));
-    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,employmentType:fd.get("employmentType"),shiftClass:fd.get("shiftClass"),noBreak:fd.get("noBreak")==="on",weeklyLimit:Number(fd.get("weeklyLimit")||0),hourlyWage:Number(fd.get("hourlyWage")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,note:(fd.get("note")||"").trim(),active:fd.get("active")==="on"});
+    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,pin:pin||"0000",employmentType:fd.get("employmentType"),shiftClass:fd.get("shiftClass"),noBreak:fd.get("noBreak")==="on",weeklyLimit:Number(fd.get("weeklyLimit")||0),hourlyWage:Number(fd.get("hourlyWage")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,note:(fd.get("note")||"").trim(),active:fd.get("active")==="on"});
     if(!id)state.data.employees.push(e);save();closeModal()
   }
 }
@@ -1797,6 +1801,8 @@ function importBackup(kind,file){
       const items=Array.isArray(obj)?obj:(obj.items||[]);
       if(!Array.isArray(items))throw new Error("bad");
       if(!confirm(`將以匯入的 ${items.length} 筆${kind==="employees"?"員工":"工作"}覆蓋目前資料，確定？`))return;
+      // 員工備份可能來自舊版（沒有 PIN 欄位）→ 補上預設 0000，避免登入驗證失敗
+      if(kind==="employees")items.forEach(it=>{it.pin=(typeof it.pin==="string"&&/^\d{4}$/.test(it.pin))?it.pin:"0000";});
       state.data[kind]=items;save();toast("匯入完成。","success");
     }catch(e){toast("檔案格式不正確，請確認是本系統匯出的備份 JSON。","error");}
   };
