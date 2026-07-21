@@ -1,5 +1,4 @@
 
-const STORAGE_KEY = "smartSchedulerV01";
 // 12 種適合白色字體的深中色調
 const COLORS = ["#b23b2e","#c0561f","#8a6d1f","#4f7a34","#2e7d52","#0f7d70","#1f6f8b","#2f5d9c","#4a4a94","#6f4a97","#9a3f68","#575f6e"];
 const pad = n => String(n).padStart(2,"0");

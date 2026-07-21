@@ -1,5 +1,4 @@
 
-const STORAGE_KEY="smartSchedulerV01";
 const pad=n=>String(n).padStart(2,"0");
 const mins=t=>{const [h,m]=t.split(":").map(Number);return h*60+m};
 const fmtHours=n=>Number.isInteger(n)?`${n} 小時`:`${n.toFixed(1)} 小時`;

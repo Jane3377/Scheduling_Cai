@@ -1,11 +1,9 @@
-/* 雲端資料層：有設定 Firebase 就用 Firestore 跨裝置同步；沒設定就退回本機暫存。
+/* 雲端資料層：只用 Firestore 作為單一資料來源（不寫入本機，避免跨裝置各留一份而不一致）。
+   有設定 Firebase 才能運作；未設定或連不上時顯示錯誤，不退回本機。
    admin.js 與 staff.js 都透過 window.Cloud 讀寫資料。 */
 (function(){
-  const STORAGE_KEY="smartSchedulerV01";
   const COLL="scheduler", DOC="main";
   let db=null, docRef=null, statusCb=null, dataCb=null;
-  function localGet(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))}catch{return null}}
-  function localSet(d){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}catch{}}
   function setStatus(s){Cloud._status=s;if(statusCb)statusCb(s);}
   // 同時支援 window.FIREBASE_CONFIG 或 Firebase 主控台原本的 firebaseConfig 變數，避免貼錯格式
   function resolveConfig(){
@@ -31,28 +29,25 @@
           docRef.onSnapshot({includeMetadataChanges:true},function(snap){
             const m=snap.metadata;
             const d=snap.exists?(snap.data().data||null):null;
-            if(snap.exists)localSet(d); // 保留一份離線副本
             setStatus(m.hasPendingWrites?"saving":(m.fromCache?"offline":"synced"));
             dataCb(d,{local:m.hasPendingWrites,exists:snap.exists});
           },function(err){console.error("Firestore error",err);setStatus("error");});
         }catch(e){
-          console.error("Firebase 初始化失敗，改用本機暫存：",e);
-          setStatus("error"); dataCb(localGet(),{local:false,exists:!!localGet()});
+          console.error("Firebase 初始化失敗：",e);
+          setStatus("error"); dataCb(null,{local:false,exists:false});
         }
       }else{
-        // 未設定 Firebase → 本機暫存模式
-        setStatus(this.configured()?"error":"local");
-        dataCb(localGet(),{local:false,exists:!!localGet()});
+        // 未設定 Firebase → 沒有雲端可用（不再退回本機暫存）
+        setStatus("error"); dataCb(null,{local:false,exists:false});
       }
     },
     save(data){
-      localSet(data); // 一律留一份本機副本（離線用）
       if(docRef){
         setStatus("saving");
         docRef.set({data:data,updatedAt:Date.now()}).then(function(){setStatus("synced");})
           .catch(function(e){console.error("寫入雲端失敗",e);setStatus("error");});
       }else{
-        setStatus(this.configured()?"error":"local");
+        setStatus("error"); // 沒有雲端連線 → 不寫入任何地方（避免以本機資料覆蓋）
       }
     }
   };
