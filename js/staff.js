@@ -152,8 +152,8 @@ function login(){
   const no=byId("staffNoInput").value.trim().toUpperCase();
   const pin=(byId("staffPinInput")?.value||"").trim();
   const e=data?.employees?.find(x=>x.active&&x.employeeNo.toUpperCase()===no);
-  if(!e){byId("staffLoginError").textContent="找不到此員工編號，請確認後再試。";return}
-  if((e.pin||"0000")!==pin){byId("staffLoginError").textContent="PIN 碼不正確，預設為 0000，如有疑問請洽主管。";return}
+  if(!e){byId("staffLoginError").textContent="找不到此員工編號，如有疑問請洽主管。";return}
+  if((e.pin||"0000")!==pin){byId("staffLoginError").textContent="PIN 碼不正確，如有疑問請洽主管。";return}
   staffEmployeeId=e.id;sessionStorage.setItem("smartSchedulerStaffId",e.id);byId("staffLoginError").textContent="";
   const pi=byId("staffPinInput");if(pi)pi.value="";
   renderStaff()
@@ -381,7 +381,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   Cloud.init((d)=>{
     data=d||null;
     applyStaffBranding();
-    if(!data)byId("staffLoginError").textContent="尚未有資料，請先在後台建立員工。";
+    if(!data)byId("staffLoginError").textContent="尚未有資料，如有疑問請洽主管。";
     if(staffEmployeeId&&data)renderStaff();
   },updateSyncStatus);
 });
