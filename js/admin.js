@@ -782,6 +782,10 @@ function openAvailabilityWindowModal(id=null,prefill=null){
   const tk=toDateKey(today);
   // 只有「新增」才限制最早今天；「編輯」既有區段不加 min，避免原本已開始（日期早於今天）的欄位被瀏覽器清成空白
   const minAttr=id?"":`min="${tk}"`;
+  // 同一時間只開放一個填寫區段：若目前已有開放中的區段，新區段預設「不啟用」並提醒
+  const hasOpenNow=windows.some(x=>x.enabled&&x.id!==w.id&&tk>=x.openStart&&tk<=x.openEnd);
+  const enabledChecked=id?w.enabled:!hasOpenNow;
+  const openNote=(!id&&hasOpenNow)?`<div class="field span-2"><small class="field-help">⚠ 目前已有開放中的填寫區段。同一時間只建議開放一個，新區段預設「不啟用」，可待前一個結束後再啟用。</small></div>`:"";
   openModal(id?"編輯開放區段":"新增開放區段","設定員工可進入填寫的期間，以及實際要填寫的排班日期",`
     <div class="form-grid">
       <label class="field span-2"><span>區段名稱</span><input class="input" name="name" required value="${w.name}" placeholder="例如 8月上半月可上班時間"></label>
@@ -790,7 +794,8 @@ function openAvailabilityWindowModal(id=null,prefill=null){
       <label class="field"><span>可填寫排班起日</span><input class="input" type="date" name="targetStart" ${minAttr} required value="${w.targetStart}"></label>
       <label class="field"><span>可填寫排班迄日</span><input class="input" type="date" name="targetEnd" ${minAttr} required value="${w.targetEnd}"></label>
       <label class="field span-2"><span>員工提示文字</span><textarea name="note" rows="3" placeholder="例如：請於期限內完成填寫">${w.note||""}</textarea></label>
-      <label class="check-row span-2"><input type="checkbox" name="enabled" ${w.enabled?"checked":""}> 啟用此填寫區段</label>
+      ${openNote}
+      <label class="check-row span-2"><input type="checkbox" name="enabled" ${enabledChecked?"checked":""}> 啟用此填寫區段（同一時間只開放一個）</label>
       <label class="check-row span-2"><input type="checkbox" name="defaultAvailable" ${w.defaultAvailable?"checked":""}> 預設全部員工整天可上班（只要標記少數請假的人即可）</label>
       <div class="modal-actions span-2">
         ${id?`<button type="button" class="danger-btn" onclick="deleteAvailabilityWindow('${w.id}')">刪除</button>`:""}
@@ -811,11 +816,17 @@ function openAvailabilityWindowModal(id=null,prefill=null){
     // 不同區段的「可填寫排班日期」不可重疊
     const clash=windows.find(x=>x.id!==w.id&&targetStart<=x.targetEnd&&targetEnd>=x.targetStart);
     if(clash){toast(`可填寫排班日期與區段「${clash.name}」重疊（${formatDate(clash.targetStart)}～${formatDate(clash.targetEnd)}），請調整日期不要衝突。`);return}
+    // 同一時間只開放一個：啟用時，開放填寫期間不可與其他「已啟用」區段重疊
+    const enabled=fd.get("enabled")==="on";
+    if(enabled){
+      const openClash=windows.find(x=>x.id!==w.id&&x.enabled&&openStart<=x.openEnd&&openEnd>=x.openStart);
+      if(openClash){toast(`開放填寫期間與區段「${openClash.name}」（${formatDate(openClash.openStart)}～${formatDate(openClash.openEnd)}）重疊。同一時間只能開放一個填寫區段，請調整日期，或先停用另一個區段。`,"error");return}
+    }
     const oldTS=w.targetStart,oldTE=w.targetEnd; // 編輯前的舊範圍，取消勾選時一併清掉
     Object.assign(w,{
       name:fd.get("name").trim(),
       openStart,openEnd,targetStart,targetEnd,
-      enabled:fd.get("enabled")==="on",
+      enabled,
       defaultAvailable:fd.get("defaultAvailable")==="on",
       note:fd.get("note").trim()
     });
@@ -1155,6 +1166,8 @@ function availRanges(a){
 function availCovers(a,start,end){return availRanges(a).some(r=>start>=r.start&&end<=r.end);}
 // 顯示用文字：多段以「、」串接
 function availText(a){return availRanges(a).map(r=>`${r.start}～${r.end}`).join("、");}
+// 兩個時段是否重疊（時間字串 HH:MM 可直接字典序比較）
+function rangesOverlap(s1,e1,s2,e2){return s1<e2&&s2<e1;}
 // 某員工在某填寫區段是否「真的自己填過」（有非預設的紀錄）。預設值(_default)不算已填。
 function hasFilled(employeeId,w){
   if(!w)return false;
@@ -1529,6 +1542,7 @@ function openAvailEditModal(employeeId,dateKey){
     const use2=st==="on"&&seg2.checked;
     const s2=byId("avStart2").value,e2=byId("avEnd2").value;
     if(use2&&mins(e2)<=mins(s2)){toast("第二時段的結束必須晚於開始","error");return}
+    if(use2&&rangesOverlap(s,e,s2,e2)){toast("第一與第二時段不可重疊","error");return}
     let rec=list.find(x=>x.employeeId===employeeId&&x.date===dateKey);
     if(!rec){rec={id:uid("a"),employeeId,date:dateKey};list.push(rec)}
     Object.assign(rec,{unavailable:st==="off",start:s,end:e,start2:use2?s2:null,end2:use2?e2:null});

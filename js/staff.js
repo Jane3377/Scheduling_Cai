@@ -139,6 +139,8 @@ function isClosedDay(key){
   return closedDays().includes(new Date(key+"T00:00:00").getDay());
 }
 function canFill(key){return inTargetRange(key)&&!isClosedDay(key)}
+// 兩個時段是否重疊（HH:MM 字串可直接比較）
+function rangesOverlap(s1,e1,s2,e2){return s1<e2&&s2<e1;}
 // 該日是否為後台「預設全部可上班」（與後台 isAutoAvailableDate 同邏輯）：公休不算
 function isAutoAvail(key){
   if(isClosedDay(key))return false;
@@ -314,11 +316,18 @@ function quickWeekApply(type){
   if(!days.length){toast("請先勾選要套用的星期","error");return}
   const start=byId("quickWeekStart").value,end=byId("quickWeekEnd").value;
   if(type==="available"&&mins(end)<=mins(start)){toast("最晚可下班必須晚於最早可上班","error");return}
+  const use2=type==="available"&&byId("quickWeekSeg2Toggle").checked;
+  const start2=byId("quickWeekStart2").value,end2=byId("quickWeekEnd2").value;
+  if(use2){
+    if(mins(end2)<=mins(start2)){toast("第二時段的結束必須晚於開始","error");return}
+    if(rangesOverlap(start,end,start2,end2)){toast("第一與第二時段不可重疊","error");return}
+  }
+  const seg2={start2:use2?start2:null,end2:use2?end2:null};
   const endD=new Date(activeWindow.targetEnd+"T00:00:00");let count=0;
   for(let d=new Date(activeWindow.targetStart+"T00:00:00");d<=endD;d.setDate(d.getDate()+1)){
     const key=toDateKey(d);
     if(!canFill(key)||!days.includes(d.getDay()))continue;
-    upsertAvailability(key,type==="available"?{unavailable:false,start,end,start2:null,end2:null}:{unavailable:true,start,end,start2:null,end2:null});
+    upsertAvailability(key,type==="available"?{unavailable:false,start,end,...seg2}:{unavailable:true,start,end,start2:null,end2:null});
     count++;
   }
   persist();renderAvailabilityCalendar();loadSelectedDay();
@@ -333,6 +342,7 @@ function saveSelectedDay(){
   const use2=byId("availabilitySeg2Toggle").checked;
   const start2=byId("availabilityStart2").value,end2=byId("availabilityEnd2").value;
   if(use2&&mins(end2)<=mins(start2)){toast("第二時段的結束必須晚於開始","error");return}
+  if(use2&&rangesOverlap(start,end,start2,end2)){toast("第一與第二時段不可重疊","error");return}
   let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
   if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:selectedAvailabilityDate};data.availability.push(a)}
   Object.assign(a,{unavailable:false,start,end,start2:use2?start2:null,end2:use2?end2:null}); // 指定時段＝可上班；整天不行請用上方按鈕
@@ -360,6 +370,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   renderQuickWeekDays();
   byId("quickWeekStart").innerHTML=timeOptions(bizStart());
   byId("quickWeekEnd").innerHTML=timeOptions(bizEnd());
+  byId("quickWeekStart2").innerHTML=timeOptions("17:00");
+  byId("quickWeekEnd2").innerHTML=timeOptions(bizEnd());
+  byId("quickWeekSeg2Toggle").addEventListener("change",e=>byId("quickWeekSeg2Row").classList.toggle("hidden",!e.target.checked));
   byId("quickDayYes").onclick=()=>quickDaySet("yes");
   byId("quickDayNo").onclick=()=>quickDaySet("no");
   byId("quickWeekAvailable").onclick=()=>quickWeekApply("available");
