@@ -185,12 +185,7 @@ function toggleSidebar(force){
   if(bd)bd.classList.toggle("hidden",!open);
 }
 function applyBranding(){
-  const name=(settings().storeName||"").trim();
-  const full=name?`${name}排班管理系統`:"排班管理系統";
-  const bn=byId("brandName");if(bn)bn.textContent=name||"排班管理系統";
-  const pt=byId("pinTitle");if(pt)pt.textContent=full;
-  // 左上角商標改用 icon 圖檔（HTML 內的 <img>），不再以店名首字覆蓋
-  document.title=`${full}｜主管後台`;
+  // 品牌名稱與標題固定寫在 HTML（智慧排班系統｜主管後台），不再依店名動態覆蓋；商標吃 HTML 內的 icon <img>
 }
 function syncAvailPage(){
   document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.classList.toggle("active",b.dataset.atab===state.availPage));

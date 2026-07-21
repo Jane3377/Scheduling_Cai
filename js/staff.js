@@ -117,11 +117,7 @@ function durationHours(s){return Math.max(0,(mins(s.end)-mins(s.start)-shiftBrea
 function employee(id){return data.employees.find(x=>x.id===id)}
 function worktype(id){return data.workTypes.find(x=>x.id===id)}
 function applyStaffBranding(){
-  const name=(storeCfg().storeName||"").trim();
-  const full=name?`${name} 員工班表系統`:"員工班表系統";
-  const bn=byId("staffBrandName");if(bn)bn.textContent=full;
-  // 左上角商標改用 icon 圖檔（HTML 內的 <img>），不再以店名首字覆蓋
-  document.title=full;
+  // 品牌名稱與標題固定寫在 HTML（蔡叔叔比薩屋｜員工班表系統），不再依店名動態覆蓋；商標吃 HTML 內的 icon <img>
 }
 function getWindows(){return data?.settings?.availabilityWindows||[]}
 function getActiveWindow(){
