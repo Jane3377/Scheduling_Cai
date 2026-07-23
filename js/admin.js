@@ -1781,6 +1781,18 @@ function applyDemand(dateKey){
   }
   const rows=all.filter(r=>workAppliesOnDate(worktype(r.workTypeId),dateKey));
   const skipped=all.length-rows.length;
+  // 先清掉「舊固定班次殘留」：本日、尚未公布的草稿、屬於本日模板的工作，但時間對不上任何一列最新模板者。
+  // 固定班次建立的(fromDemand)或未指派的草稿一律視為殘留清除；手動指派的自訂班次則保留，不默默刪人。
+  const templWorkIds=new Set(rows.map(r=>r.workTypeId));
+  const rowMatches=s=>rows.some(r=>r.workTypeId===s.workTypeId&&r.start===s.start&&r.end===s.end);
+  let removed=0;
+  state.data.shifts=state.data.shifts.filter(s=>{
+    if(s.date!==dateKey||s.published!==false)return true;   // 別日或已公布 → 保留
+    if(!templWorkIds.has(s.workTypeId))return true;          // 非本日模板工作 → 保留
+    if(rowMatches(s))return true;                            // 時間對得上最新模板 → 保留
+    if(s.fromDemand||!s.employeeId){removed++;return false;} // 固定班次建立的、或未指派的舊殘留 → 刪除
+    return true;                                             // 手動指派的自訂班次 → 保留
+  });
   let created=0,assignedNow=0;
   rows.forEach(r=>{
     const match=s=>s.date===dateKey&&s.workTypeId===r.workTypeId&&s.start===r.start&&s.end===r.end;
@@ -1793,21 +1805,28 @@ function applyDemand(dateKey){
     const have=state.data.shifts.filter(match).length;
     for(let i=0;i<r.count-have;i++){
       const pick=bestEmployeeFor(dateKey,r.start,r.end,r.workTypeId);
-      state.data.shifts.push({id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end}),note:(r.note||"").trim(),subWork:(r.subWork||"").trim(),prepRole:false,status:"draft",published:false});
+      state.data.shifts.push({id:uid("s"),date:dateKey,workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end,breakMinutes:breakForShift({workTypeId:r.workTypeId,employeeId:pick,start:r.start,end:r.end}),note:(r.note||"").trim(),subWork:(r.subWork||"").trim(),prepRole:false,fromDemand:true,status:"draft",published:false});
       created++;
+    }
+    // 人數調少時，修剪同時段多出來的「未指派」草稿（不刪已指派的人）
+    let over=state.data.shifts.filter(match).length-r.count;
+    if(over>0){
+      const spare=state.data.shifts.filter(s=>match(s)&&!s.employeeId&&s.published===false);
+      for(let i=0;i<Math.min(over,spare.length);i++){state.data.shifts=state.data.shifts.filter(x=>x!==spare[i]);removed++;}
     }
   });
   // 套用後這些時段仍待指派的數量
   let unfilled=0;
   rows.forEach(r=>{unfilled+=state.data.shifts.filter(s=>s.date===dateKey&&s.workTypeId===r.workTypeId&&s.start===r.start&&s.end===r.end&&!s.employeeId).length;});
   const skipNote=skipped?`（${skipped} 筆因平日／假日限定不適用本日、已略過）`:"";
-  if(!created&&!assignedNow){
-    toast(`本日固定班次已建立且無可補指派的空缺，未變更。${unfilled?`目前仍有 ${unfilled} 個待指派。`:""}${skipNote}`);return;
+  if(!created&&!assignedNow&&!removed){
+    toast(`本日固定班次已是最新，未變更。${unfilled?`目前仍有 ${unfilled} 個待指派。`:""}${skipNote}`);return;
   }
   save();
   const parts=[];
   if(created)parts.push(`新增 ${created} 個班次`);
   if(assignedNow)parts.push(`補指派 ${assignedNow} 人`);
+  if(removed)parts.push(`清除 ${removed} 個時間已變更的舊班次`);
   toast(`已套用${useHoliday?"國定假日":""}固定班次：${parts.join("、")}。${unfilled?`仍有 ${unfilled} 個待指派——可等可上班時間更新後再按一次「套用固定班次」自動補人（不會重複新增）。`:"皆已指派。"}${skipNote}`);
 }
 
