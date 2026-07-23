@@ -369,20 +369,21 @@ function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const warnBadge=conflicts.length?`<span class="dg-warn" title="${conflicts.join("、").replace(/"/g,"&quot;")}">!</span>`:"";
   const tipAttr=(note||draft)?` title="${((draft?"未公布草稿 ":"")+note).replace(/"/g,'&quot;')}"`:"";
   const style=`top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}`;
+  const srcTag=s.fromDemand?`<span class="dg-src" title="由套用固定班次帶入">固定</span>`:"";
   if(showWork){ // 週檢視：直式文字，先工作＋子工作、再員工，最後備註
-    const txt=`${w?w.name:""}${subTxt}｜${who}${note?`｜📝${note}`:""}${draftTag}`;
+    const txt=`${w?w.name:""}${subTxt}｜${who}${note?`｜📝${note}`:""}${s.fromDemand?"｜固定":""}${draftTag}`;
     return `<button class="dg-block dg-block-vert ${e?"":"unassigned"}${draftCls}${conflictCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}">${warnBadge}<span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><span class="dg-vert">${txt}</span></button>`;
   }
   const label=`${s.start}–${s.end}${subTxt}`;
   const noteLine=note?`<span class="dg-note">📝 ${note}</span>`:"";
   const draftLine=draft?`<span class="dg-draft">草稿・未公布</span>`:"";
-  return `<button class="dg-block ${e?"":"unassigned"}${draftCls}${conflictCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}">${warnBadge}<span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><strong>${who}</strong><span>${label}</span>${noteLine}${draftLine}</button>`;
+  return `<button class="dg-block ${e?"":"unassigned"}${draftCls}${conflictCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}">${warnBadge}<span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><strong>${who}</strong><span>${label}${srcTag}</span>${noteLine}${draftLine}</button>`;
 }
 function isNarrow(){return !!(window.matchMedia&&window.matchMedia("(max-width:760px)").matches);}
 function renderSchedule(){
   const grid=byId("scheduleGrid");if(!grid)return;
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.smode===state.scheduleMode));
-  const hint=byId("schedHint");if(hint)hint.textContent=isNarrow()?"點班次可編輯；紅色「!」＝該班次有衝突，點進去可看原因。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿；紅色「!」＝有衝突（重疊／不符資格等），點進去可看原因。";
+  const hint=byId("schedHint");if(hint)hint.textContent=isNarrow()?"點班次可編輯；紅色「!」＝有衝突；「固定」＝套用固定班次帶入、無標記＝手動新增。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿；紅色「!」＝有衝突（重疊／不符資格）；「固定」標記＝由套用固定班次帶入，無標記＝手動新增。";
   if(isNarrow()){renderScheduleList(grid);renderPublishBar();return;}
   const axis=timeAxis();
   if(state.scheduleMode==="week"){
@@ -477,7 +478,7 @@ function scheduleListRow(s){
   return `<button class="sl-shift ${draft?"draft":""} ${e?"":"unassigned"}${warnCls}" onclick="openShiftModal('${s.id}')">
     <span class="sl-time">${s.start}<i>${s.end}</i></span>
     <span class="sl-chip" style="background:${w?.color||'#888'}">${w?w.name:"（已刪除）"}${subTxt}</span>
-    <span class="sl-main"><strong>${e?e.name:"待指派"}</strong>${note?`<span class="sl-note">📝 ${note}</span>`:""}${draft?`<span class="sl-draft">草稿・未公布</span>`:""}</span>
+    <span class="sl-main"><strong>${e?e.name:"待指派"}${s.fromDemand?`<span class="sl-src">固定</span>`:""}</strong>${note?`<span class="sl-note">📝 ${note}</span>`:""}${draft?`<span class="sl-draft">草稿・未公布</span>`:""}</span>
     ${warnBadge}
     <span class="sl-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span>
     <span class="sl-go">✎</span>
@@ -1675,11 +1676,7 @@ function openDemandModal(id=null){
     </div>`);
   byId("modalForm").onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);const start=fd.get("start"),end=fd.get("end");
     if(mins(end)<=mins(start)){toast("結束時間必須晚於開始時間","error");return}
-    // 同一天、同一工作，時段不可與另一列重疊（避免不小心多加一列造成套用時重複建立）
-    const wtId=fd.get("workTypeId");
-    const clash=list.find(x=>x.id!==r.id&&x.weekday===r.weekday&&x.workTypeId===wtId&&rangesOverlap(x.start,x.end,start,end));
-    if(clash){toast(`${dayLabel(r.weekday)}的「${worktype(wtId)?.name||"此工作"}」已有一筆 ${clash.start}～${clash.end} 與此時段重疊。請改為「編輯」那一筆，或調整時間避免重疊。`,"error");return}
-    Object.assign(r,{workTypeId:wtId,start,end,count:Math.max(1,Number(fd.get("count")||1)),subWork:(fd.get("subWork")||"").trim(),note:(fd.get("note")||"").trim()});
+    Object.assign(r,{workTypeId:fd.get("workTypeId"),start,end,count:Math.max(1,Number(fd.get("count")||1)),subWork:(fd.get("subWork")||"").trim(),note:(fd.get("note")||"").trim()});
     if(!id)list.push(r);save();closeModal()};
 }
 function deleteDemand(id){if(confirm("確定刪除這筆需求？")){settings().dailyDemand=getDemand().filter(x=>x.id!==id);save();closeModal()}}

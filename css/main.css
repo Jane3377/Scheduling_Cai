@@ -274,6 +274,9 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .dg-block .dg-warn{position:absolute;top:2px;left:2px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;background:var(--danger);color:#fff;border-radius:50%;z-index:3;cursor:help;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .sl-shift.has-conflict{box-shadow:inset 3px 0 0 var(--danger)}
 .sl-warn{flex:none;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:var(--danger);color:#fff;border-radius:50%}
+/* 來源標記：由「套用固定班次」帶入的班次；沒有此標記＝手動新增 */
+.dg-block .dg-src{display:inline-block;font-size:9.5px;font-weight:800;line-height:1.5;background:rgba(255,255,255,.3);color:#fff;border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:middle}
+.sl-src{display:inline-block;font-size:11px;font-weight:700;background:var(--brand-soft);color:var(--brand);border-radius:5px;padding:0 6px;margin-left:6px;vertical-align:middle}
 .sl-swap{color:var(--brand);font-size:16px;padding:4px 8px;border-radius:8px;background:var(--brand-soft);flex:none}
 .quick-assign{position:fixed;z-index:1000;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 34px rgba(60,42,31,.22);width:236px;max-width:calc(100vw - 16px);padding:6px}
 .quick-assign .qa-head{font-size:12px;font-weight:800;color:var(--muted);padding:6px 8px 8px}
