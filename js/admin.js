@@ -1675,7 +1675,11 @@ function openDemandModal(id=null){
     </div>`);
   byId("modalForm").onsubmit=ev=>{ev.preventDefault();const fd=new FormData(ev.target);const start=fd.get("start"),end=fd.get("end");
     if(mins(end)<=mins(start)){toast("結束時間必須晚於開始時間","error");return}
-    Object.assign(r,{workTypeId:fd.get("workTypeId"),start,end,count:Math.max(1,Number(fd.get("count")||1)),subWork:(fd.get("subWork")||"").trim(),note:(fd.get("note")||"").trim()});
+    // 同一天、同一工作，時段不可與另一列重疊（避免不小心多加一列造成套用時重複建立）
+    const wtId=fd.get("workTypeId");
+    const clash=list.find(x=>x.id!==r.id&&x.weekday===r.weekday&&x.workTypeId===wtId&&rangesOverlap(x.start,x.end,start,end));
+    if(clash){toast(`${dayLabel(r.weekday)}的「${worktype(wtId)?.name||"此工作"}」已有一筆 ${clash.start}～${clash.end} 與此時段重疊。請改為「編輯」那一筆，或調整時間避免重疊。`,"error");return}
+    Object.assign(r,{workTypeId:wtId,start,end,count:Math.max(1,Number(fd.get("count")||1)),subWork:(fd.get("subWork")||"").trim(),note:(fd.get("note")||"").trim()});
     if(!id)list.push(r);save();closeModal()};
 }
 function deleteDemand(id){if(confirm("確定刪除這筆需求？")){settings().dailyDemand=getDemand().filter(x=>x.id!==id);save();closeModal()}}
