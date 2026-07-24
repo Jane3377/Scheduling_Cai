@@ -858,6 +858,134 @@ function openAvailabilityWindowModal(id=null,prefill=null){
     save();closeModal()
   }
 }
+/* ---------- 批次匯入可上班時間（貼上文字 → AI 轉 JSON → 預覽核對 → 覆蓋匯入） ---------- */
+let _availImport=null;
+// 產生給外部 AI 的提示詞：帶入匯入區間、營業時間、員工名單與嚴格的輸出格式
+function availImportPrompt(win){
+  const s=settings();
+  const emps=state.data.employees.filter(e=>e.active).map(e=>`${e.name}｜${e.employeeNo}`).join("\n")||"（尚未建立員工）";
+  return [
+    "你是排班助理。請把最下面「員工可上班時間（LINE 原文）」整理成 JSON。",
+    "",
+    `【排班日期範圍】${win.targetStart} ~ ${win.targetEnd}（只輸出此範圍內的日期）`,
+    `【店家營業時間】${s.businessStart} ~ ${s.businessEnd}（「整天」請用這個時段）`,
+    "【員工名單】格式 姓名｜編號：",
+    emps,
+    "",
+    "【規則】",
+    "- 每人只輸出他「可以上班」的日期；沒提到的日期不要輸出（視為未填）。",
+    "- 「整天」＝營業時間；「HH:MM 開始」＝該時間到營業結束；「晚上5:30」＝17:30；「Am9-Pm15」＝09:00-15:00。",
+    "- 「每週三、五、六」等請展開成範圍內所有符合的實際日期；「週三-週六」為連續星期。",
+    "- 「休假／不能上班／某日不行」＝把那天排除（不要輸出）。",
+    "- 一天最多兩個時段（早班＋晚班）。時間一律 24 小時制 HH:MM。",
+    "- 用員工名單把每個人對應到「編號」；對不到就 employeeNo 填 null。",
+    "- 看不懂或不確定的（例如『2529』『17:00 都可以』語意不明）→ 寫進該人的 warnings，不要亂猜。",
+    "",
+    "【輸出格式】只輸出 JSON，不要任何多餘文字：",
+    '{"people":[{"name":"如原文的稱呼","employeeNo":"編號或null","days":[{"date":"YYYY-MM-DD","ranges":[["HH:MM","HH:MM"]]}],"warnings":[]}]}',
+    "",
+    "【員工可上班時間（LINE 原文）】",
+    "（把 LINE 文字貼在這裡）"
+  ].join("\n");
+}
+function padTime(t){const p=String(t).split(":");return pad(Number(p[0]))+":"+pad(Number(p[1]||0));}
+// 解析並驗證 AI 回傳的 JSON，回傳每人的匯入列（含員工對應與警告）
+function parseAvailImport(text,win){
+  let raw=(text||"").trim();
+  const fence=raw.match(/```(?:json)?\s*([\s\S]*?)```/i);if(fence)raw=fence[1].trim();
+  let obj;try{obj=JSON.parse(raw);}catch(e){return {error:"JSON 格式不正確，請確認貼上的是 AI 回傳的完整 JSON（大括號開頭）。"};}
+  const people=Array.isArray(obj?.people)?obj.people:(Array.isArray(obj)?obj:null);
+  if(!people||!people.length)return {error:"找不到任何 people 資料。"};
+  const active=state.data.employees.filter(e=>e.active);
+  const validTime=t=>/^\d{1,2}:\d{2}$/.test(String(t||""));
+  const rows=people.map(p=>{
+    const warnings=(Array.isArray(p.warnings)?p.warnings:[]).map(String);
+    let emp=null;const no=(p.employeeNo==null?"":String(p.employeeNo)).trim().toUpperCase();
+    if(no&&no!=="NULL")emp=active.find(e=>e.employeeNo.toUpperCase()===no);
+    if(!emp&&p.name){const nm=String(p.name).trim();emp=active.find(e=>e.name.includes(nm)||nm.includes(e.name));}
+    const days=[];
+    (Array.isArray(p.days)?p.days:[]).forEach(d=>{
+      const date=String(d&&d.date||"").trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){warnings.push(`日期格式錯誤：${d&&d.date}`);return;}
+      if(date<win.targetStart||date>win.targetEnd){warnings.push(`${date} 不在區間內，略過`);return;}
+      let ranges=(Array.isArray(d.ranges)?d.ranges:[]).filter(r=>Array.isArray(r)&&r.length===2&&validTime(r[0])&&validTime(r[1])).map(r=>[padTime(r[0]),padTime(r[1])]).filter(r=>mins(r[1])>mins(r[0]));
+      if(!ranges.length){warnings.push(`${date} 時段無法解析`);return;}
+      if(ranges.length>2){warnings.push(`${date} 超過兩段，只取前兩段`);ranges=ranges.slice(0,2);}
+      days.push({date,ranges});
+    });
+    return {name:String(p.name||"（未命名）"),employeeId:emp?emp.id:null,days,warnings};
+  });
+  return {rows,win};
+}
+function renderAvailImportPreview(){
+  const el=byId("importPreview");if(!el||!_availImport)return;
+  const active=state.data.employees.filter(e=>e.active);
+  const rows=_availImport.rows;
+  const matched=rows.filter(r=>r.employeeId).length;
+  el.innerHTML=`<div class="import-summary">解析到 ${rows.length} 人，可匯入 <b>${matched}</b> 人${rows.length-matched?`，<span class="import-red">${rows.length-matched} 人未對應員工（請於下方選擇或略過）</span>`:""}。</div>`+
+    rows.map((r,i)=>{
+      const opts=`<option value="">— 略過此人 —</option>`+active.map(e=>`<option value="${e.id}" ${r.employeeId===e.id?"selected":""}>${e.name}（${e.employeeNo}）</option>`).join("");
+      const daysTxt=r.days.length?`${r.days.length} 天可上班`:`<span class="import-red">0 天（無可解析日期）</span>`;
+      const warn=r.warnings.length?`<div class="import-warn">⚠ ${r.warnings.join("；")}</div>`:"";
+      return `<div class="import-row ${r.employeeId?"":"unmatched"}"><div class="import-name">${r.name}</div><select class="select import-emp" data-idx="${i}">${opts}</select><div class="import-days">${daysTxt}</div>${warn}</div>`;
+    }).join("");
+  el.querySelectorAll(".import-emp").forEach(sel=>sel.addEventListener("change",e=>{
+    _availImport.rows[Number(e.target.dataset.idx)].employeeId=e.target.value||null;
+    renderAvailImportPreview();
+  }));
+  const btn=byId("importConfirmBtn");if(btn)btn.disabled=!rows.some(r=>r.employeeId&&r.days.length);
+}
+function applyAvailImport(){
+  if(!_availImport)return;
+  const win=_availImport.win;
+  const rows=_availImport.rows.filter(r=>r.employeeId&&r.days.length);
+  if(!rows.length){toast("沒有可匯入的員工（請先對應員工）","error");return;}
+  if(!confirm(`將以匯入內容「覆蓋」${rows.length} 位員工在 ${formatDate(win.targetStart)}～${formatDate(win.targetEnd)} 的可上班時間。此動作無法復原，確定？`))return;
+  const ids=new Set(rows.map(r=>r.employeeId));
+  // 覆蓋：先清掉這些員工在區間內的舊紀錄
+  state.data.availability=state.data.availability.filter(a=>!(ids.has(a.employeeId)&&a.date>=win.targetStart&&a.date<=win.targetEnd));
+  let people=0,dayCount=0;
+  rows.forEach(r=>{
+    const seen=new Set();
+    r.days.forEach(d=>{
+      if(seen.has(d.date))return;seen.add(d.date);
+      const rec={id:uid("a"),employeeId:r.employeeId,date:d.date,unavailable:false,start:d.ranges[0][0],end:d.ranges[0][1]};
+      if(d.ranges[1]){rec.start2=d.ranges[1][0];rec.end2=d.ranges[1][1];}
+      state.data.availability.push(rec);dayCount++;
+    });
+    people++;
+  });
+  _availImport=null;save();closeModal();
+  toast(`已匯入 ${people} 位員工、共 ${dayCount} 個可上班日（已覆蓋此區間）。`,"success");
+}
+function openAvailImportModal(){
+  const win=currentWindow();
+  if(!win){toast("目前沒有開放中的填寫區段。請先在「開放設定」建立並啟用一個區段，才知道要匯入哪段日期。","error");return;}
+  _availImport=null;
+  openModal("批次匯入可上班時間",`匯入區間 ${formatDate(win.targetStart)} ～ ${formatDate(win.targetEnd)}（會覆蓋此區間）`,`
+    <div class="import-wrap">
+      <div class="import-step">
+        <p class="import-h">① 複製提示詞 → 貼到 ChatGPT／Claude，連同員工的 LINE 文字一起送出</p>
+        <textarea id="importPrompt" class="input import-ta" rows="6" readonly></textarea>
+        <button type="button" class="secondary-btn small-btn" id="importCopyBtn">📋 複製提示詞</button>
+      </div>
+      <div class="import-step">
+        <p class="import-h">② 把 AI 回傳的 JSON 貼在這裡 → 按「解析預覽」核對</p>
+        <textarea id="importJson" class="input import-ta" rows="5" placeholder="貼上 AI 回傳的 JSON（以 { 開頭）"></textarea>
+        <button type="button" class="secondary-btn small-btn" id="importParseBtn">🔍 解析預覽</button>
+      </div>
+      <div id="importPreview"></div>
+      <div class="modal-actions span-2"><button type="button" class="ghost-btn" onclick="closeModal()">取消</button><button type="button" class="primary-btn" id="importConfirmBtn" disabled>確認匯入（覆蓋此區間）</button></div>
+    </div>`);
+  byId("importPrompt").value=availImportPrompt(win);
+  byId("importCopyBtn").onclick=()=>{const ta=byId("importPrompt");ta.select();try{navigator.clipboard.writeText(ta.value);}catch(e){document.execCommand&&document.execCommand("copy");}toast("提示詞已複製，貼到 AI 即可。","success");};
+  byId("importParseBtn").onclick=()=>{
+    const res=parseAvailImport(byId("importJson").value,win);
+    if(res.error){byId("importPreview").innerHTML=`<div class="import-red import-summary">${res.error}</div>`;byId("importConfirmBtn").disabled=true;_availImport=null;return;}
+    _availImport=res;renderAvailImportPreview();
+  };
+  byId("importConfirmBtn").onclick=applyAvailImport;
+}
 function deleteAvailabilityWindow(id){
   if(confirm("確定刪除這個開放填寫區段？")){
     state.data.settings.availabilityWindows=getAvailabilityWindows().filter(x=>x.id!==id);
@@ -1985,6 +2113,7 @@ function init(){
   byId("addEmployeeBtn").onclick=()=>openEmployeeModal();byId("addWorktypeBtn").onclick=()=>openWorktypeModal();
   byId("addAvailabilityWindowBtn").onclick=()=>openAvailabilityWindowModal();
   byId("openNextWeekBtn")?.addEventListener("click",openNextWeekWindow);
+  byId("batchImportBtn")?.addEventListener("click",openAvailImportModal);
   byId("openNextMonthBtn")?.addEventListener("click",openNextMonthWindow);
   byId("employeeSearch").oninput=renderEmployees;byId("employeeStatusFilter").onchange=renderEmployees;
   const calNav=dir=>{
