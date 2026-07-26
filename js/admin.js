@@ -10,6 +10,7 @@ const state = {
   calendarDate:new Date(today.getFullYear(),today.getMonth(),1),
   selectedDate:todayKeyInit,
   scheduleMode:"day",
+  workSplit:false,
   calendarExpanded:false,
   settingsTab:"store",
   demandWeekday:new Date().getDay(),
@@ -380,10 +381,55 @@ function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   return `<button class="dg-block ${e?"":"unassigned"}${draftCls}${conflictCls}"${tipAttr} onclick="event.stopPropagation();openShiftModal('${s.id}')" style="${style}">${warnBadge}<span class="dg-swap" onclick="openQuickAssign(event,'${s.id}')" title="快速換人">⇄</span><strong>${who}</strong><span>${label}${srcTag}</span>${noteLine}${draftLine}</button>`;
 }
 function isNarrow(){return !!(window.matchMedia&&window.matchMedia("(max-width:760px)").matches);}
+/* ---------- 工作表：工作(列) × 日期(欄)，格子＝誰＋時段；依固定班次需求標「缺 N」，一眼看出沒排 ---------- */
+// 某日某工作的固定班次需求人數（國定假日優先套第 7 組，與套用固定班次同邏輯）
+function demandCountFor(workId,dateKey){
+  const wd=(!!nationalHolidayName(dateKey)&&demandForWeekday(7).length)?7:new Date(dateKey+"T00:00:00").getDay();
+  return demandForWeekday(wd).filter(r=>r.workTypeId===workId).reduce((n,r)=>n+(Number(r.count)||0),0);
+}
+function workShiftsOn(workId,dateKey){return state.data.shifts.filter(s=>s.date===dateKey&&s.workTypeId===workId).sort((a,b)=>mins(a.start)-mins(b.start));}
+// 這幾天內「有班次或有固定班次需求」的工作（依排序）
+function worksInDates(dates){
+  const ids=new Set();
+  state.data.workTypes.filter(w=>w.active).forEach(w=>{if(dates.some(d=>demandCountFor(w.id,d)>0||workShiftsOn(w.id,d).length))ids.add(w.id);});
+  return state.data.workTypes.filter(w=>ids.has(w.id)).sort((a,b)=>a.sort-b.sort);
+}
+function workTableHTML(dates){
+  const works=worksInDates(dates);
+  if(!works.length)return `<div class="empty-state">這幾天尚無工作或固定班次</div>`;
+  const dow="日一二三四五六";
+  const head=`<tr><th class="wg-corner">工作＼日期</th>${dates.map(d=>{const dd=new Date(d+"T00:00:00");return `<th class="${isClosedDay(d)?"wg-cl":""}">${dd.getMonth()+1}/${dd.getDate()}<span>${dow[dd.getDay()]}</span></th>`}).join("")}</tr>`;
+  const body=works.map(w=>{
+    const tds=dates.map(d=>{
+      if(isClosedDay(d))return `<td class="wg-cl">公休</td>`;
+      const ss=workShiftsOn(w.id,d),assigned=ss.filter(s=>s.employeeId).length,short=Math.max(0,demandCountFor(w.id,d)-assigned);
+      const lines=ss.map(s=>{const e=employee(s.employeeId),draft=s.published===false;return `<div class="wg-p${draft?" draft":""}">${e?e.name:'<span class="wg-un">待指派</span>'} ${s.start}–${s.end}</div>`}).join("");
+      const shortTag=short>0?`<div class="wg-short">缺 ${short}</div>`:"";
+      const cls=short>0?"short":(ss.length?"":"blank");
+      return `<td class="${cls}">${lines}${shortTag}${!lines&&!shortTag?'<span class="wg-dash">—</span>':""}</td>`;
+    }).join("");
+    return `<tr><th class="wg-work"><span class="wg-dot" style="background:${w.color}"></span>${w.name}</th>${tds}</tr>`;
+  }).join("");
+  return `<table class="work-grid"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+function renderWorkTable(){
+  const grid=byId("scheduleGrid");
+  const [a,b]=weekRange(state.selectedDate),dates=datesInRange(a,b);
+  byId("selectedDateTitle").textContent=`${formatDate(a)} ～ ${formatDate(b)}`;
+  byId("selectedDateSummary").textContent=`工作表・${state.workSplit?"平日／假日分開":"整週一張"}｜紅底＝該工作依固定班次還缺人`;
+  let html;
+  if(state.workSplit){
+    const wk=dates.filter(d=>!isHolidayDate(d)),hd=dates.filter(d=>isHolidayDate(d));
+    html=`<div class="wg-block"><h4>平日</h4>${workTableHTML(wk)}</div><div class="wg-block"><h4>假日（六日・國定假日）</h4>${workTableHTML(hd)}</div>`;
+  }else html=workTableHTML(dates);
+  grid.innerHTML=`<div class="work-grid-wrap">${html}</div>`;
+}
 function renderSchedule(){
   const grid=byId("scheduleGrid");if(!grid)return;
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.smode===state.scheduleMode));
-  const hint=byId("schedHint");if(hint)hint.textContent=isNarrow()?"點班次可編輯；紅色「!」＝有衝突；「固定」＝套用固定班次帶入、無標記＝手動新增。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿；紅色「!」＝有衝突（重疊／不符資格）；「固定」標記＝由套用固定班次帶入，無標記＝手動新增。";
+  const splitBtn=byId("workSplitBtn");if(splitBtn){splitBtn.classList.toggle("hidden",state.scheduleMode!=="work");splitBtn.classList.toggle("active",state.workSplit);}
+  const hint=byId("schedHint");if(hint)hint.textContent=state.scheduleMode==="work"?"工作(列)×日期(欄)：格子是誰＋時段，紅底「缺 N」＝該工作依固定班次還沒排滿。可切「平日／假日分開」、下載 CSV 或列印。":(isNarrow()?"點班次可編輯；紅色「!」＝有衝突；「固定」＝套用固定班次帶入、無標記＝手動新增。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿；紅色「!」＝有衝突（重疊／不符資格）；「固定」標記＝由套用固定班次帶入，無標記＝手動新增。");
+  if(state.scheduleMode==="work"){renderWorkTable();renderPublishBar();return;}
   if(isNarrow()){renderScheduleList(grid);renderPublishBar();return;}
   const axis=timeAxis();
   if(state.scheduleMode==="week"){
@@ -549,7 +595,38 @@ function downloadCSV(filename,rows){
   const csv="﻿"+rows.map(r=>r.map(csvEscape).join(",")).join("\r\n");
   triggerDownload(new Blob([csv],{type:"text/csv;charset=utf-8;"}),filename);
 }
+// 工作表 CSV：工作(列)×日期(欄)，格子＝姓名 時段，缺人標「(缺N)」；可依平日/假日分段
+function workScheduleRows(start,end,split){
+  const dates=datesInRange(start,end);
+  const dayHead=k=>{const dd=new Date(k+"T00:00:00");return `${dd.getMonth()+1}/${dd.getDate()}(${"日一二三四五六"[dd.getDay()]})`};
+  const tableRows=(ds,label)=>{
+    const out=[];if(label)out.push([label]);out.push(["工作",...ds.map(dayHead)]);
+    worksInDates(ds).forEach(w=>{
+      const cells=ds.map(d=>{
+        if(isClosedDay(d))return "公休";
+        const ss=workShiftsOn(w.id,d),assigned=ss.filter(s=>s.employeeId).length,short=Math.max(0,demandCountFor(w.id,d)-assigned);
+        const txt=ss.map(s=>{const e=employee(s.employeeId);return `${e?e.name:"待指派"} ${s.start}-${s.end}`}).join(" / ");
+        return (txt||"")+(short>0?`${txt?" ":""}(缺${short})`:"");
+      });
+      out.push([w.name,...cells]);
+    });
+    return out;
+  };
+  if(split){
+    const wk=dates.filter(d=>!isHolidayDate(d)),hd=dates.filter(d=>isHolidayDate(d));
+    return [...tableRows(wk,"【平日】"),[],...tableRows(hd,"【假日（六日・國定假日）】")];
+  }
+  return tableRows(dates,"");
+}
 function exportSchedule(mode){
+  if(state.scheduleMode==="work"){
+    let start,end;
+    if(mode==="week"){[start,end]=weekRange(state.selectedDate);}
+    else{const d=new Date(state.selectedDate+"T00:00:00");start=toDateKey(new Date(d.getFullYear(),d.getMonth(),1));end=toDateKey(new Date(d.getFullYear(),d.getMonth()+1,0));}
+    const period=mode==="week"?`${start}_至_${end}`:start.slice(0,7);
+    downloadCSV(reportFileName(mode==="week"?"週工作表":"月工作表",period),workScheduleRows(start,end,state.workSplit));
+    return;
+  }
   const {rows,start,end}=scheduleRows(mode);
   const period=mode==="week"?`${start}_至_${end}`:start.slice(0,7);
   downloadCSV(reportFileName(mode==="week"?"週班表":"月班表",period),rows);
@@ -611,6 +688,47 @@ function printWeekSchedule(){
       <tbody>${body}</tbody>
     </table>
     <div class="foot"><span>實際排班以最新公布的班表為準。</span><span>列印時間：${new Date().toLocaleString("zh-TW")}</span></div>
+    <div class="noprint"><button onclick="window.print()">🖨 列印 / 另存 PDF</button></div>
+  </body></html>`;
+  const win=window.open("","_blank");
+  if(!win){toast("瀏覽器阻擋了新視窗，請允許彈出視窗後再試。","error");return;}
+  win.document.write(html);win.document.close();win.focus();
+  setTimeout(()=>{try{win.print()}catch(e){}},400);
+}
+// 列印工作表（工作×日期），A4 橫向，紅底標缺人
+function printWorkTable(){
+  const [a,b]=weekRange(state.selectedDate),dates=datesInRange(a,b);
+  const store=(settings().storeName||"").trim();
+  let tables;
+  if(state.workSplit){
+    const wk=dates.filter(d=>!isHolidayDate(d)),hd=dates.filter(d=>isHolidayDate(d));
+    tables=`<h2>平日</h2>${workTableHTML(wk)}<h2 class="pg">假日（六日・國定假日）</h2>${workTableHTML(hd)}`;
+  }else tables=workTableHTML(dates);
+  const html=`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${store} 工作表 ${a}~${b}</title>
+  <style>
+    @page{size:A4 landscape;margin:10mm}
+    *{box-sizing:border-box}
+    body{font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;color:#241f1c;margin:0;padding:14px}
+    .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #b94b2f;padding-bottom:8px;margin-bottom:12px}
+    .head h1{margin:0;font-size:22px}.head .rng{font-size:16px;color:#555;font-weight:700}
+    h2{font-size:15px;margin:14px 0 6px;color:#8f3521}h2.pg{page-break-before:always}
+    table.work-grid{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:6px}
+    .work-grid th,.work-grid td{border:1px solid #d8cfc8;padding:5px 6px;vertical-align:top;font-size:11.5px;text-align:left}
+    .work-grid thead th{background:#f6ece7;color:#8f3521;text-align:center}
+    .work-grid thead th span{display:block;font-size:10px;color:#a06a55;font-weight:400}
+    .wg-corner,.wg-work{width:88px;background:#faf7f5;font-weight:700}
+    .wg-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:0}
+    .wg-p{line-height:1.35}.wg-p.draft{color:#999}.wg-un{color:#b94b2f}
+    td.short{background:#fdeaea}.wg-short{color:#b83d3d;font-weight:800;font-size:11px}
+    td.wg-cl,th.wg-cl{background:#f1eeec;color:#aaa;text-align:center}
+    .wg-dash{color:#ccc}
+    .foot{margin-top:10px;font-size:11px;color:#888;display:flex;justify-content:space-between}
+    @media print{.noprint{display:none}}
+    .noprint{margin-top:14px;text-align:center}.noprint button{font-size:15px;padding:10px 22px;border-radius:10px;border:0;background:#b94b2f;color:#fff;cursor:pointer}
+  </style></head><body>
+    <div class="head"><h1>${store||"工作表"}${store?"　工作表":""}</h1><div class="rng">${formatDate(a)} ～ ${formatDate(b)}</div></div>
+    ${tables}
+    <div class="foot"><span>紅底＝依固定班次還缺人（缺 N）；灰字＝草稿未公布</span><span>列印時間：${new Date().toLocaleString("zh-TW")}</span></div>
     <div class="noprint"><button onclick="window.print()">🖨 列印 / 另存 PDF</button></div>
   </body></html>`;
   const win=window.open("","_blank");
@@ -2089,7 +2207,8 @@ function init(){
   byId("applyDemandBtn").onclick=()=>applyDemand(state.selectedDate);
   byId("copyLastWeekBtn").onclick=()=>copyLastWeek();
   byId("exportScheduleBtn").onclick=()=>openCsvChooser("要下載哪個範圍的班表？",m=>exportSchedule(m));
-  byId("printWeekBtn").onclick=()=>printWeekSchedule();
+  byId("printWeekBtn").onclick=()=>state.scheduleMode==="work"?printWorkTable():printWeekSchedule();
+  byId("workSplitBtn")?.addEventListener("click",()=>{state.workSplit=!state.workSplit;renderSchedule();});
   byId("addDemandBtn").onclick=()=>openDemandModal();
   byId("copyDemandBtn").onclick=()=>openCopyDemandModal();
   byId("fixedShiftBtn").onclick=()=>openFixedShiftModal();
