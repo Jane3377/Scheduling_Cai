@@ -394,7 +394,8 @@ function worksInDates(dates){
   state.data.workTypes.filter(w=>w.active).forEach(w=>{if(dates.some(d=>demandCountFor(w.id,d)>0||workShiftsOn(w.id,d).length))ids.add(w.id);});
   return state.data.workTypes.filter(w=>ids.has(w.id)).sort((a,b)=>a.sort-b.sort);
 }
-function workTableHTML(dates){
+// showShort：是否顯示缺額紅底與「缺 N」（僅網站檢視用；列印一律 false）
+function workTableHTML(dates,showShort=true){
   const works=worksInDates(dates);
   if(!works.length)return `<div class="empty-state">這幾天尚無工作或固定班次</div>`;
   const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
@@ -409,8 +410,8 @@ function workTableHTML(dates){
         const who=e?esc(e.name):'<span class="wg-un">待指派</span>';
         return `<div class="wg-p${draft?" draft":""}" onclick="openShiftModal('${s.id}')" title="點擊編輯班次">${who}${sub?'＋'+esc(sub):''} ${s.start}–${s.end}${draft?' <span class="wg-draft">草稿</span>':''}${note?`<span class="wg-note">📝 ${esc(note)}</span>`:''}</div>`;
       }).join("");
-      const shortTag=short>0?`<div class="wg-short">缺 ${short}</div>`:"";
-      const cls=short>0?"short":(ss.length?"":"blank");
+      const shortTag=(showShort&&short>0)?`<div class="wg-short">缺 ${short}</div>`:"";
+      const cls=(showShort&&short>0)?"short":(ss.length?"":"blank");
       const addBtn=`<button class="wg-add" onclick="openShiftModal(null,{date:'${d}',workTypeId:'${w.id}'})" title="在此新增班次">＋ 班次</button>`;
       return `<td class="${cls}">${lines}${shortTag}${!lines&&!shortTag?'<span class="wg-dash">—</span>':""}${addBtn}</td>`;
     }).join("");
@@ -601,7 +602,7 @@ function downloadCSV(filename,rows){
   const csv="﻿"+rows.map(r=>r.map(csvEscape).join(",")).join("\r\n");
   triggerDownload(new Blob([csv],{type:"text/csv;charset=utf-8;"}),filename);
 }
-// 工作表 CSV：工作(列)×日期(欄)，格子＝姓名 時段，缺人標「(缺N)」；可依平日/假日分段
+// 工作表 CSV：工作(列)×日期(欄)，格子＝姓名＋子工作 時段〔備註〕；缺額只在網站顯示，不匯出。可依平日/假日分段
 function workScheduleRows(start,end,split){
   const dates=datesInRange(start,end);
   const dayHead=k=>{const dd=new Date(k+"T00:00:00");return `${dd.getMonth()+1}/${dd.getDate()}(${"日一二三四五六"[dd.getDay()]})`};
@@ -610,9 +611,8 @@ function workScheduleRows(start,end,split){
     worksInDates(ds).forEach(w=>{
       const cells=ds.map(d=>{
         if(isClosedDay(d))return "公休";
-        const ss=workShiftsOn(w.id,d),assigned=ss.filter(s=>s.employeeId).length,short=Math.max(0,demandCountFor(w.id,d)-assigned);
-        const txt=ss.map(s=>{const e=employee(s.employeeId),sub=subWorkText(s),note=(s.note||"").trim();return `${e?e.name:"待指派"}${sub?"＋"+sub:""} ${s.start}-${s.end}${note?`〔${note}〕`:""}`}).join(" / ");
-        return (txt||"")+(short>0?`${txt?" ":""}(缺${short})`:"");
+        const ss=workShiftsOn(w.id,d); // 缺額只在網站顯示，CSV 不帶
+        return ss.map(s=>{const e=employee(s.employeeId),sub=subWorkText(s),note=(s.note||"").trim();return `${e?e.name:"待指派"}${sub?"＋"+sub:""} ${s.start}-${s.end}${note?`〔${note}〕`:""}`}).join(" / ");
       });
       out.push([w.name,...cells]);
     });
@@ -701,15 +701,15 @@ function printWeekSchedule(){
   win.document.write(html);win.document.close();win.focus();
   setTimeout(()=>{try{win.print()}catch(e){}},400);
 }
-// 列印工作表（工作×日期），A4 橫向，紅底標缺人
+// 列印工作表（工作×日期），A4 橫向；缺額只在網站顯示，列印不帶
 function printWorkTable(){
   const [a,b]=weekRange(state.selectedDate),dates=datesInRange(a,b);
   const store=(settings().storeName||"").trim();
   let tables;
   if(state.workSplit){
     const wk=dates.filter(d=>!isHolidayDate(d)),hd=dates.filter(d=>isHolidayDate(d));
-    tables=`<h2>平日</h2>${workTableHTML(wk)}<h2 class="pg">假日（六日・國定假日）</h2>${workTableHTML(hd)}`;
-  }else tables=workTableHTML(dates);
+    tables=`<h2>平日</h2>${workTableHTML(wk,false)}<h2 class="pg">假日（六日・國定假日）</h2>${workTableHTML(hd,false)}`;
+  }else tables=workTableHTML(dates,false);
   const html=`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${store} 工作表 ${a}~${b}</title>
   <style>
     @page{size:A4 landscape;margin:10mm}
@@ -735,7 +735,7 @@ function printWorkTable(){
   </style></head><body>
     <div class="head"><h1>${store||"工作表"}${store?"　工作表":""}</h1><div class="rng">${formatDate(a)} ～ ${formatDate(b)}</div></div>
     ${tables}
-    <div class="foot"><span>紅底＝依固定班次還缺人（缺 N）；灰字＝草稿未公布</span><span>列印時間：${new Date().toLocaleString("zh-TW")}</span></div>
+    <div class="foot"><span>灰字＝草稿未公布</span><span>列印時間：${new Date().toLocaleString("zh-TW")}</span></div>
     <div class="noprint"><button onclick="window.print()">🖨 列印 / 另存 PDF</button></div>
   </body></html>`;
   const win=window.open("","_blank");
