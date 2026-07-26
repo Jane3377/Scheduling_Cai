@@ -394,8 +394,8 @@ function worksInDates(dates){
   state.data.workTypes.filter(w=>w.active).forEach(w=>{if(dates.some(d=>demandCountFor(w.id,d)>0||workShiftsOn(w.id,d).length))ids.add(w.id);});
   return state.data.workTypes.filter(w=>ids.has(w.id)).sort((a,b)=>a.sort-b.sort);
 }
-// showShort：是否顯示缺額紅底與「缺 N」（僅網站檢視用；列印一律 false）
-function workTableHTML(dates,showShort=true){
+// showAlerts：是否顯示管理提示（缺額紅底「缺 N」與衝突「!」）；僅網站檢視用，列印一律 false
+function workTableHTML(dates,showAlerts=true){
   const works=worksInDates(dates);
   if(!works.length)return `<div class="empty-state">這幾天尚無工作或固定班次</div>`;
   const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
@@ -408,10 +408,12 @@ function workTableHTML(dates,showShort=true){
       const lines=ss.map(s=>{
         const e=employee(s.employeeId),draft=s.published===false,sub=subWorkText(s),note=(s.note||"").trim();
         const who=e?esc(e.name):'<span class="wg-un">待指派</span>';
-        return `<div class="wg-p${draft?" draft":""}" onclick="openShiftModal('${s.id}')" title="點擊編輯班次">${who}${sub?'＋'+esc(sub):''} ${s.start}–${s.end}${draft?' <span class="wg-draft">草稿</span>':''}${note?`<span class="wg-note">📝 ${esc(note)}</span>`:''}</div>`;
+        const conflicts=showAlerts?shiftConflicts(s):[];
+        const warn=conflicts.length?`<span class="wg-warn" title="${conflicts.join("、").replace(/"/g,"&quot;")}">!</span>`:"";
+        return `<div class="wg-p${draft?" draft":""}${conflicts.length?" has-conflict":""}" onclick="openShiftModal('${s.id}')" title="點擊編輯班次">${warn}${who}${sub?'＋'+esc(sub):''} ${s.start}–${s.end}${draft?' <span class="wg-draft">草稿</span>':''}${note?`<span class="wg-note">📝 ${esc(note)}</span>`:''}</div>`;
       }).join("");
-      const shortTag=(showShort&&short>0)?`<div class="wg-short">缺 ${short}</div>`:"";
-      const cls=(showShort&&short>0)?"short":(ss.length?"":"blank");
+      const shortTag=(showAlerts&&short>0)?`<div class="wg-short">缺 ${short}</div>`:"";
+      const cls=(showAlerts&&short>0)?"short":(ss.length?"":"blank");
       const addBtn=`<button class="wg-add" onclick="openShiftModal(null,{date:'${d}',workTypeId:'${w.id}'})" title="在此新增班次">＋ 班次</button>`;
       return `<td class="${cls}">${lines}${shortTag}${!lines&&!shortTag?'<span class="wg-dash">—</span>':""}${addBtn}</td>`;
     }).join("");
@@ -435,7 +437,7 @@ function renderSchedule(){
   const grid=byId("scheduleGrid");if(!grid)return;
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.smode===state.scheduleMode));
   const splitBtn=byId("workSplitBtn");if(splitBtn){splitBtn.classList.toggle("hidden",state.scheduleMode!=="work");splitBtn.classList.toggle("active",state.workSplit);}
-  const hint=byId("schedHint");if(hint)hint.textContent=state.scheduleMode==="work"?"工作(列)×日期(欄)：格子是誰＋時段，紅底「缺 N」＝該工作依固定班次還沒排滿。可切「平日／假日分開」、下載 CSV 或列印。":(isNarrow()?"點班次可編輯；紅色「!」＝有衝突；「固定」＝套用固定班次帶入、無標記＝手動新增。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿；紅色「!」＝有衝突（重疊／不符資格）；「固定」標記＝由套用固定班次帶入，無標記＝手動新增。");
+  const hint=byId("schedHint");if(hint)hint.textContent=state.scheduleMode==="work"?"工作(列)×日期(欄)：格子是誰＋時段，點格子可編輯。紅底「缺 N」＝依固定班次還沒排滿；紅色「!」＝該班次有衝突（重疊／不符資格）。可切「平日／假日分開」、下載 CSV 或列印（缺額與衝突只在網站顯示）。":(isNarrow()?"點班次可編輯；紅色「!」＝有衝突；「固定」＝套用固定班次帶入、無標記＝手動新增。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿；紅色「!」＝有衝突（重疊／不符資格）；「固定」標記＝由套用固定班次帶入，無標記＝手動新增。");
   if(state.scheduleMode==="work"){renderWorkTable();renderPublishBar();return;}
   if(isNarrow()){renderScheduleList(grid);renderPublishBar();return;}
   const axis=timeAxis();
