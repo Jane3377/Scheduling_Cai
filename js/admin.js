@@ -397,18 +397,24 @@ function worksInDates(dates){
 function workTableHTML(dates){
   const works=worksInDates(dates);
   if(!works.length)return `<div class="empty-state">這幾天尚無工作或固定班次</div>`;
+  const esc=s=>String(s==null?"":s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   const dow="日一二三四五六";
   const head=`<tr><th class="wg-corner">工作＼日期</th>${dates.map(d=>{const dd=new Date(d+"T00:00:00");return `<th class="${isClosedDay(d)?"wg-cl":""}">${dd.getMonth()+1}/${dd.getDate()}<span>${dow[dd.getDay()]}</span></th>`}).join("")}</tr>`;
   const body=works.map(w=>{
     const tds=dates.map(d=>{
       if(isClosedDay(d))return `<td class="wg-cl">公休</td>`;
       const ss=workShiftsOn(w.id,d),assigned=ss.filter(s=>s.employeeId).length,short=Math.max(0,demandCountFor(w.id,d)-assigned);
-      const lines=ss.map(s=>{const e=employee(s.employeeId),draft=s.published===false;return `<div class="wg-p${draft?" draft":""}">${e?e.name:'<span class="wg-un">待指派</span>'} ${s.start}–${s.end}</div>`}).join("");
+      const lines=ss.map(s=>{
+        const e=employee(s.employeeId),draft=s.published===false,sub=subWorkText(s),note=(s.note||"").trim();
+        const who=e?esc(e.name):'<span class="wg-un">待指派</span>';
+        return `<div class="wg-p${draft?" draft":""}" onclick="openShiftModal('${s.id}')" title="點擊編輯班次">${who}${sub?'＋'+esc(sub):''} ${s.start}–${s.end}${draft?' <span class="wg-draft">草稿</span>':''}${note?`<span class="wg-note">📝 ${esc(note)}</span>`:''}</div>`;
+      }).join("");
       const shortTag=short>0?`<div class="wg-short">缺 ${short}</div>`:"";
       const cls=short>0?"short":(ss.length?"":"blank");
-      return `<td class="${cls}">${lines}${shortTag}${!lines&&!shortTag?'<span class="wg-dash">—</span>':""}</td>`;
+      const addBtn=`<button class="wg-add" onclick="openShiftModal(null,{date:'${d}',workTypeId:'${w.id}'})" title="在此新增班次">＋ 班次</button>`;
+      return `<td class="${cls}">${lines}${shortTag}${!lines&&!shortTag?'<span class="wg-dash">—</span>':""}${addBtn}</td>`;
     }).join("");
-    return `<tr><th class="wg-work"><span class="wg-dot" style="background:${w.color}"></span>${w.name}</th>${tds}</tr>`;
+    return `<tr><th class="wg-work"><span class="wg-dot" style="background:${w.color}"></span>${esc(w.name)}</th>${tds}</tr>`;
   }).join("");
   return `<table class="work-grid"><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
@@ -605,7 +611,7 @@ function workScheduleRows(start,end,split){
       const cells=ds.map(d=>{
         if(isClosedDay(d))return "公休";
         const ss=workShiftsOn(w.id,d),assigned=ss.filter(s=>s.employeeId).length,short=Math.max(0,demandCountFor(w.id,d)-assigned);
-        const txt=ss.map(s=>{const e=employee(s.employeeId);return `${e?e.name:"待指派"} ${s.start}-${s.end}`}).join(" / ");
+        const txt=ss.map(s=>{const e=employee(s.employeeId),sub=subWorkText(s),note=(s.note||"").trim();return `${e?e.name:"待指派"}${sub?"＋"+sub:""} ${s.start}-${s.end}${note?`〔${note}〕`:""}`}).join(" / ");
         return (txt||"")+(short>0?`${txt?" ":""}(缺${short})`:"");
       });
       out.push([w.name,...cells]);
@@ -716,9 +722,10 @@ function printWorkTable(){
     .work-grid th,.work-grid td{border:1px solid #d8cfc8;padding:5px 6px;vertical-align:top;font-size:11.5px;text-align:left}
     .work-grid thead th{background:#f6ece7;color:#8f3521;text-align:center}
     .work-grid thead th span{display:block;font-size:10px;color:#a06a55;font-weight:400}
-    .wg-corner,.wg-work{width:88px;background:#faf7f5;font-weight:700}
+    .wg-corner,.wg-work{width:92px;background:#faf7f5;font-weight:700}
     .wg-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:0}
-    .wg-p{line-height:1.35}.wg-p.draft{color:#999}.wg-un{color:#b94b2f}
+    .wg-p{line-height:1.35;word-break:break-word;margin-bottom:2px}.wg-p.draft{color:#999}.wg-un{color:#b94b2f}
+    .wg-draft{color:#999;font-size:9.5px}.wg-note{display:block;color:#b94b2f;font-size:10px;margin-top:1px}.wg-add{display:none}
     td.short{background:#fdeaea}.wg-short{color:#b83d3d;font-weight:800;font-size:11px}
     td.wg-cl,th.wg-cl{background:#f1eeec;color:#aaa;text-align:center}
     .wg-dash{color:#ccc}
