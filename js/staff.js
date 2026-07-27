@@ -11,6 +11,7 @@ let activeWindow=null;
 let calendarDate=new Date();
 let selectedAvailabilityDate=null;
 let availEditable=true;
+let calJumpedToTarget=false; // 首次開放時把月曆跳到可填月份一次，之後尊重使用者的月份切換
 
 function save(){Cloud.save(data);renderStaff()}
 function persist(){Cloud.save(data)}
@@ -202,27 +203,23 @@ function renderStaff(){
   const banner=byId("availabilityWindowBanner");
   const closed=byId("availabilityClosedMessage");
   const quickBlock=byId("quickWeekBlock");
-  const editor=byId("selectedDayEditor");
+  const sheet=byId("daySheetBackdrop");
 
   if(activeWindow){
     availEditable=true;
     banner.className="availability-window-banner open";
     banner.innerHTML=`<strong>${activeWindow.name}已開放填寫可上班時間囉</strong><span>開放填寫：${formatDate(activeWindow.openStart)}～${formatDate(activeWindow.openEnd)}</span><span>可填日期：${formatDate(activeWindow.targetStart)}～${formatDate(activeWindow.targetEnd)}</span>${activeWindow.note?`<small>${activeWindow.note}</small>`:""}`;
     closed.classList.add("hidden");
-    quickBlock.classList.remove("hidden");editor.classList.remove("hidden");
-    if(!selectedAvailabilityDate||!canFill(selectedAvailabilityDate)){
-      // 預設選第一個非公休的可填日期
-      let pick=activeWindow.targetStart;
-      const end=new Date(activeWindow.targetEnd+"T00:00:00");
-      for(let d=new Date(activeWindow.targetStart+"T00:00:00");d<=end;d.setDate(d.getDate()+1)){
-        if(!isClosedDay(toDateKey(d))){pick=toDateKey(d);break}
-      }
-      selectedAvailabilityDate=pick;
-      const d=new Date(selectedAvailabilityDate+"T00:00:00");
+    quickBlock.classList.remove("hidden");
+    if(selectedAvailabilityDate&&!canFill(selectedAvailabilityDate))selectedAvailabilityDate=null;
+    // 月曆首次跳到可填月份一次（不預選日期、不預開編輯卡，讓月曆當主角；逐日改成點日期才彈出）
+    if(!calJumpedToTarget){
+      const d=new Date(activeWindow.targetStart+"T00:00:00");
       calendarDate=new Date(d.getFullYear(),d.getMonth(),1);
+      calJumpedToTarget=true;
     }
     renderAvailabilityCalendar();
-    loadSelectedDay();
+    updateQuickWeekPreview();
   }else{
     // 非開放期間：仍顯示月曆，供檢視近期填寫紀錄（唯讀）
     availEditable=false;
@@ -230,7 +227,8 @@ function renderStaff(){
     banner.innerHTML=nextWindow?`<strong>目前尚未開放填寫</strong><span>下一次開放：${formatDate(nextWindow.openStart)}～${formatDate(nextWindow.openEnd)}，填寫 ${formatDate(nextWindow.targetStart)}～${formatDate(nextWindow.targetEnd)} 的可上班時間。</span>`:`<strong>目前尚未開放填寫</strong><span>請等待主管公告下一次填寫期間。</span>`;
     closed.classList.remove("hidden");
     closed.innerHTML="目前非開放填寫期間，以下為你近三個月填寫的紀錄（僅供檢視，無法修改）。";
-    quickBlock.classList.add("hidden");editor.classList.add("hidden");
+    quickBlock.classList.add("hidden");
+    if(sheet)sheet.classList.add("hidden");
     renderAvailabilityCalendar();
   }
 }
@@ -265,7 +263,16 @@ function renderAvailabilityCalendar(){
 }
 function selectAvailabilityDate(key){
   if(!canFill(key))return;
-  selectedAvailabilityDate=key;renderAvailabilityCalendar();loadSelectedDay()
+  selectedAvailabilityDate=key;renderAvailabilityCalendar();loadSelectedDay();openDaySheet()
+}
+// 逐日編輯小卡：點日期彈出、儲存或關閉後收起
+function openDaySheet(){
+  const b=byId("daySheetBackdrop");if(!b)return;
+  b.classList.remove("hidden");document.body.classList.add("sheet-open");
+}
+function closeDaySheet(){
+  const b=byId("daySheetBackdrop");if(!b)return;
+  b.classList.add("hidden");document.body.classList.remove("sheet-open");
 }
 function loadSelectedDay(){
   if(!selectedAvailabilityDate)return;
@@ -300,13 +307,28 @@ function upsertAvailability(key,fields){
 // 單日快速：整天可上班（帶入店家最早上班~最晚下班）或整天不行
 function quickDaySet(type){
   if(!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
+  const label=formatDate(selectedAvailabilityDate);
   upsertAvailability(selectedAvailabilityDate,type==="yes"?{unavailable:false,start:bizStart(),end:bizEnd(),start2:null,end2:null}:{unavailable:true,start:bizStart(),end:bizEnd(),start2:null,end2:null});
-  persist();renderAvailabilityCalendar();loadSelectedDay();flashSaved("已儲存");
+  persist();renderAvailabilityCalendar();closeDaySheet();showToast(`${label} ${type==="yes"?"整天可上班":"設為不可上班"}，已儲存`);
 }
 function renderQuickWeekDays(){
   const el=byId("quickWeekDays");if(!el)return;
   el.innerHTML=[1,2,3,4,5,6,0].map(d=>`<button type="button" class="qw-day" data-d="${d}">${"日一二三四五六"[d]}</button>`).join("");
-  el.querySelectorAll(".qw-day").forEach(b=>b.onclick=()=>b.classList.toggle("on"));
+  el.querySelectorAll(".qw-day").forEach(b=>b.onclick=()=>{b.classList.toggle("on");updateQuickWeekPreview()});
+}
+// 快速設定的白話預覽：讓員工按下去前就知道會套用哪些天、什麼時間
+function updateQuickWeekPreview(){
+  const el=byId("quickWeekPreview");if(!el)return;
+  if(!activeWindow){el.textContent="";return}
+  const order=[1,2,3,4,5,6,0];
+  const days=[...document.querySelectorAll("#quickWeekDays .qw-day.on")].map(b=>Number(b.dataset.d)).sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+  if(!days.length){el.className="qw-preview hint";el.textContent="先勾選上面的星期，再選時間，按下方按鈕一次套用整月。";return}
+  const names=days.map(d=>"週"+"日一二三四五六"[d]).join("、");
+  const s=byId("quickWeekStart").value,e=byId("quickWeekEnd").value;
+  const use2=byId("quickWeekSeg2Toggle").checked;
+  const seg2=use2?`、${byId("quickWeekStart2").value}～${byId("quickWeekEnd2").value}`:"";
+  el.className="qw-preview";
+  el.textContent=`會把 ${formatDate(activeWindow.targetStart)}～${formatDate(activeWindow.targetEnd)} 的 ${names} 設成 ${s}～${e}${seg2} 可上班，個別日之後還能改。`;
 }
 // 整週快速套用：把選定星期在本次可填範圍內的每一天設為可上班或不可上班
 function quickWeekApply(type){
@@ -329,9 +351,10 @@ function quickWeekApply(type){
     upsertAvailability(key,type==="available"?{unavailable:false,start,end,...seg2}:{unavailable:true,start,end,start2:null,end2:null});
     count++;
   }
-  persist();renderAvailabilityCalendar();loadSelectedDay();
+  persist();renderAvailabilityCalendar();
   // 恢復每週預設：清除星期選取
   document.querySelectorAll("#quickWeekDays .qw-day.on").forEach(b=>b.classList.remove("on"));
+  updateQuickWeekPreview();
   showToast(`已設定 ${count} 天${type==="available"?"可上班":"不可上班"}`);
 }
 function saveSelectedDay(){
@@ -345,10 +368,9 @@ function saveSelectedDay(){
   let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
   if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:selectedAvailabilityDate};data.availability.push(a)}
   Object.assign(a,{unavailable:false,start,end,start2:use2?start2:null,end2:use2?end2:null}); // 指定時段＝可上班；整天不行請用上方按鈕
+  const label=formatDate(selectedAvailabilityDate);
   persist();
-  byId("availabilitySaved").textContent="已儲存";
-  setTimeout(()=>byId("availabilitySaved").textContent="",1600);
-  renderAvailabilityCalendar();loadSelectedDay()
+  renderAvailabilityCalendar();closeDaySheet();showToast(`${label} 已儲存`);
 }
 document.addEventListener("DOMContentLoaded",()=>{
   applyStaffBranding();
@@ -364,6 +386,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("availabilityEnd2").innerHTML=timeOptions("22:00");
   byId("availabilitySeg2Toggle").addEventListener("change",e=>byId("availabilitySeg2Row").classList.toggle("hidden",!e.target.checked));
   byId("saveAvailabilityBtn").onclick=saveSelectedDay;
+  // 逐日編輯小卡：關閉鈕與點背景關閉
+  byId("daySheetClose")?.addEventListener("click",closeDaySheet);
+  byId("daySheetBackdrop")?.addEventListener("click",e=>{if(e.target.id==="daySheetBackdrop")closeDaySheet()});
   byId("staffPrevMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);renderAvailabilityCalendar()};
   byId("staffNextMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);renderAvailabilityCalendar()};
   renderQuickWeekDays();
@@ -371,7 +396,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("quickWeekEnd").innerHTML=timeOptions(bizEnd());
   byId("quickWeekStart2").innerHTML=timeOptions("17:00");
   byId("quickWeekEnd2").innerHTML=timeOptions(bizEnd());
-  byId("quickWeekSeg2Toggle").addEventListener("change",e=>byId("quickWeekSeg2Row").classList.toggle("hidden",!e.target.checked));
+  byId("quickWeekSeg2Toggle").addEventListener("change",e=>{byId("quickWeekSeg2Row").classList.toggle("hidden",!e.target.checked);updateQuickWeekPreview()});
+  ["quickWeekStart","quickWeekEnd","quickWeekStart2","quickWeekEnd2"].forEach(id=>byId(id)?.addEventListener("change",updateQuickWeekPreview));
   byId("quickDayYes").onclick=()=>quickDaySet("yes");
   byId("quickDayNo").onclick=()=>quickDaySet("no");
   byId("quickWeekAvailable").onclick=()=>quickWeekApply("available");

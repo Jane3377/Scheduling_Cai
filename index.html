@@ -72,7 +72,7 @@
             <div class="panel-head">
               <div>
                 <h3>填寫可上班時間</h3>
-                <p>先用「快速設定」整週套用，再點個別日期微調。</p>
+                <p>點日曆上的日期，填那天可以上班的時間；每週時間都差不多的話，用月曆下方「快速設定」一次套用整個月。</p>
               </div>
             </div>
 
@@ -81,27 +81,6 @@
             <div id="availabilityClosedMessage" class="closed-message hidden"></div>
 
             <div id="availabilityCalendarArea">
-              <div class="quick-week" id="quickWeekBlock">
-                <div class="quick-week-row">
-                  <span class="quick-week-label">快速設定・每週</span>
-                  <div class="quick-week-days" id="quickWeekDays"></div>
-                </div>
-                <div class="quick-week-time time-pair">
-                  <label class="field"><span>最早可上班</span><select id="quickWeekStart" class="select"></select></label>
-                  <label class="field"><span>最晚可下班</span><select id="quickWeekEnd" class="select"></select></label>
-                </div>
-                <label class="seg2-toggle"><input type="checkbox" id="quickWeekSeg2Toggle"> 加第二時段（例如早班＋晚班）</label>
-                <div class="quick-week-time time-pair hidden" id="quickWeekSeg2Row">
-                  <label class="field"><span>第二段・最早可上班</span><select id="quickWeekStart2" class="select"></select></label>
-                  <label class="field"><span>第二段・最晚可下班</span><select id="quickWeekEnd2" class="select"></select></label>
-                </div>
-                <div class="quick-week-actions">
-                  <button class="qw-btn-yes" id="quickWeekAvailable">設為可上班</button>
-                  <button class="qw-btn-no" id="quickWeekUnavailable">設為整天不可上班</button>
-                </div>
-                <small class="field-help">先勾星期（可多選）與時間，例如每週一～五 12:00～18:00 都可上班；套用後仍可點個別日期修改。</small>
-              </div>
-
               <div class="employee-calendar-toolbar">
                 <button class="icon-btn" id="staffPrevMonthBtn">‹</button>
                 <strong id="staffCalendarMonthLabel"></strong>
@@ -116,32 +95,56 @@
                 <span><i class="legend-dot pending"></i>尚未填寫</span>
               </div>
 
-              <div class="selected-day-editor" id="selectedDayEditor">
-                <div class="selected-day-head">
-                  <div>
-                    <span class="eyebrow">選取日期</span>
-                    <h3 id="availabilitySelectedDateTitle"></h3>
-                  </div>
-                  <span id="availabilityDayStatus" class="badge"></span>
+              <!-- 快速設定：移到月曆下方、常駐；每週時間固定的人先用這個一次套用整月 -->
+              <div class="quick-week" id="quickWeekBlock">
+                <div class="qw-head"><span class="qw-star">⭐</span><strong>快速設定・每週時間都差不多的人先用這個</strong></div>
+                <div class="qw-sentence"><span>每週</span><div class="quick-week-days" id="quickWeekDays"></div><span>可以上班</span></div>
+                <div class="quick-week-time time-pair">
+                  <label class="field"><span>最早可上班</span><select id="quickWeekStart" class="select"></select></label>
+                  <label class="field"><span>最晚可下班</span><select id="quickWeekEnd" class="select"></select></label>
                 </div>
-                <div class="quick-day-actions">
-                  <button class="quick-yes" id="quickDayYes">✓ 整天可上班</button>
-                  <button class="quick-no" id="quickDayNo">✗ 整天不行</button>
+                <label class="seg2-toggle"><input type="checkbox" id="quickWeekSeg2Toggle"> 加第二時段（例如早班＋晚班）</label>
+                <div class="quick-week-time time-pair hidden" id="quickWeekSeg2Row">
+                  <label class="field"><span>第二段・最早可上班</span><select id="quickWeekStart2" class="select"></select></label>
+                  <label class="field"><span>第二段・最晚可下班</span><select id="quickWeekEnd2" class="select"></select></label>
                 </div>
-                <div class="day-detail">
-                  <p class="day-detail-title">想指定時段</p>
-                  <div class="time-pair">
-                    <label class="field"><span>最早可上班</span><select id="availabilityStart" class="select"></select></label>
-                    <label class="field"><span>最晚可下班</span><select id="availabilityEnd" class="select"></select></label>
+                <p class="qw-preview" id="quickWeekPreview"></p>
+                <div class="qw-actions"><button class="qw-btn-yes" id="quickWeekAvailable">一次套用（每週）為可上班</button></div>
+                <button type="button" class="qw-link-no" id="quickWeekUnavailable">整週都不能上班？設為不可上班</button>
+              </div>
+            </div>
+
+            <!-- 逐日編輯：點日期才彈出的聚焦小卡（手機置底、桌機置中） -->
+            <div class="day-sheet-backdrop hidden" id="daySheetBackdrop">
+              <div class="day-sheet" id="daySheet" role="dialog" aria-modal="true">
+                <button type="button" class="day-sheet-close" id="daySheetClose" aria-label="關閉">✕</button>
+                <div class="selected-day-editor" id="selectedDayEditor">
+                  <div class="selected-day-head">
+                    <div>
+                      <span class="eyebrow">這一天</span>
+                      <h3 id="availabilitySelectedDateTitle"></h3>
+                    </div>
+                    <span id="availabilityDayStatus" class="badge"></span>
                   </div>
-                  <label class="seg2-toggle"><input type="checkbox" id="availabilitySeg2Toggle"> 加第二時段（例如早班＋晚班）</label>
-                  <div class="time-pair hidden" id="availabilitySeg2Row">
-                    <label class="field"><span>第二段・最早可上班</span><select id="availabilityStart2" class="select"></select></label>
-                    <label class="field"><span>第二段・最晚可下班</span><select id="availabilityEnd2" class="select"></select></label>
+                  <div class="quick-day-actions">
+                    <button class="quick-yes" id="quickDayYes">✓ 整天可以</button>
+                    <button class="quick-no" id="quickDayNo">✗ 不能上班</button>
                   </div>
-                  <button id="saveAvailabilityBtn" class="primary-btn">儲存這一天</button>
+                  <div class="day-detail">
+                    <p class="day-detail-title">或指定時段（只設這一天）</p>
+                    <div class="time-pair">
+                      <label class="field"><span>最早可上班</span><select id="availabilityStart" class="select"></select></label>
+                      <label class="field"><span>最晚可下班</span><select id="availabilityEnd" class="select"></select></label>
+                    </div>
+                    <label class="seg2-toggle"><input type="checkbox" id="availabilitySeg2Toggle"> 加第二時段（例如早班＋晚班）</label>
+                    <div class="time-pair hidden" id="availabilitySeg2Row">
+                      <label class="field"><span>第二段・最早可上班</span><select id="availabilityStart2" class="select"></select></label>
+                      <label class="field"><span>第二段・最晚可下班</span><select id="availabilityEnd2" class="select"></select></label>
+                    </div>
+                    <button id="saveAvailabilityBtn" class="primary-btn">儲存這一天</button>
+                  </div>
+                  <div id="availabilitySaved" class="success-note"></div>
                 </div>
-                <div id="availabilitySaved" class="success-note"></div>
               </div>
             </div>
           </div>

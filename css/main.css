@@ -454,6 +454,28 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .selected-day-editor{border-top:1px solid var(--line);padding:20px}
 .selected-day-head{display:flex;justify-content:space-between;align-items:center}.selected-day-head h3{margin:5px 0 0}
 .closed-message{margin:20px;background:#f5f2ef;border-radius:14px;padding:18px;color:var(--muted)}
+/* 快速設定改版：標題＋一句話＋白話預覽＋單一主按鈕（移到月曆下方） */
+.qw-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:14px;color:var(--brand-dark)}
+.qw-star{font-size:16px}
+.qw-sentence{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.qw-sentence>span{font-weight:700;font-size:14px}
+.qw-preview{margin:12px 0 0;padding:10px 12px;background:#fff;border:1px dashed var(--line);border-radius:10px;font-size:13px;color:var(--ink);line-height:1.6}
+.qw-preview.hint{color:var(--muted)}
+.qw-actions{margin-top:12px}
+.qw-actions .qw-btn-yes{width:100%;padding:14px;font-size:15px}
+.qw-link-no{display:block;width:100%;margin-top:10px;background:none;border:0;color:var(--muted);font-size:13px;text-decoration:underline;cursor:pointer;padding:6px}
+/* 逐日編輯：手機置底 sheet、桌機置中 modal（點日期才彈出） */
+body.sheet-open{overflow:hidden}
+.day-sheet-backdrop{position:fixed;inset:0;background:rgba(30,24,20,.5);z-index:1200;display:flex;align-items:flex-end;justify-content:center}
+.day-sheet{position:relative;background:#fff;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;border-radius:20px 20px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.28);animation:sheetUp .22s ease}
+@keyframes sheetUp{from{transform:translateY(24px);opacity:.5}to{transform:translateY(0);opacity:1}}
+.day-sheet-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border:0;border-radius:50%;background:#f1eeec;color:var(--muted);font-size:17px;line-height:1;cursor:pointer;z-index:2}
+.day-sheet .selected-day-editor{border-top:0;padding:22px 20px 26px}
+.day-sheet .selected-day-head{padding-right:42px}
+@media(min-width:700px){
+  .day-sheet-backdrop{align-items:center;padding:20px}
+  .day-sheet{border-radius:18px}
+}
 @media(max-width:700px){
   .window-flow{grid-template-columns:1fr}.flow-arrow{transform:rotate(90deg);text-align:center}
   .next-shift-card{align-items:flex-start}.next-shift-time{display:none}
