@@ -219,6 +219,7 @@ function renderStaff(){
       calJumpedToTarget=true;
     }
     renderAvailabilityCalendar();
+    updateQuickWeekClosedDays();
     updateQuickWeekPreview();
   }else{
     // 非開放期間：仍顯示月曆，供檢視近期填寫紀錄（唯讀）
@@ -314,7 +315,18 @@ function quickDaySet(type){
 function renderQuickWeekDays(){
   const el=byId("quickWeekDays");if(!el)return;
   el.innerHTML=[1,2,3,4,5,6,0].map(d=>`<button type="button" class="qw-day" data-d="${d}">${"日一二三四五六"[d]}</button>`).join("");
-  el.querySelectorAll(".qw-day").forEach(b=>b.onclick=()=>{b.classList.toggle("on");updateQuickWeekPreview()});
+  el.querySelectorAll(".qw-day").forEach(b=>b.onclick=()=>{if(b.disabled)return;b.classList.toggle("on");updateQuickWeekPreview()});
+}
+// 店家每週公休日（例如週一）自動排除：快速設定不讓員工選到，避免填了又被系統忽略
+function updateQuickWeekClosedDays(){
+  const cds=closedDays();
+  document.querySelectorAll("#quickWeekDays .qw-day").forEach(b=>{
+    const isClosed=cds.includes(Number(b.dataset.d));
+    b.disabled=isClosed;
+    b.classList.toggle("qw-closed",isClosed);
+    b.title=isClosed?"店家公休日，無需填寫":"";
+    if(isClosed)b.classList.remove("on");
+  });
 }
 // 快速設定的白話預覽：讓員工按下去前就知道會套用哪些天、什麼時間
 function updateQuickWeekPreview(){
