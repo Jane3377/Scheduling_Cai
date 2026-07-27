@@ -274,6 +274,10 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .dg-block .dg-warn{position:absolute;top:2px;left:2px;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;background:var(--danger);color:#fff;border-radius:50%;z-index:3;cursor:help;box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .sl-shift.has-conflict{box-shadow:inset 3px 0 0 var(--danger)}
 .sl-warn{flex:none;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;background:var(--danger);color:#fff;border-radius:50%}
+/* 工時超過：琥珀色時鐘標記（業主相對可接受，與硬衝突區隔） */
+.dg-block.has-overhours{box-shadow:0 0 0 2px var(--warn),0 4px 10px rgba(0,0,0,.14)}
+.sl-shift.has-overhours{box-shadow:inset 3px 0 0 var(--warn)}
+.dg-warn.dg-over,.sl-warn.sl-over,.wg-warn.wg-over{background:var(--warn);font-size:11px}
 /* 來源標記：由「套用固定班次」帶入的班次；沒有此標記＝手動新增 */
 .dg-block .dg-src{display:inline-block;font-size:9.5px;font-weight:800;line-height:1.5;background:rgba(255,255,255,.3);color:#fff;border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:middle}
 .sl-src{display:inline-block;font-size:11px;font-weight:700;background:var(--brand-soft);color:var(--brand);border-radius:5px;padding:0 6px;margin-left:6px;vertical-align:middle}
@@ -469,6 +473,7 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .wg-p.draft{color:var(--muted)}
 .wg-warn{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;font-size:11px;font-weight:900;line-height:1;background:var(--danger);color:#fff;border-radius:50%;margin-right:4px;vertical-align:-2px;cursor:help}
 .wg-p.has-conflict{background:#fdecec}.wg-p.has-conflict:hover{background:#fbe0e0}
+.wg-p.has-overhours{background:#fdf6e3}.wg-p.has-overhours:hover{background:#faeecb}
 .wg-un{color:var(--brand);font-weight:600}
 .wg-draft{color:#a4988f;font-size:10.5px}
 .wg-note{display:block;color:var(--brand);font-size:11px;margin-top:1px}

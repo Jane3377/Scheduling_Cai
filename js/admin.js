@@ -354,6 +354,21 @@ function shiftConflicts(s){
   if(!e.active)reasons.push("此員工已停用");
   return reasons;
 }
+// 把衝突分成「硬衝突」（紅 !，必須處理）與「工時超過」（琥珀 ⏱，業主相對可接受）
+function conflictKinds(s){
+  const all=shiftConflicts(s);
+  const over=all.filter(r=>/超過每週/.test(r));
+  const hard=all.filter(r=>!/超過每週/.test(r));
+  return {hard,over,all};
+}
+// 依衝突種類產生標記徽章（type 前綴用於各檢視的樣式：dg/sl/wg）
+function conflictBadge(s,type){
+  const {hard,over,all}=conflictKinds(s);
+  const tip=arr=>arr.join("、").replace(/"/g,"&quot;");
+  if(hard.length)return {cls:` has-conflict`,badge:`<span class="${type}-warn" title="${tip(all)}">!</span>`};
+  if(over.length)return {cls:` has-overhours`,badge:`<span class="${type}-warn ${type}-over" title="${tip(over)}">⏱</span>`};
+  return {cls:"",badge:""};
+}
 function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const w=worktype(s.workTypeId),e=employee(s.employeeId);
   const top=((mins(s.start)-axis.startM)/axis.total)*axis.height;
@@ -365,9 +380,7 @@ function shiftBlock(s,axis,showWork,lane=0,lanes=1){
   const draft=s.published===false; // 草稿：員工看不到
   const draftCls=draft?" is-draft":"";
   const draftTag=draft?"（草稿）":"";
-  const conflicts=shiftConflicts(s);
-  const conflictCls=conflicts.length?" has-conflict":"";
-  const warnBadge=conflicts.length?`<span class="dg-warn" title="${conflicts.join("、").replace(/"/g,"&quot;")}">!</span>`:"";
+  const {cls:conflictCls,badge:warnBadge}=conflictBadge(s,"dg");
   const tipAttr=(note||draft)?` title="${((draft?"未公布草稿 ":"")+note).replace(/"/g,'&quot;')}"`:"";
   const style=`top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);background:${w?.color||'#888'}`;
   const srcTag=s.fromDemand?`<span class="dg-src" title="由套用固定班次帶入">固定</span>`:"";
@@ -408,9 +421,8 @@ function workTableHTML(dates,showAlerts=true){
       const lines=ss.map(s=>{
         const e=employee(s.employeeId),draft=s.published===false,sub=subWorkText(s),note=(s.note||"").trim();
         const who=e?esc(e.name):'<span class="wg-un">待指派</span>';
-        const conflicts=showAlerts?shiftConflicts(s):[];
-        const warn=conflicts.length?`<span class="wg-warn" title="${conflicts.join("、").replace(/"/g,"&quot;")}">!</span>`:"";
-        return `<div class="wg-p${draft?" draft":""}${conflicts.length?" has-conflict":""}" onclick="openShiftModal('${s.id}')" title="點擊編輯班次">${warn}${who}${sub?'＋'+esc(sub):''} ${s.start}–${s.end}${draft?' <span class="wg-draft">草稿</span>':''}${note?`<span class="wg-note">📝 ${esc(note)}</span>`:''}</div>`;
+        const {cls:warnCls,badge:warn}=showAlerts?conflictBadge(s,"wg"):{cls:"",badge:""};
+        return `<div class="wg-p${draft?" draft":""}${warnCls}" onclick="openShiftModal('${s.id}')" title="點擊編輯班次">${warn}${who}${sub?'＋'+esc(sub):''} ${s.start}–${s.end}${draft?' <span class="wg-draft">草稿</span>':''}${note?`<span class="wg-note">📝 ${esc(note)}</span>`:''}</div>`;
       }).join("");
       const shortTag=(showAlerts&&short>0)?`<div class="wg-short">缺 ${short}</div>`:"";
       const cls=(showAlerts&&short>0)?"short":(ss.length?"":"blank");
@@ -437,7 +449,7 @@ function renderSchedule(){
   const grid=byId("scheduleGrid");if(!grid)return;
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.smode===state.scheduleMode));
   const splitBtn=byId("workSplitBtn");if(splitBtn){splitBtn.classList.toggle("hidden",state.scheduleMode!=="work");splitBtn.classList.toggle("active",state.workSplit);}
-  const hint=byId("schedHint");if(hint)hint.textContent=state.scheduleMode==="work"?"工作(列)×日期(欄)：格子是誰＋時段，點格子可編輯。紅底「缺 N」＝依固定班次還沒排滿；紅色「!」＝該班次有衝突（重疊／不符資格）。可切「平日／假日分開」、下載 CSV 或列印（缺額與衝突只在網站顯示）。":(isNarrow()?"點班次可編輯；紅色「!」＝有衝突；「固定」＝套用固定班次帶入、無標記＝手動新增。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿；紅色「!」＝有衝突（重疊／不符資格）；「固定」標記＝由套用固定班次帶入，無標記＝手動新增。");
+  const hint=byId("schedHint");if(hint)hint.textContent=state.scheduleMode==="work"?"工作(列)×日期(欄)：格子是誰＋時段，點格子可編輯。紅底「缺 N」＝依固定班次還沒排滿；紅色「!」＝硬衝突（重疊／不符資格）；琥珀「⏱」＝工時超過（仍可排）。可切「平日／假日分開」、下載 CSV 或列印（缺額與衝突只在網站顯示）。":(isNarrow()?"點班次可編輯；紅「!」＝硬衝突、琥珀「⏱」＝工時超過；「固定」＝套用固定班次帶入、無標記＝手動新增。":"點空白時段可新增班次，或在空白處上下拖曳框選時段直接帶入起訖時間；點色塊可編輯、右上角⇄可快速換人。灰色斜紋＝草稿；紅色「!」＝硬衝突（重疊／不符資格）、琥珀「⏱」＝工時超過（仍可排）；「固定」標記＝由套用固定班次帶入，無標記＝手動新增。");
   if(state.scheduleMode==="work"){renderWorkTable();renderPublishBar();return;}
   if(isNarrow()){renderScheduleList(grid);renderPublishBar();return;}
   const axis=timeAxis();
@@ -527,9 +539,7 @@ function scheduleListRow(s){
   const sub=subWorkText(s),subTxt=sub?`＋${sub}`:"";
   const note=(s.note||"").trim();
   const draft=s.published===false;
-  const conflicts=shiftConflicts(s);
-  const warnCls=conflicts.length?" has-conflict":"";
-  const warnBadge=conflicts.length?`<span class="sl-warn" title="${conflicts.join("、").replace(/"/g,"&quot;")}">!</span>`:"";
+  const {cls:warnCls,badge:warnBadge}=conflictBadge(s,"sl");
   return `<button class="sl-shift ${draft?"draft":""} ${e?"":"unassigned"}${warnCls}" onclick="openShiftModal('${s.id}')">
     <span class="sl-time">${s.start}<i>${s.end}</i></span>
     <span class="sl-chip" style="background:${w?.color||'#888'}">${w?w.name:"（已刪除）"}${subTxt}</span>
