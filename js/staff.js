@@ -12,6 +12,8 @@ let calendarDate=new Date();
 let selectedAvailabilityDate=null;
 let availEditable=true;
 let calJumpedToTarget=false; // 首次開放時把月曆跳到可填月份一次，之後尊重使用者的月份切換
+let myView="list";           // 我的班表檢視：list（預設）／calendar
+let myCalendarDate=new Date(); // 我的班表月曆目前顯示的月份
 
 function save(){Cloud.save(data);renderStaff()}
 function persist(){Cloud.save(data)}
@@ -196,7 +198,8 @@ function renderStaff(){
     return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||"未命名工作"}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span>${br?`<span class="shift-break">休息 ${br}（不計薪）</span>`:""}${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}${cal}</div></div>`};
   const group=(title,arr,empty,withCal)=>`<div class="shift-group"><div class="shift-group-head">${title}<span>${arr.length}</span></div>${arr.length?arr.map(s=>shiftItem(s,withCal)).join(""):`<div class="empty-state">${empty}</div>`}</div>`;
   byId("staffShiftList").innerHTML=group("即將到來",upcoming,"目前沒有即將到來的班表",true)+group("已結束",ended,"近三個月沒有已結束的班表",false);
-  const calAllBtn=byId("addAllCalBtn");if(calAllBtn)calAllBtn.style.display=upcoming.length?"":"none";
+  const calAllBtn=byId("addAllCalBtn");if(calAllBtn)calAllBtn.style.display=(myView==="list"&&upcoming.length)?"":"none";
+  applyMyView();renderMyCalendar();
 
   activeWindow=getActiveWindow();
   const nextWindow=getNextWindow();
@@ -245,12 +248,12 @@ function renderAvailabilityCalendar(){
     const inRange=editable&&inTargetRange(key),allowed=editable&&inRange&&!closed;
     const record=data.availability.find(a=>a.employeeId===staffEmployeeId&&a.date===key);
     let cls="pending",summary="";
-    if(closed&&(inRange||!editable)){cls="closed";summary="公休"}
+    if(closed){cls="closed";summary="公休"} // 公休（每週公休／特定休息日）一律顯示，含超出開放範圍的未來公休
     else if(record?.unavailable){cls="unavailable";summary="不可排"}
     else if(record){cls="available";summary=(record.start2&&record.end2)?`${record.start}～${record.end}<br>${record.start2}～${record.end2}`:`${record.start}～${record.end}`}
     else if(isAutoAvail(key)){cls="available is-default";summary="可上班（預設）"}
     else if(inRange){summary="未填"}
-    const showSummary=editable?(inRange||isAutoAvail(key)):(!!record||closed||isAutoAvail(key));
+    const showSummary=closed||(editable?(inRange||isAutoAvail(key)):(!!record||isAutoAvail(key)));
     const dim=editable&&!allowed;
     const clickAttr=allowed?`onclick="selectAvailabilityDate('${key}')"`:(editable?"disabled":"");
     const nh=closed?"":nhName(key);
@@ -275,6 +278,61 @@ function closeDaySheet(){
   const b=byId("daySheetBackdrop");if(!b)return;
   b.classList.add("hidden");document.body.classList.remove("sheet-open");
 }
+/* ---------- 我的班表：列表／月曆切換 ---------- */
+function myShiftsOn(key){
+  if(!data||!staffEmployeeId)return [];
+  return data.shifts.filter(s=>s.employeeId===staffEmployeeId&&s.date===key&&s.published!==false).sort((a,b)=>mins(a.start)-mins(b.start));
+}
+function applyMyView(){
+  document.querySelectorAll("#myViewTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.myview===myView));
+  const list=byId("staffShiftList"),cal=byId("myCalendarView");
+  if(list)list.classList.toggle("hidden",myView!=="list");
+  if(cal)cal.classList.toggle("hidden",myView!=="calendar");
+  const calAllBtn=byId("addAllCalBtn");if(calAllBtn)calAllBtn.style.display=(myView==="list"&&myUpcoming().length)?"":"none";
+}
+function setMyView(v){myView=v;applyMyView();renderMyCalendar();}
+function renderMyCalendar(){
+  const grid=byId("myScheduleCalendar");if(!grid)return;
+  const y=myCalendarDate.getFullYear(),m=myCalendarDate.getMonth();
+  const lbl=byId("myCalendarMonthLabel");if(lbl)lbl.textContent=`${y} 年 ${m+1} 月`;
+  const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
+  const todayKey=toDateKey(new Date());
+  let html="";
+  for(let i=0;i<42;i++){
+    const day=new Date(start);day.setDate(start.getDate()+i);
+    const key=toDateKey(day),inMonth=day.getMonth()===m,closed=isClosedDay(key);
+    const ss=myShiftsOn(key);
+    let cls="pending",body="",clickAttr="";
+    if(closed){cls="closed";body='<small>公休</small>';}
+    else if(ss.length){
+      cls="available";clickAttr=`onclick="selectMyDay('${key}')"`;
+      const lines=ss.slice(0,2).map(s=>{const w=worktype(s.workTypeId);return `<small class="ms-cell"><i style="background:${w?.color||'#999'}"></i>${w?.name||"班"} ${s.start}</small>`}).join("");
+      body=lines+(ss.length>2?`<small class="ms-more">+${ss.length-2}</small>`:"");
+    }
+    const nh=closed?"":nhName(key);
+    html+=`<button class="employee-cal-day ${!inMonth?"muted":""} ${key===todayKey?"is-today":""} ${cls}" ${clickAttr}>
+      <span class="day-number">${day.getDate()}</span>
+      ${nh?`<small class="emp-holiday">${nh}</small>`:""}
+      ${body}
+    </button>`;
+  }
+  grid.innerHTML=html;
+}
+function selectMyDay(key){
+  const ss=myShiftsOn(key),closed=isClosedDay(key),nh=nhName(key);
+  byId("myDayTitle").textContent=formatDate(key);
+  let body;
+  if(closed){body=`<div class="empty-state">本日店休（公休）${nh?`・${nh}`:""}</div>`;}
+  else if(!ss.length){body=`<div class="empty-state">這天沒有排班${nh?`（${nh}）`:""}。</div>`;}
+  else{
+    body=ss.map(s=>{const w=worktype(s.workTypeId),c=w?.color||"#999",br=shiftBreakLabel(s),subTxt=(s.subWork||"").trim()?`＋${s.subWork.trim()}`:"";
+      return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${w?.name||"未命名工作"}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span>${br?`<span class="shift-break">休息 ${br}（不計薪）</span>`:""}${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}<div class="shift-cal"><button type="button" class="cal-mini" onclick="addShiftToCalendar('${s.id}')">📅 加入行事曆</button><a class="cal-mini google" href="${googleCalUrl(s)}" target="_blank" rel="noopener">Google 行事曆</a></div></div></div>`;
+    }).join("");
+  }
+  byId("myDayBody").innerHTML=body;
+  const b=byId("myDaySheetBackdrop");if(b){b.classList.remove("hidden");document.body.classList.add("sheet-open");}
+}
+function closeMyDaySheet(){const b=byId("myDaySheetBackdrop");if(!b)return;b.classList.add("hidden");document.body.classList.remove("sheet-open");}
 function loadSelectedDay(){
   if(!selectedAvailabilityDate)return;
   byId("availabilitySelectedDateTitle").textContent=formatDate(selectedAvailabilityDate);
@@ -392,6 +450,12 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("staffLogoutBtn").onclick=logout;
   byId("addAllCalBtn").onclick=addAllToCalendar;
   document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active")});
+  // 我的班表：列表／月曆切換、月份切換、當天明細小卡
+  document.querySelectorAll("#myViewTabs .seg-btn").forEach(b=>b.onclick=()=>setMyView(b.dataset.myview));
+  byId("myPrevMonthBtn")?.addEventListener("click",()=>{myCalendarDate.setMonth(myCalendarDate.getMonth()-1);renderMyCalendar()});
+  byId("myNextMonthBtn")?.addEventListener("click",()=>{myCalendarDate.setMonth(myCalendarDate.getMonth()+1);renderMyCalendar()});
+  byId("myDaySheetClose")?.addEventListener("click",closeMyDaySheet);
+  byId("myDaySheetBackdrop")?.addEventListener("click",e=>{if(e.target.id==="myDaySheetBackdrop")closeMyDaySheet()});
   byId("availabilityStart").innerHTML=timeOptions("16:00");
   byId("availabilityEnd").innerHTML=timeOptions("22:00");
   byId("availabilityStart2").innerHTML=timeOptions("17:00");
@@ -423,3 +487,4 @@ document.addEventListener("DOMContentLoaded",()=>{
   },updateSyncStatus);
 });
 window.selectAvailabilityDate=selectAvailabilityDate;
+window.selectMyDay=selectMyDay;

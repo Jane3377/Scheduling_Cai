@@ -449,6 +449,15 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .employee-cal-day.pending{background:#fff}
 .employee-cal-day.selected{outline:3px solid #e5a58e}
 .employee-cal-day.disabled{background:#f4f1ef;opacity:.42}
+/* 我的班表：列表／月曆切換與月曆格子 */
+.ms-head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+#myScheduleCalendar .employee-cal-day.available{cursor:pointer}
+#myScheduleCalendar .employee-cal-day.is-today{box-shadow:inset 0 0 0 2px var(--brand)}
+.ms-cell{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--ink);line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ms-cell i{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
+.ms-more{font-size:9px;color:var(--muted)}
+.my-day-body .list-item{padding:12px 2px}
+.my-day-body .empty-state{padding:18px 2px;color:var(--muted)}
 .calendar-legend{display:flex;gap:16px;flex-wrap:wrap;padding:0 20px 18px;color:var(--muted);font-size:12px}
 .calendar-legend span{display:flex;align-items:center;gap:6px}
 .legend-dot{width:9px;height:9px;border-radius:50%;display:inline-block}.legend-dot.available{background:#72b78b}.legend-dot.unavailable{background:#db826a}.legend-dot.pending{background:#cfc8c3}

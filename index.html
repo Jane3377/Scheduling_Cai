@@ -61,9 +61,39 @@
           <div class="panel">
             <div class="panel-head">
               <div><h3>我的班表</h3><p>顯示即將到來與已結束（前後約三個月），含備註。</p></div>
-              <button class="ghost-btn" id="addAllCalBtn">📅 加入行事曆</button>
+              <div class="ms-head-actions">
+                <div class="seg" id="myViewTabs">
+                  <button class="seg-btn active" data-myview="list">列表</button>
+                  <button class="seg-btn" data-myview="calendar">月曆</button>
+                </div>
+                <button class="ghost-btn" id="addAllCalBtn">📅 加入行事曆</button>
+              </div>
             </div>
             <div id="staffShiftList" class="stack-list"></div>
+            <div id="myCalendarView" class="hidden">
+              <div class="employee-calendar-toolbar">
+                <button class="icon-btn" id="myPrevMonthBtn">‹</button>
+                <strong id="myCalendarMonthLabel"></strong>
+                <button class="icon-btn" id="myNextMonthBtn">›</button>
+              </div>
+              <div class="weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+              <div id="myScheduleCalendar" class="employee-calendar-grid"></div>
+              <div class="calendar-legend">
+                <span><i class="legend-dot available"></i>有班</span>
+                <span><i class="legend-dot pending"></i>公休／無班</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 我的班表：點日期彈出的當天明細（唯讀） -->
+        <div class="day-sheet-backdrop hidden" id="myDaySheetBackdrop">
+          <div class="day-sheet">
+            <button type="button" class="day-sheet-close" id="myDaySheetClose" aria-label="關閉">✕</button>
+            <div class="selected-day-editor">
+              <div class="selected-day-head"><div><span class="eyebrow">這一天</span><h3 id="myDayTitle"></h3></div></div>
+              <div id="myDayBody" class="my-day-body"></div>
+            </div>
           </div>
         </div>
 
