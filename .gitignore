@@ -1,0 +1,5 @@
+# 本專案為純靜態網站，無需 npm 依賴；忽略誤產生的 Node 檔案
+node_modules/
+package.json
+package-lock.json
+.DS_Store
