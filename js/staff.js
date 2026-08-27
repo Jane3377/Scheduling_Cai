@@ -198,7 +198,7 @@ function renderStaff(){
     return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||"未命名工作"}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span>${br?`<span class="shift-break">休息 ${br}（不計薪）</span>`:""}${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}${cal}</div></div>`};
   const group=(title,arr,empty,withCal)=>`<div class="shift-group"><div class="shift-group-head">${title}<span>${arr.length}</span></div>${arr.length?arr.map(s=>shiftItem(s,withCal)).join(""):`<div class="empty-state">${empty}</div>`}</div>`;
   byId("staffShiftList").innerHTML=group("即將到來",upcoming,"目前沒有即將到來的班表",true)+group("已結束",ended,"近三個月沒有已結束的班表",false);
-  const calAllBtn=byId("addAllCalBtn");if(calAllBtn)calAllBtn.style.display=(myView==="list"&&upcoming.length)?"":"none";
+  const calAllBtn=byId("addAllCalBtn");if(calAllBtn)calAllBtn.style.display=upcoming.length?"":"none";
   applyMyView();renderMyCalendar();
 
   activeWindow=getActiveWindow();
@@ -288,7 +288,7 @@ function applyMyView(){
   const list=byId("staffShiftList"),cal=byId("myCalendarView");
   if(list)list.classList.toggle("hidden",myView!=="list");
   if(cal)cal.classList.toggle("hidden",myView!=="calendar");
-  const calAllBtn=byId("addAllCalBtn");if(calAllBtn)calAllBtn.style.display=(myView==="list"&&myUpcoming().length)?"":"none";
+  const calAllBtn=byId("addAllCalBtn");if(calAllBtn)calAllBtn.style.display=myUpcoming().length?"":"none";
 }
 function setMyView(v){myView=v;applyMyView();renderMyCalendar();}
 function renderMyCalendar(){
