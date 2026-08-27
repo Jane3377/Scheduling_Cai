@@ -2311,7 +2311,7 @@ function init(){
   byId("importAllBtn")?.addEventListener("click",()=>byId("importAllFile").click());
   byId("importAllFile")?.addEventListener("change",e=>{importAll(e.target.files[0]);e.target.value="";});
   setupPinGate();
-  if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  // Service Worker 註冊與自動更新統一由 js/update.js 處理
   Cloud.init(onCloudData,updateSyncStatus);
 }
 window.openEmployeeModal=openEmployeeModal;window.deleteEmployee=deleteEmployee;window.openWorktypeModal=openWorktypeModal;window.deleteWorktype=deleteWorktype;window.openShiftModal=openShiftModal;window.deleteShift=deleteShift;window.closeModal=closeModal;window.selectDate=selectDate;
