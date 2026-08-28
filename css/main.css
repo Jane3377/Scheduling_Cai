@@ -434,7 +434,8 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .availability-window-banner.closed{background:#f2efec;border:1px solid var(--line);color:var(--muted)}
 .availability-window-banner span,.availability-window-banner small{font-size:13px}
 .employee-calendar-toolbar{display:flex;justify-content:space-between;align-items:center;padding:18px 20px 4px}
-.employee-calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:10px 18px 16px}
+.employee-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;padding:10px 18px 16px}
+.employee-cal-day{min-width:0}
 .employee-cal-day{min-height:74px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:7px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between}
 .employee-cal-day .day-number{font-weight:700}
 .employee-cal-day small{font-size:10px;color:var(--muted)}
@@ -453,8 +454,11 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .ms-head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 #myScheduleCalendar .employee-cal-day.available{cursor:pointer}
 #myScheduleCalendar .employee-cal-day.is-today{box-shadow:inset 0 0 0 2px var(--brand)}
-.ms-cell{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--ink);line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.ms-cell i{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
+.ms-cell{display:flex;align-items:flex-start;gap:4px;font-size:10px;color:var(--ink);line-height:1.3;margin-top:1px;max-width:100%}
+.ms-dot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block;margin-top:2px}
+.ms-body{min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.ms-nm{word-break:break-word}
+.ms-tm{color:var(--muted);white-space:nowrap}
 .ms-more{font-size:9px;color:var(--muted)}
 .my-day-body .list-item{padding:12px 2px}
 .my-day-body .empty-state{padding:18px 2px;color:var(--muted)}

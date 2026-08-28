@@ -306,7 +306,7 @@ function renderMyCalendar(){
     if(closed){cls="closed";body='<small>公休</small>';}
     else if(ss.length){
       cls="available";clickAttr=`onclick="selectMyDay('${key}')"`;
-      const lines=ss.slice(0,2).map(s=>{const w=worktype(s.workTypeId);return `<small class="ms-cell"><i style="background:${w?.color||'#999'}"></i>${w?.name||"班"} ${s.start}</small>`}).join("");
+      const lines=ss.slice(0,2).map(s=>{const w=worktype(s.workTypeId);return `<small class="ms-cell"><i class="ms-dot" style="background:${w?.color||'#999'}"></i><span class="ms-body"><span class="ms-nm">${w?.name||"班"}</span><span class="ms-tm">${s.start}</span></span></small>`}).join("");
       body=lines+(ss.length>2?`<small class="ms-more">+${ss.length-2}</small>`:"");
     }
     const nh=closed?"":nhName(key);
