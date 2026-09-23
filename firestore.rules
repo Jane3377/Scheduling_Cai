@@ -1,0 +1,54 @@
+// ===================================================================
+//  Firestore 安全規則（分月結構 schemaVersion 2）
+//
+//  用途：版本控管與交接紀錄。這份檔案「不會」隨 GitHub Pages 自動部署，
+//        更新規則時仍需手動貼到 Firebase 主控台 → Firestore → 規則 → 發布
+//        （或用 firebase CLI：firebase deploy --only firestore:rules）。
+//
+//  設計：
+//   - 讀取：登入（含匿名登入）即可，備份匯出需要列出所有月份文件。
+//   - main：核心資料，沿用舊版欄位檢查，另允許 schemaVersion / migratedAt；不可刪除。
+//   - shifts_YYYY-MM / avail_YYYY-MM：每月一份班次／可上班；名稱、欄位、型別皆須符合；可刪除（清除舊資料、還原）。
+//   - legacy_v1：搬家前的原始整包備份，只能建立一次，不能修改或刪除。
+//   - 其他任何文件一律拒絕。
+// ===================================================================
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /scheduler/{docId} {
+      // 讀取：登入即可
+      allow read: if request.auth != null;
+
+      // 核心資料 main
+      allow create, update: if request.auth != null
+        && docId == 'main'
+        && request.resource.data.keys().hasOnly(['data', 'updatedAt', 'schemaVersion', 'migratedAt'])
+        && request.resource.data.data is map
+        && request.resource.data.updatedAt is number
+        && request.resource.data.updatedAt > 0;
+
+      // 每月班次／可上班：文件名稱必須是 shifts_YYYY-MM 或 avail_YYYY-MM（none 為無日期的保底）
+      allow create, update: if request.auth != null
+        && docId.matches('^(shifts|avail)_([0-9]{4}-[0-9]{2}|none)$')
+        && request.resource.data.keys().hasOnly(['items', 'updatedAt'])
+        && request.resource.data.items is list
+        && request.resource.data.updatedAt is number
+        && request.resource.data.updatedAt > 0;
+
+      // 月份文件可刪除（清除舊資料、完整備份還原會用到）
+      allow delete: if request.auth != null
+        && docId.matches('^(shifts|avail)_([0-9]{4}-[0-9]{2}|none)$');
+
+      // 搬家時留下的原始備份：只能建立，之後不能修改或刪除
+      allow create: if request.auth != null
+        && docId == 'legacy_v1'
+        && request.resource.data.keys().hasOnly(['data', 'savedAt', 'note'])
+        && request.resource.data.data is map;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
