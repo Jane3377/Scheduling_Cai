@@ -61,7 +61,43 @@ function migrate(d){
   (d.shifts||[]).forEach(s=>{if(s.published===undefined)s.published=true});
   return d;
 }
-function save(){Cloud.save(state.data);renderAll()}
+// 存檔：交給雲端層逐月比對寫入。尚未同步完成時會被擋下 → 還原成雲端版本並提示，避免「以為存了其實沒存」
+let saveBlocked=false;
+function save(){
+  const r=Cloud.save(state.data);
+  if(r&&!r.ok){
+    const snap=Cloud.snapshotData();
+    if(snap)state.data=migrate(snap);
+    toast(r.reason==="not-ready"?"尚未與雲端同步完成，這次變更沒有儲存。請等右上角顯示「● 已同步」後再操作一次。":"目前無法連線雲端，這次變更沒有儲存，請確認網路後再試。","error");
+    saveBlocked=true;setTimeout(()=>{saveBlocked=false},0); // 同一次操作接著跳的「已完成」提示不顯示
+  }
+  renderAll();
+  return !r||r.ok;
+}
+// 畫面需要的月份：切換日期／週／月時自動載入並即時同步（雲端分月存放）
+function monthKey(dateKey){return (dateKey||"").slice(0,7)}
+function ensureViewMonths(){
+  if(!window.Cloud||!Cloud.ensureMonths)return;
+  const keys=new Set();
+  const addRange=(a,b)=>Cloud.monthsBetween(a,b).forEach(m=>keys.add(m));
+  try{
+    const [ws,we]=weekRange(state.selectedDate);addRange(addDays(ws,-7),we); // 含上週（複製上週用）
+    keys.add(monthKey(state.selectedDate));
+    keys.add(monthKey(toDateKey(state.calendarDate)));
+    const hp=hoursPeriod();addRange(hp.start,hp.end);
+    keys.add(monthKey(toDateKey(state.availCalDate)));
+    const [as,ae]=weekRange(state.availDate||toDateKey(today));addRange(as,ae);
+    const tk=toDateKey(today);
+    ((state.data&&state.data.settings&&state.data.settings.availabilityWindows)||[])
+      .filter(w=>w&&w.targetStart&&w.targetEnd&&w.targetEnd>=tk).forEach(w=>addRange(w.targetStart,w.targetEnd));
+  }catch(e){console.warn("ensureViewMonths",e)}
+  return Cloud.ensureMonths([...keys]);
+}
+// 匯出前先確保該期間的月份都已載入
+function whenLoaded(start,end,fn){
+  const p=window.Cloud&&Cloud.ensureMonths?Cloud.ensureMonths(Cloud.monthsBetween(start,end)):Promise.resolve();
+  p.then(fn).catch(e=>toast("讀取資料失敗："+(e&&e.message||e),"error"));
+}
 function byId(id){return document.getElementById(id)}
 function employee(id){return state.data.employees.find(x=>x.id===id)}
 function worktype(id){return state.data.workTypes.find(x=>x.id===id)}
@@ -198,6 +234,7 @@ function syncSettingsTab(){
   document.querySelectorAll("#storeSettingsView .settings-section").forEach(el=>el.classList.toggle("hidden",el.dataset.sec!==state.settingsTab));
 }
 function renderAll(){
+  ensureViewMonths();
   // 逐一保護：即使某個區塊出錯，也不讓整個畫面變空白
   [applyBranding,renderDashboard,renderEmployees,renderWorktypes,renderCalendar,renderSchedule,renderAvailabilityWindows,renderHours,renderAvailabilityOverview,syncAvailPage,renderStoreSettings,renderDemand,renderHolidays,renderNationalHolidays,renderMaintenance,syncSettingsTab]
     .forEach(fn=>{try{fn()}catch(err){console.error("render error:",fn.name,err)}});
@@ -298,6 +335,7 @@ function calCell(day,refMonth){
   return `<button class="cal-day ${muted?"muted":""} ${closed?"closed":""} ${key===state.selectedDate?"selected":""} ${key===toDateKey(today)?"today":""}" ${closed?`disabled title="${closedReason(key)}"`:`onclick="selectDate('${key}')" ${nh?`title="${nh}"`:""}`}><span>${day.getDate()}</span>${closed?`<span class="cal-closed">休</span>`:(nh?`<span class="cal-holiday">${nh}</span>`:count?`<span class="cal-dot"></span>`:"")}</button>`;
 }
 function renderCalendar(){
+  ensureViewMonths();
   const grid=byId("calendarGrid");if(!grid)return;
   const tgl=byId("calToggleBtn");if(tgl)tgl.textContent=state.calendarExpanded?"收合月曆":"展開整月";
   let html="";
@@ -446,6 +484,7 @@ function renderWorkTable(){
   grid.innerHTML=`<div class="work-grid-wrap">${html}</div>`;
 }
 function renderSchedule(){
+  ensureViewMonths();
   const grid=byId("scheduleGrid");if(!grid)return;
   document.querySelectorAll("#schedModeTabs .seg-btn").forEach(b=>b.classList.toggle("active",b.dataset.smode===state.scheduleMode));
   const splitBtn=byId("workSplitBtn");if(splitBtn){splitBtn.classList.toggle("hidden",state.scheduleMode!=="work");splitBtn.classList.toggle("active",state.workSplit);}
@@ -1136,6 +1175,7 @@ function closeModal(){byId("modalBackdrop").classList.add("hidden")}
 /* ---------- 非阻斷式提示（Toast）：取代事後通知型 alert；重要/錯誤維持 10 秒且可暫停與手動關，不會一閃即過 ---------- */
 function toastHost(){let h=byId("toastHost");if(!h){h=document.createElement("div");h.id="toastHost";h.className="toast-host";document.body.appendChild(h);}return h;}
 function toast(msg,type="info",ms){
+  if(saveBlocked&&type!=="error")return;
   const dur=ms!=null?ms:(type==="success"?4000:10000); // 重要/錯誤 10 秒，單純確認 4 秒
   const el=document.createElement("div");el.className="toast toast-"+type;el.dataset.dur=dur;
   el.innerHTML=`<span class="toast-msg"></span><button class="toast-close" type="button" aria-label="關閉">×</button><span class="toast-bar"></span>`;
@@ -1528,6 +1568,7 @@ function hoursPeriod(mode){
 // 期間內某員工的班次
 function periodShifts(eid,start,end){return state.data.shifts.filter(s=>s.employeeId===eid&&s.date>=start&&s.date<=end).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start))}
 function renderHours(){
+  ensureViewMonths();
   const wrap=byId("hoursTable");if(!wrap)return;
   const p=hoursPeriod();
   const lbl=byId("hoursWeekLabel");if(lbl)lbl.textContent=p.label;
@@ -1647,6 +1688,7 @@ function fmtNum(n){return Number.isInteger(n)?String(n):n.toFixed(1)}
 
 /* ---------- 可上班時間總覽（月曆／日期／員工） ---------- */
 function renderAvailabilityOverview(){
+  ensureViewMonths();
   const root=byId("availabilityOverviewBody");if(!root)return;
   const w=currentWindow();
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.classList.toggle("active",b.dataset.mode===state.availMode));
@@ -2099,8 +2141,8 @@ function applyDemand(dateKey){
 function onCloudData(data,info){
   if(info&&info.local)return; // 自己剛寫入的回音，畫面已即時更新
   state.data=migrate(data)||defaultData();
-  if(autoPurge()>0){save();return;} // 自動清除舊資料；有清到就存回雲端（save 內含 renderAll）
   renderAll();
+  autoPurge();
 }
 function updateSyncStatus(s){
   const el=byId("syncStatus");if(!el)return;
@@ -2166,10 +2208,16 @@ function importDemandBackup(file){
   reader.readAsText(file);
 }
 // 完整備份：整份 data（員工、工作、班次、可上班、固定班次、設定）
+// 雲端分月存放 → 匯出時先讀取「所有月份」再組成完整 data（格式與舊版相同，舊備份仍可匯入）
 function exportAll(){
-  const store=(settings().storeName||"備份").trim();
-  const payload={kind:"full",app:"tsai-scheduler",version:1,exportedAt:new Date().toISOString(),data:state.data};
-  download(`${store}_完整備份_${toDateKey(new Date())}.json`,JSON.stringify(payload,null,2));
+  if(!Cloud.ready()){toast("尚未與雲端同步完成，請等右上角顯示「● 已同步」後再匯出。","error");return;}
+  toast("正在讀取所有月份的資料…","info",2500);
+  Cloud.fetchAll().then(d=>{
+    const store=(settings().storeName||"備份").trim();
+    const payload={kind:"full",app:"tsai-scheduler",version:1,exportedAt:new Date().toISOString(),data:migrate(d)};
+    download(`${store}_完整備份_${toDateKey(new Date())}.json`,JSON.stringify(payload,null,2));
+    toast(`完整備份已匯出（班次 ${payload.data.shifts.length} 筆、可上班 ${payload.data.availability.length} 筆）。`,"success");
+  }).catch(e=>toast("匯出失敗："+(e&&e.message||e),"error"));
 }
 function importAll(file){
   if(!file)return;
@@ -2180,36 +2228,43 @@ function importAll(file){
       const d=obj&&obj.data?obj.data:obj; // 容許直接是 data 或包在 {data} 內
       if(!d||!Array.isArray(d.employees)||!Array.isArray(d.shifts))throw new Error("bad");
       if(!confirm(`將以此備份「完全覆蓋」目前所有資料（員工 ${d.employees.length}、工作 ${(d.workTypes||[]).length}、班次 ${d.shifts.length}）。\n此動作無法復原，確定還原？`))return;
-      state.data=migrate(d);save();toast("完整備份已還原。","success");
+      if(!Cloud.ready()){toast("尚未與雲端同步完成，請等右上角顯示「● 已同步」後再還原。","error");return;}
+      Cloud.replaceAll(migrate(d)).then(()=>toast("完整備份已還原。","success"))
+        .catch(err=>toast("還原失敗，雲端資料可能未完整更新："+(err&&err.message||err),"error"));
     }catch(e){toast("檔案格式不正確，請確認是本系統匯出的「完整備份」JSON。","error");}
   };
   reader.readAsText(file);
 }
-// 清除「cutoff 日期之前」的舊資料：排班班次、可上班時間、預設可上班日期清單。回傳刪除筆數。
-function purgeBefore(cutoff){
-  const removed=state.data.shifts.filter(s=>s.date<cutoff).length
-    +state.data.availability.filter(a=>a.date<cutoff).length;
-  state.data.shifts=state.data.shifts.filter(s=>s.date>=cutoff);
-  state.data.availability=state.data.availability.filter(a=>a.date>=cutoff);
-  const s=settings();
+// 清除「cutoff 日期之前」的設定內清單：預設可上班日期、特定休息日（核心資料）。回傳是否有變動
+function trimSettingsBefore(cutoff){
+  const s=settings(),a=(s.autoAvailableDates||[]).length,h=(s.holidays||[]).length;
   s.autoAvailableDates=(s.autoAvailableDates||[]).filter(d=>d>=cutoff);
-  s.holidays=(s.holidays||[]).filter(h=>h.date>=cutoff); // 過去的特定休息日也一併清
-  return removed;
+  s.holidays=(s.holidays||[]).filter(x=>x.date>=cutoff); // 過去的特定休息日也一併清
+  return a!==s.autoAvailableDates.length||h!==s.holidays.length;
+}
+// 班次／可上班依月份存在雲端 → 由雲端逐月清除（整月過期直接刪、跨界那個月只清過期的日子）
+function purgeBefore(cutoff){
+  if(trimSettingsBefore(cutoff))save();
+  return Cloud.purgeBefore(cutoff);
 }
 // 立即清除 180 天前的舊資料（手動）
 function purgeNow(){
   const days=180,cutoff=addDays(toDateKey(today),-days);
-  const oldShifts=state.data.shifts.filter(s=>s.date<cutoff).length;
-  const oldAvail=state.data.availability.filter(a=>a.date<cutoff).length;
-  if(!oldShifts&&!oldAvail){toast(`目前沒有 ${days} 天前（${formatDate(cutoff)} 之前）的舊資料。`);return;}
-  if(!confirm(`將永久刪除 ${formatDate(cutoff)} 之前的舊資料：\n・排班班次 ${oldShifts} 筆\n・可上班時間 ${oldAvail} 筆\n（工時是依班次即時計算，會一併清掉）\n\n此動作無法復原，建議先用上方「完整備份」匯出。確定清除？`))return;
-  purgeBefore(cutoff);save();toast("已清除 180 天前的舊資料。");
+  if(!Cloud.ready()){toast("尚未與雲端同步完成，請等右上角顯示「● 已同步」後再試。","error");return;}
+  Cloud.countBefore(cutoff).then(n=>{
+    if(!n.shifts&&!n.avail){toast(`目前沒有 ${days} 天前（${formatDate(cutoff)} 之前）的舊資料。`);return;}
+    if(!confirm(`將永久刪除 ${formatDate(cutoff)} 之前的舊資料：\n・排班班次 ${n.shifts} 筆\n・可上班時間 ${n.avail} 筆\n（工時是依班次即時計算，會一併清掉）\n\n此動作無法復原，建議先用上方「完整備份」匯出。確定清除？`))return;
+    return purgeBefore(cutoff).then(()=>toast("已清除 180 天前的舊資料。","success"));
+  }).catch(e=>toast("清除失敗："+(e&&e.message||e),"error"));
 }
-// 開啟系統時依設定自動清除（回傳刪除筆數）
+// 開啟系統時依設定自動清除（每次開啟只做一次，且須已與雲端同步）
+let autoPurgeDone=false;
 function autoPurge(){
+  if(autoPurgeDone||typeof Cloud.ready!=="function"||!Cloud.ready())return;
+  autoPurgeDone=true;
   const days=Number(settings().autoPurgeDays||0);
-  if(!(days>0))return 0;
-  return purgeBefore(addDays(toDateKey(today),-days));
+  if(!(days>0))return;
+  purgeBefore(addDays(toDateKey(today),-days)).then(n=>{if(n)console.info(`自動清除 ${n} 筆過期資料`)}).catch(e=>console.warn("自動清除失敗",e));
 }
 function renderMaintenance(){
   const inp=byId("autoPurgeInput");
@@ -2225,7 +2280,11 @@ function init(){
   byId("schedAddBtn").onclick=()=>openShiftModal();
   byId("applyDemandBtn").onclick=()=>applyDemand(state.selectedDate);
   byId("copyLastWeekBtn").onclick=()=>copyLastWeek();
-  byId("exportScheduleBtn").onclick=()=>openCsvChooser("要下載哪個範圍的班表？",m=>exportSchedule(m));
+  byId("exportScheduleBtn").onclick=()=>openCsvChooser("要下載哪個範圍的班表？",m=>{
+    const d=new Date(state.selectedDate+"T00:00:00");
+    const [a,b]=m==="week"?weekRange(state.selectedDate):[toDateKey(new Date(d.getFullYear(),d.getMonth(),1)),toDateKey(new Date(d.getFullYear(),d.getMonth()+1,0))];
+    whenLoaded(a,b,()=>exportSchedule(m));
+  });
   byId("printWeekBtn").onclick=()=>state.scheduleMode==="work"?printWorkTable():printWeekSchedule();
   byId("workSplitBtn")?.addEventListener("click",()=>{state.workSplit=!state.workSplit;renderSchedule();});
   byId("addDemandBtn").onclick=()=>openDemandModal();
@@ -2274,14 +2333,18 @@ function init(){
   document.querySelectorAll("#hoursModeTabs .seg-btn").forEach(b=>b.addEventListener("click",()=>{state.hoursMode=b.dataset.hmode;state.hoursExpanded=null;renderHours()}));
   byId("hoursTypeFilter")?.addEventListener("change",e=>{state.hoursType=e.target.value;renderHours()});
   byId("hoursSearchInput")?.addEventListener("input",e=>{state.hoursSearch=e.target.value;renderHours()});
-  byId("exportHoursBtn")?.addEventListener("click",()=>openCsvChooser("要下載哪個範圍的工時統計？",m=>exportHours(m)));
-  byId("exportAvailBtn")?.addEventListener("click",()=>openCsvChooser("要下載哪個範圍的可上班時間？",m=>exportAvailability(m)));
+  byId("exportHoursBtn")?.addEventListener("click",()=>openCsvChooser("要下載哪個範圍的工時統計？",m=>{const p=hoursPeriod(m);whenLoaded(p.start,p.end,()=>exportHours(m));}));
+  byId("exportAvailBtn")?.addEventListener("click",()=>openCsvChooser("要下載哪個範圍的可上班時間？",m=>{
+    const d=state.availCalDate;
+    const [a,b]=m==="month"?[toDateKey(new Date(d.getFullYear(),d.getMonth(),1)),toDateKey(new Date(d.getFullYear(),d.getMonth()+1,0))]:weekRange(state.availDate||toDateKey(today));
+    whenLoaded(a,b,()=>exportAvailability(m));
+  }));
   syncHoursDateInput();
   document.querySelectorAll("#availModeTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availMode=b.dataset.mode;renderAvailabilityOverview()});
   document.querySelectorAll("#availPageTabs .staff-tab").forEach(b=>b.onclick=()=>{state.availPage=b.dataset.atab;syncAvailPage()});
   document.querySelectorAll("#settingsTabs .staff-tab").forEach(b=>b.onclick=()=>{state.settingsTab=b.dataset.sec;syncSettingsTab()});
   byId("printGuideBtn")?.addEventListener("click",printGuide);
-  byId("resetDemoBtn").onclick=()=>{if(confirm("確定清空所有資料？此動作無法復原（建議先匯出備份）。")){state.data=defaultData();save()}};
+  byId("resetDemoBtn").onclick=()=>{if(confirm("確定清空所有資料？此動作無法復原（建議先匯出備份）。")){if(!Cloud.ready()){toast("尚未與雲端同步完成，請稍後再試。","error");return;}Cloud.replaceAll(defaultData()).then(()=>toast("已清空所有資料。","success")).catch(e=>toast("清空失敗："+(e&&e.message||e),"error"))}};
   byId("pinChangeForm")?.addEventListener("submit",e=>{
     e.preventDefault();
     const fd=new FormData(e.target);
@@ -2312,7 +2375,7 @@ function init(){
   byId("importAllFile")?.addEventListener("change",e=>{importAll(e.target.files[0]);e.target.value="";});
   setupPinGate();
   // Service Worker 註冊與自動更新統一由 js/update.js 處理
-  Cloud.init(onCloudData,updateSyncStatus);
+  Cloud.init(onCloudData,updateSyncStatus,msg=>toast(msg,"error"));
 }
 window.openEmployeeModal=openEmployeeModal;window.deleteEmployee=deleteEmployee;window.openWorktypeModal=openWorktypeModal;window.deleteWorktype=deleteWorktype;window.openShiftModal=openShiftModal;window.deleteShift=deleteShift;window.closeModal=closeModal;window.selectDate=selectDate;
 window.hoursSortBy=hoursSortBy;window.hoursToggle=hoursToggle;window.setShiftActual=setShiftActual;window.toggleShiftVerified=toggleShiftVerified;window.verifyAll=verifyAll;window.gotoScheduleDay=gotoScheduleDay;window.openQuickAssign=openQuickAssign;window.quickAssignPick=quickAssignPick;

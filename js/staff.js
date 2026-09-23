@@ -15,8 +15,31 @@ let calJumpedToTarget=false; // 首次開放時把月曆跳到可填月份一次
 let myView="list";           // 我的班表檢視：list（預設）／calendar
 let myCalendarDate=new Date(); // 我的班表月曆目前顯示的月份
 
-function save(){Cloud.save(data);renderStaff()}
-function persist(){Cloud.save(data)}
+// 寫入雲端（逐月比對只寫有變動的月份）。尚未同步完成時會被擋下：還原成雲端版本、提示並回傳 false
+function persist(){
+  const r=Cloud.save(data);
+  if(r&&!r.ok){
+    const snap=Cloud.snapshotData();if(snap)data=snap;
+    toast(r.reason==="not-ready"?"尚未與雲端同步完成，這次沒有儲存。請等畫面上方顯示「● 已同步」後再試一次。":"目前無法連線雲端，這次沒有儲存，請確認網路後再試。","error");
+    closeDaySheet();renderStaff();
+    return false;
+  }
+  return true;
+}
+function save(){if(persist())renderStaff()}
+// 雲端資料依月份存放：員工端需要的月份（我的班表前後約三個月、填寫區間、正在看的月份）自動載入並即時同步
+function ymKey(d){return toDateKey(d).slice(0,7)}
+function staffEnsureMonths(){
+  if(!window.Cloud||!Cloud.ensureMonths)return;
+  const lo=new Date();lo.setMonth(lo.getMonth()-3);const hi=new Date();hi.setMonth(hi.getMonth()+3);
+  const shiftMonths=new Set(Cloud.monthsBetween(toDateKey(lo),toDateKey(hi)));
+  shiftMonths.add(ymKey(myCalendarDate));
+  const availMonths=new Set([ymKey(calendarDate)]);
+  const w=activeWindow||getActiveWindow();
+  if(w&&w.targetStart&&w.targetEnd)Cloud.monthsBetween(w.targetStart,w.targetEnd).forEach(m=>availMonths.add(m));
+  Cloud.ensureMonths([...shiftMonths],["shifts"]);
+  Cloud.ensureMonths([...availMonths],["avail"]);
+}
 // 雲端連線狀態燈：沿用後台的視覺，讓員工也能看出資料是否已同步
 function updateSyncStatus(s){
   const el=byId("syncStatus");if(!el)return;
@@ -165,6 +188,7 @@ function logout(){
   byId("staffPortal").classList.add("hidden");byId("staffLoginCard").classList.remove("hidden");byId("staffNoInput").value="";const pi=byId("staffPinInput");if(pi)pi.value=""
 }
 function renderStaff(){
+  staffEnsureMonths();
   if(!staffEmployeeId)return;
   const e=employee(staffEmployeeId);
   if(!e){logout();return}
@@ -237,6 +261,7 @@ function renderStaff(){
   }
 }
 function renderAvailabilityCalendar(){
+  staffEnsureMonths();
   const editable=availEditable;
   const y=calendarDate.getFullYear(),m=calendarDate.getMonth();
   byId("staffCalendarMonthLabel").textContent=`${y} 年 ${m+1} 月`;
@@ -292,6 +317,7 @@ function applyMyView(){
 }
 function setMyView(v){myView=v;applyMyView();renderMyCalendar();}
 function renderMyCalendar(){
+  staffEnsureMonths();
   const grid=byId("myScheduleCalendar");if(!grid)return;
   const y=myCalendarDate.getFullYear(),m=myCalendarDate.getMonth();
   const lbl=byId("myCalendarMonthLabel");if(lbl)lbl.textContent=`${y} 年 ${m+1} 月`;
@@ -368,7 +394,8 @@ function quickDaySet(type){
   if(!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
   const label=formatDate(selectedAvailabilityDate);
   upsertAvailability(selectedAvailabilityDate,type==="yes"?{unavailable:false,start:bizStart(),end:bizEnd(),start2:null,end2:null}:{unavailable:true,start:bizStart(),end:bizEnd(),start2:null,end2:null});
-  persist();renderAvailabilityCalendar();closeDaySheet();showToast(`${label} ${type==="yes"?"整天可上班":"設為不可上班"}，已儲存`);
+  if(!persist())return;
+  renderAvailabilityCalendar();closeDaySheet();showToast(`${label} ${type==="yes"?"整天可上班":"設為不可上班"}，已儲存`);
 }
 function renderQuickWeekDays(){
   const el=byId("quickWeekDays");if(!el)return;
@@ -421,7 +448,8 @@ function quickWeekApply(type){
     upsertAvailability(key,type==="available"?{unavailable:false,start,end,...seg2}:{unavailable:true,start,end,start2:null,end2:null});
     count++;
   }
-  persist();renderAvailabilityCalendar();
+  if(!persist())return;
+  renderAvailabilityCalendar();
   // 恢復每週預設：清除星期選取
   document.querySelectorAll("#quickWeekDays .qw-day.on").forEach(b=>b.classList.remove("on"));
   updateQuickWeekPreview();
@@ -439,7 +467,7 @@ function saveSelectedDay(){
   if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:selectedAvailabilityDate};data.availability.push(a)}
   Object.assign(a,{unavailable:false,start,end,start2:use2?start2:null,end2:use2?end2:null}); // 指定時段＝可上班；整天不行請用上方按鈕
   const label=formatDate(selectedAvailabilityDate);
-  persist();
+  if(!persist())return;
   renderAvailabilityCalendar();closeDaySheet();showToast(`${label} 已儲存`);
 }
 document.addEventListener("DOMContentLoaded",()=>{
@@ -484,7 +512,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     applyStaffBranding();
     if(!data)byId("staffLoginError").textContent="尚未有資料，如有疑問請洽主管。";
     if(staffEmployeeId&&data)renderStaff();
-  },updateSyncStatus);
+  },updateSyncStatus,msg=>toast(msg,"error"));
 });
 window.selectAvailabilityDate=selectAvailabilityDate;
 window.selectMyDay=selectMyDay;
