@@ -890,13 +890,13 @@ function exportHours(mode){
   });
   const {key,dir}=state.hoursSort;
   data.sort((a,b)=>key==="total"?(a.sched-b.sched)*dir:a.e.name.localeCompare(b.e.name,"zh-Hant")*dir);
-  const rows=[["員工","員工編號","身分","每週上限","時薪","表訂工時","實際工時","差異","預估薪資","可上班天數","可上班時數","排班率(天)","排班率(時)","已核對"]];
+  const rows=[["員工","員工編號","身分","每週上限","時薪","表訂工時","實際工時","差異","預估薪資","已核對","可上班天數","可上班時數","排班率(天)","排班率(時)"]];
   data.forEach(d=>{const wage=Number(d.e.hourlyWage)||0;
     const availDays=d.av.days>0?d.av.days:(d.av.filled?0:"未填");
     const availHrs=d.av.days>0?fmtNum(d.av.hours):"";
     const dRate=d.av.days>0?Math.round(d.schedDays/d.av.days*100)+"%":"";
     const hRate=d.av.days>0&&d.av.hours>0?Math.round(d.sched/d.av.hours*100)+"%":"";
-    rows.push([d.e.name,d.e.employeeNo,d.e.employmentType,d.e.weeklyLimit||"",wage||"",fmtNum(d.sched),fmtNum(d.actual),(d.diff>0?"+":"")+fmtNum(d.diff),wage?Math.round(d.sched*wage):"",availDays,availHrs,dRate,hRate,`${d.v}/${d.total}`]);});
+    rows.push([d.e.name,d.e.employeeNo,d.e.employmentType,d.e.weeklyLimit||"",wage||"",fmtNum(d.sched),fmtNum(d.actual),(d.diff>0?"+":"")+fmtNum(d.diff),wage?Math.round(d.sched*wage):"",`${d.v}/${d.total}`,availDays,availHrs,dRate,hRate]);});
   const period=p.mode==="month"?p.start.slice(0,7):`${p.start}_至_${p.end}`;
   downloadCSV(reportFileName(p.mode==="month"?"月工時統計":"週工時統計",period),rows);
 }
@@ -1626,10 +1626,10 @@ function renderHours(){
   const head=`<tr>
     <th class="hsort" onclick="hoursSortBy('name')">員工${sortArrow("name")}</th>
     ${showDaily?days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th class="hcell">${dd.getMonth()+1}/${dd.getDate()}<span>${"日一二三四五六"[dd.getDay()]}</span></th>`}).join(""):""}
-    <th>可上班</th>
     <th class="hsort" onclick="hoursSortBy('total')">${totalHead}${sortArrow("total")}</th>
-    <th>排班率</th>
-    <th>核對</th></tr>`;
+    <th>核對</th>
+    <th>可上班</th>
+    <th>排班率</th></tr>`;
   const body=rows.map(({e,total,overWeek})=>{
     const foreign=e.employmentType==="外籍學生";
     let cls="",note="";
@@ -1661,7 +1661,7 @@ function renderHours(){
     const expanded=state.hoursExpanded===e.id;
     const mainRow=`<tr class="hrow ${expanded?"open":""}" onclick="hoursToggle('${e.id}')">
       <td class="hname"><span class="hexp">${expanded?"▾":"▸"}</span><strong>${e.name}</strong>${foreign?`<span class="badge warn">外籍</span>`:`<span class="cell-sub">${e.employmentType}</span>`}</td>
-      ${cells}${availCell}<td class="htotal ${cls}">${totalCell}</td>${rateCell}<td>${verifyCell}</td></tr>`;
+      ${cells}<td class="htotal ${cls}">${totalCell}</td><td>${verifyCell}</td>${availCell}${rateCell}</tr>`;
     const colspan=showDaily?days.length+5:5;
     const detailRow=expanded?`<tr class="hours-detail-row"><td colspan="${colspan}">${hoursDetail(e,ps)}</td></tr>`:"";
     return mainRow+detailRow;
