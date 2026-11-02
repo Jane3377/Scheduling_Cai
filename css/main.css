@@ -96,6 +96,17 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .hexp{display:inline-block;width:16px;color:var(--muted)}
 .verify-chip{font-size:12px;padding:3px 8px;border-radius:999px;background:#eee8e4;color:var(--muted);white-space:nowrap}
 .verify-chip.done{background:#e8f5ed;color:var(--ok)}
+/* 可上班欄＋排班率欄 */
+.havail strong{display:block;font-size:14px}
+.havail .cell-sub{margin-top:2px}
+.havail.none{color:var(--muted)}
+.rate-chip{display:inline-block;font-size:13px;font-weight:800;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.rate-chip .sub{font-weight:600;font-size:11px;opacity:.85}
+.rate-chip.hi{background:#e8f5ed;color:var(--ok)}
+.rate-chip.mid{background:#fff2dc;color:var(--warn)}
+.rate-chip.lo{background:#fdeaea;color:var(--danger)}
+.rate-chip.na{background:#eee8e4;color:var(--muted)}
+.rate-cnt{display:block;font-size:11px;color:var(--muted);margin-top:4px}
 .hours-detail-row>td{background:#faf7f5;padding:0!important}
 .hd-wrap{padding:14px 16px;display:grid;gap:8px}
 .hd-shift{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff}

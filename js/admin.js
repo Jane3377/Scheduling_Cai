@@ -879,16 +879,24 @@ function exportHours(mode){
   const list=state.data.employees.filter(e=>e.active
     &&(state.hoursType==="all"||e.employmentType===state.hoursType)
     &&(!q||e.name.toLowerCase().includes(q)||(e.employeeNo||"").toLowerCase().includes(q)));
+  const days=datesInRange(p.start,p.end);
   const data=list.map(e=>{
     const ps=periodShifts(e.id,p.start,p.end);
     const sched=ps.reduce((n,s)=>n+durationHours(s),0);
     const actual=ps.reduce((n,s)=>n+shiftActualHours(s),0);
-    return {e,sched,actual,diff:actual-sched,v:ps.filter(s=>s.verified).length,total:ps.length};
+    const av=availSummary(e.id,days);
+    const schedDays=days.filter(d=>shiftDayHours(e.id,d)>0).length;
+    return {e,sched,actual,diff:actual-sched,v:ps.filter(s=>s.verified).length,total:ps.length,av,schedDays};
   });
   const {key,dir}=state.hoursSort;
   data.sort((a,b)=>key==="total"?(a.sched-b.sched)*dir:a.e.name.localeCompare(b.e.name,"zh-Hant")*dir);
-  const rows=[["員工","員工編號","身分","每週上限","時薪","表訂工時","實際工時","差異","預估薪資","已核對"]];
-  data.forEach(d=>{const wage=Number(d.e.hourlyWage)||0;rows.push([d.e.name,d.e.employeeNo,d.e.employmentType,d.e.weeklyLimit||"",wage||"",fmtNum(d.sched),fmtNum(d.actual),(d.diff>0?"+":"")+fmtNum(d.diff),wage?Math.round(d.sched*wage):"",`${d.v}/${d.total}`]);});
+  const rows=[["員工","員工編號","身分","每週上限","時薪","表訂工時","實際工時","差異","預估薪資","可上班天數","可上班時數","排班率(天)","排班率(時)","已核對"]];
+  data.forEach(d=>{const wage=Number(d.e.hourlyWage)||0;
+    const availDays=d.av.days>0?d.av.days:(d.av.filled?0:"未填");
+    const availHrs=d.av.days>0?fmtNum(d.av.hours):"";
+    const dRate=d.av.days>0?Math.round(d.schedDays/d.av.days*100)+"%":"";
+    const hRate=d.av.days>0&&d.av.hours>0?Math.round(d.sched/d.av.hours*100)+"%":"";
+    rows.push([d.e.name,d.e.employeeNo,d.e.employmentType,d.e.weeklyLimit||"",wage||"",fmtNum(d.sched),fmtNum(d.actual),(d.diff>0?"+":"")+fmtNum(d.diff),wage?Math.round(d.sched*wage):"",availDays,availHrs,dRate,hRate,`${d.v}/${d.total}`]);});
   const period=p.mode==="month"?p.start.slice(0,7):`${p.start}_至_${p.end}`;
   downloadCSV(reportFileName(p.mode==="month"?"月工時統計":"週工時統計",period),rows);
 }
@@ -1487,6 +1495,19 @@ function availRanges(a){
 function availCovers(a,start,end){return availRanges(a).some(r=>start>=r.start&&end<=r.end);}
 // 顯示用文字：多段以「、」串接
 function availText(a){return availRanges(a).map(r=>`${r.start}～${r.end}`).join("、");}
+// 期間內「可上班」統計：可上班天數、時段總時數、是否有自行填寫（公休日自動排除；時數為時段長度、不扣休息，僅供比例參考）
+function availSummary(employeeId,dateKeys){
+  let days=0,hours=0,filled=false;
+  dateKeys.forEach(d=>{
+    if(isClosedDay(d))return;
+    const a=effectiveAvail(employeeId,d);
+    if(!a)return;
+    if(!a._default)filled=true; // 預設全部可上班(_default)不算「自行填寫」
+    const rs=availRanges(a);
+    if(rs.length){days++;hours+=rs.reduce((n,r)=>n+Math.max(0,(mins(r.end)-mins(r.start))/60),0);}
+  });
+  return {days,hours,filled};
+}
 // 兩個時段是否重疊（時間字串 HH:MM 可直接字典序比較）
 function rangesOverlap(s1,e1,s2,e2){return s1<e2&&s2<e1;}
 // 某員工在某填寫區段是否「真的自己填過」（有非預設的紀錄）。預設值(_default)不算已填。
@@ -1605,7 +1626,9 @@ function renderHours(){
   const head=`<tr>
     <th class="hsort" onclick="hoursSortBy('name')">員工${sortArrow("name")}</th>
     ${showDaily?days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th class="hcell">${dd.getMonth()+1}/${dd.getDate()}<span>${"日一二三四五六"[dd.getDay()]}</span></th>`}).join(""):""}
+    <th>可上班</th>
     <th class="hsort" onclick="hoursSortBy('total')">${totalHead}${sortArrow("total")}</th>
+    <th>排班率</th>
     <th>核對</th></tr>`;
   const body=rows.map(({e,total,overWeek})=>{
     const foreign=e.employmentType==="外籍學生";
@@ -1621,11 +1644,25 @@ function renderHours(){
     const wage=Number(e.hourlyWage)||0,cost=total*wage;
     const costLine=wage>0?`<span class="cell-sub cost-sub">≈ ${fmtMoney(cost)}</span>`:"";
     const totalCell=(weekMode?`<strong>${fmtNum(total)}</strong> / ${e.weeklyLimit||"—"}${note}`:`<strong>${fmtNum(total)}</strong>${note}`)+costLine;
+    // 可上班天數／時數 與 排班率（天數比率，括號時數比率）
+    const av=availSummary(e.id,days);
+    const schedDays=days.filter(d=>shiftDayHours(e.id,d)>0).length;
+    let availCell,rateCell;
+    if(av.days>0){
+      availCell=`<td class="havail"><strong>${av.days} 天</strong><span class="cell-sub">約 ${fmtNum(av.hours)}h</span></td>`;
+      const dr=Math.round(schedDays/av.days*100);
+      const hr=av.hours>0?Math.round(total/av.hours*100):0;
+      const lvl=dr>=70?"hi":dr>=40?"mid":"lo";
+      rateCell=`<td><span class="rate-chip ${lvl}">${dr}%　<span class="sub">時數 ${hr}%</span></span><span class="rate-cnt">排 ${schedDays}/${av.days} 天 · ${fmtNum(total)}/${fmtNum(av.hours)}h</span></td>`;
+    }else{
+      availCell=`<td class="havail none"><strong>${av.filled?"0 天":"未填"}</strong><span class="cell-sub">${av.filled?"全部設為不可":"此期間未填"}</span></td>`;
+      rateCell=`<td><span class="rate-chip na">—</span><span class="rate-cnt">${av.filled?"可上班 0 天":"未填，無法計算"}</span></td>`;
+    }
     const expanded=state.hoursExpanded===e.id;
     const mainRow=`<tr class="hrow ${expanded?"open":""}" onclick="hoursToggle('${e.id}')">
       <td class="hname"><span class="hexp">${expanded?"▾":"▸"}</span><strong>${e.name}</strong>${foreign?`<span class="badge warn">外籍</span>`:`<span class="cell-sub">${e.employmentType}</span>`}</td>
-      ${cells}<td class="htotal ${cls}">${totalCell}</td><td>${verifyCell}</td></tr>`;
-    const colspan=showDaily?days.length+3:3;
+      ${cells}${availCell}<td class="htotal ${cls}">${totalCell}</td>${rateCell}<td>${verifyCell}</td></tr>`;
+    const colspan=showDaily?days.length+5:5;
     const detailRow=expanded?`<tr class="hours-detail-row"><td colspan="${colspan}">${hoursDetail(e,ps)}</td></tr>`:"";
     return mainRow+detailRow;
   }).join("");
