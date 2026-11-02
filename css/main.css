@@ -107,6 +107,8 @@ body{margin:0;min-height:100vh}button,input,select,textarea{font:inherit}button{
 .rate-chip.lo{background:#fdeaea;color:var(--danger)}
 .rate-chip.na{background:#eee8e4;color:var(--muted)}
 .rate-cnt{display:block;font-size:11px;color:var(--muted);margin-top:4px}
+/* 計薪工時組 與 意願分析組 之間的淡虛線分隔 */
+.hours-matrix th.hgroup,.hours-matrix td.hgroup{border-left:1px dashed #d9d0c9}
 .hours-detail-row>td{background:#faf7f5;padding:0!important}
 .hd-wrap{padding:14px 16px;display:grid;gap:8px}
 .hd-shift{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#fff}

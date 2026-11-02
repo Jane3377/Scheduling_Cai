@@ -1627,8 +1627,8 @@ function renderHours(){
     <th class="hsort" onclick="hoursSortBy('name')">員工${sortArrow("name")}</th>
     ${showDaily?days.map(d=>{const dd=new Date(d+"T00:00:00");return `<th class="hcell">${dd.getMonth()+1}/${dd.getDate()}<span>${"日一二三四五六"[dd.getDay()]}</span></th>`}).join(""):""}
     <th class="hsort" onclick="hoursSortBy('total')">${totalHead}${sortArrow("total")}</th>
-    <th>核對</th>
-    <th>可上班</th>
+    <th>打卡核對</th>
+    <th class="hgroup">可上班</th>
     <th>排班率</th></tr>`;
   const body=rows.map(({e,total,overWeek})=>{
     const foreign=e.employmentType==="外籍學生";
@@ -1649,13 +1649,13 @@ function renderHours(){
     const schedDays=days.filter(d=>shiftDayHours(e.id,d)>0).length;
     let availCell,rateCell;
     if(av.days>0){
-      availCell=`<td class="havail"><strong>${av.days} 天</strong><span class="cell-sub">約 ${fmtNum(av.hours)}h</span></td>`;
+      availCell=`<td class="havail hgroup"><strong>${av.days} 天</strong><span class="cell-sub">約 ${fmtNum(av.hours)}h</span></td>`;
       const dr=Math.round(schedDays/av.days*100);
       const hr=av.hours>0?Math.round(total/av.hours*100):0;
       const lvl=dr>=70?"hi":dr>=40?"mid":"lo";
       rateCell=`<td><span class="rate-chip ${lvl}">${dr}%　<span class="sub">時數 ${hr}%</span></span><span class="rate-cnt">排 ${schedDays}/${av.days} 天 · ${fmtNum(total)}/${fmtNum(av.hours)}h</span></td>`;
     }else{
-      availCell=`<td class="havail none"><strong>${av.filled?"0 天":"未填"}</strong><span class="cell-sub">${av.filled?"全部設為不可":"此期間未填"}</span></td>`;
+      availCell=`<td class="havail none hgroup"><strong>${av.filled?"0 天":"未填"}</strong><span class="cell-sub">${av.filled?"全部設為不可":"此期間未填"}</span></td>`;
       rateCell=`<td><span class="rate-chip na">—</span><span class="rate-cnt">${av.filled?"可上班 0 天":"未填，無法計算"}</span></td>`;
     }
     const expanded=state.hoursExpanded===e.id;
