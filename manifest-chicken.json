@@ -1,0 +1,21 @@
+{
+  "name": "蔡叔叔採購雞肉管理",
+  "short_name": "雞肉管理",
+  "start_url": "./chicken.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f3f0",
+  "theme_color": "#241f1c",
+  "icons": [
+    {
+      "src": "icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

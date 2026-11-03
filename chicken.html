@@ -6,7 +6,11 @@
   <meta name="format-detection" content="telephone=no,date=no,address=no,email=no" />
   <meta name="theme-color" content="#241f1c" />
   <title>蔡叔叔比薩屋｜採購雞肉管理</title>
-  <link rel="manifest" href="manifest.json" />
+  <!-- 專屬 manifest：加入主畫面會開「採購雞肉管理」本頁，而非排班前台 -->
+  <link rel="manifest" href="manifest-chicken.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="雞肉管理" />
   <link rel="apple-touch-icon" href="icons/icon-192.svg" />
   <link rel="icon" href="icons/icon-192.svg" />
   <link rel="stylesheet" href="css/main.css" />
@@ -21,7 +25,7 @@
     .ck-toolbar h2 { margin: 0; font-size: 20px; }
     .ck-toolbar p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
     .ck-btns { display: flex; gap: 8px; }
-    .ck-next { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; padding: 10px 14px; border: 1px dashed #d8cfc8; border-radius: 12px; background: #fbf9f7; color: var(--muted); font-size: 12.5px; }
+    .ck-next { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; padding: 11px 14px; border: 1px dashed #d8cfc8; border-radius: 12px; background: #fbf9f7; color: var(--muted); font-size: 14px; }
     .ck-next b { color: var(--brand-dark); }
     /* 月曆格 */
     .employee-cal-day { min-height: 90px; justify-content: flex-start; position: relative; color: var(--ink); }
@@ -30,8 +34,9 @@
     .ck-ord-mark { position: absolute; top: 6px; right: 7px; font-size: 12px; }
     .ck-parts { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; width: 100%; }
     .ck-line { display: flex; justify-content: space-between; align-items: center; line-height: 1.25; }
-    .ck-line i { font-style: normal; color: var(--muted); font-size: 9px; }
-    .ck-line b { font-size: 12px; font-weight: 800; }
+    .ck-line i { font-style: normal; color: var(--muted); font-size: 10.5px; }
+    .ck-line b { font-size: 13.5px; font-weight: 800; }
+    .calendar-legend { font-size: 13px; }
     .ck-leg { color: #8f3521; } .ck-fil { color: #2f7d52; } .ck-wing { color: #b7791f; }
     .ck-tag { font-size: 10px; color: var(--muted); margin-top: 2px; }
     .ck-ord-tag { color: #b7791f; font-weight: 700; }
@@ -68,21 +73,22 @@
     .ck-form .field { margin: 12px 0; }
     .ck-num3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
-    /* 平板放大（字太小不好讀） */
-    @media (min-width: 481px) and (max-width: 1200px) {
-      .ck-toolbar h2 { font-size: 22px; } .ck-toolbar p { font-size: 14px; }
-      .employee-cal-day { min-height: 104px; }
-      .employee-cal-day .day-number { font-size: 16px; }
-      .ck-line i { font-size: 11px; } .ck-line b { font-size: 15px; } .ck-tag { font-size: 11px; }
-      .weekdays span { font-size: 14px; } .calendar-legend { font-size: 13px; }
+    /* 平板放大（字太小不好讀；涵蓋到 iPad 橫向 ~1366px） */
+    @media (min-width: 481px) and (max-width: 1400px) {
+      .ck-toolbar h2 { font-size: 23px; } .ck-toolbar p { font-size: 15px; }
+      .ck-next { font-size: 15.5px; }
+      .employee-cal-day { min-height: 112px; }
+      .employee-cal-day .day-number { font-size: 19px; }
+      .ck-line i { font-size: 13px; } .ck-line b { font-size: 18px; } .ck-tag { font-size: 13px; }
+      .weekdays span { font-size: 15px; } .calendar-legend { font-size: 15px; }
       .ck-form .field > span { font-size: 16px; }
-      .ck-num3 .input { font-size: 24px; text-align: center; padding: 14px 6px; font-weight: 700; }
-      .modal-head h3 { font-size: 20px; }
+      .ck-num3 .input { font-size: 26px; text-align: center; padding: 14px 6px; font-weight: 700; }
+      .modal-head h3 { font-size: 21px; }
       .modal-body .input[type=date] { font-size: 18px; padding: 13px; }
-      .modal-actions .ghost-btn, .modal-actions .primary-btn { font-size: 16px; }
-      table.ck-items th { font-size: 12px; } table.ck-items td { font-size: 15px; padding: 10px 6px; }
-      .cmp-h { font-size: 15px; } .ck-stat span { font-size: 14px; } .ck-stat strong { font-size: 34px; }
-      .ck-fetch-h { font-size: 15px; }
+      .modal-actions .ghost-btn, .modal-actions .primary-btn { font-size: 17px; }
+      table.ck-items th { font-size: 13px; } table.ck-items td { font-size: 16px; padding: 11px 6px; }
+      .cmp-h { font-size: 16px; } .ck-stat span { font-size: 15px; } .ck-stat strong { font-size: 36px; }
+      .ck-fetch-h { font-size: 16px; }
     }
     /* 手機版放大（主要使用者年長，好讀好輸入） */
     @media (max-width: 480px) {
@@ -153,7 +159,7 @@
           <span><i class="legend-dot available"></i>已上傳消耗</span>
           <span><i class="legend-dot" style="background:#ecd98f"></i>已排叫貨</span>
           <span><i class="legend-dot closed"></i>公休</span>
-          <span><b style="color:#b3261e">7</b>&nbsp;假日／國定假日</span>
+          <span><i class="legend-dot" style="background:#b3261e"></i>假日／國定假日（紅字）</span>
           <span>📝 已記錄叫貨</span>
         </div>
       </section>
