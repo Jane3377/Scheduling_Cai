@@ -1,6 +1,6 @@
 // 網路優先策略：先抓最新，離線才回退快取。每次調整資源時請一併更新 CACHE 版本字串。
-const CACHE = "smart-scheduler-v108";
-const ASSETS = ["./", "./index.html", "./admin26.html", "./chicken.html", "./css/main.css", "./js/admin.js", "./js/staff.js", "./js/cloud.js", "./js/chicken.js", "./js/update.js", "./js/firebase-config.js", "./manifest.json", "./manifest-chicken.json", "./icons/icon-192.svg", "./icons/icon-512.svg"];
+const CACHE = "smart-scheduler-v109";
+const ASSETS = ["./", "./index.html", "./admin26.html", "./chicken.html", "./css/main.css", "./js/admin.js", "./js/staff.js", "./js/cloud.js", "./js/chicken.js", "./js/update.js", "./js/firebase-config.js", "./manifest.json", "./manifest-chicken.json", "./icons/icon-192.svg", "./icons/icon-512.svg", "./icons/icon_192_chicken.svg", "./icons/icon_512_chicken.svg"];
 
 self.addEventListener("install", e => {
   self.skipWaiting();
