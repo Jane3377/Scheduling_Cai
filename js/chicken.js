@@ -74,7 +74,7 @@
       return { key: `${g("year")}-${g("month")}-${g("day")}`, hour: Number(g("hour")) % 24 };
     } catch (e) { const d = new Date(); return { key: toKey(d), hour: d.getHours() }; }
   }
-  const REPORT_CUTOFF_HOUR = 20; // 店家 20:00 打烊；過 20:00 且當天有營業 → 預設帶當天，否則帶前一個營業日
+  const REPORT_CUTOFF_HOUR = 21; // 店家 20:00 打烊，留 1 小時緩衝；過 21:00 且當天有營業 → 預設帶當天，否則帶前一個營業日
   // 銷售報表預設日期：{ key, today }
   function reportTarget() {
     const tw = taipeiNow();
