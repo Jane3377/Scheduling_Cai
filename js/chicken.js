@@ -1,0 +1,340 @@
+/* ===================================================================
+ *  採購雞肉管理（獨立頁）
+ *  - 上傳門市「餐點銷售」Excel → 換算當日生雞腿／排／翅消耗 → 月曆顯示
+ *  - 記錄實際叫貨（依使用日期，預設次營業日）
+ *  - 月曆的公休／國定假日「唯讀沿用」排班系統（scheduler/main.settings）
+ *  - 資料存 Firestore 同一個 scheduler 集合、但獨立文件 poultry_YYYY-MM：
+ *      { days:{ 'YYYY-MM-DD':{ sales:{品項:數量}, parts:{leg,fil,wing}, order:{leg,fil,wing}, uploadedAt, orderAt } }, updatedAt }
+ *    完全不碰 scheduler/main 與 shifts_/avail_，不影響排班。
+ *  - PIN 與排班後台同一組（scheduler/main.data.settings.adminPin，共用 sessionStorage）。
+ * =================================================================== */
+(function () {
+  "use strict";
+  const COLL = "scheduler", MAIN = "main";
+  // 部位對照（炸／烤同一批生雞，相加計算）
+  const MAP = {
+    "2": { leg: 1, fil: 1, wing: 0 },
+    "3": { leg: 1, fil: 1, wing: 1 },
+    "5": { leg: 1, fil: 2, wing: 2 },
+    "9": { leg: 3, fil: 3, wing: 3 },
+    wing: { leg: 0, fil: 0, wing: 6 },
+  };
+  const DOW = "日一二三四五六";
+  const ITEM_ORDER = ["9塊炸雞", "9塊烤雞", "5塊炸雞", "5塊烤雞", "3塊炸雞", "3塊烤雞", "2塊炸雞", "2塊烤雞", "6塊炸雞翅", "6塊烤雞翅"];
+
+  let db = null, mainRef = null, monthUnsub = null;
+  const settings = { closedDays: [1], holidays: [], nationalHolidays: [], adminPin: "1234", storeName: "蔡叔叔比薩屋" };
+  let mainLoaded = false;
+  let viewYM = null;      // 目前顯示的月份 'YYYY-MM'
+  let days = {};          // date → 記錄（目前顯示月份）
+  let lastParse = null;   // 上傳解析暫存
+
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, "0");
+  const toKey = (d) => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  const parseKey = (k) => new Date(k + "T00:00:00");
+  const todayKey = () => toKey(new Date());
+  const ymOf = (k) => k.slice(0, 7);
+  const fmtFull = (k) => { const d = parseKey(k); return `${d.getMonth() + 1} / ${pad(d.getDate())}（${DOW[d.getDay()]}）`; };
+
+  /* ---------- 日曆（唯讀沿用排班設定） ---------- */
+  function isClosed(k) {
+    if ((settings.holidays || []).some((h) => h.date === k)) return true;      // 特定休息日（臨時公休）
+    return (settings.closedDays || []).includes(parseKey(k).getDay());         // 每週固定公休
+  }
+  function isTempRest(k) { return (settings.holidays || []).some((h) => h.date === k); }
+  function closedLabel(k) { const h = (settings.holidays || []).find((x) => x.date === k); return (h && (h.note || "").trim()) || (isTempRest(k) ? "臨時公休" : "公休"); }
+  function natHoliday(k) { const h = (settings.nationalHolidays || []).find((x) => x.date === k); return h ? (h.name || "國定假日") : ""; }
+  function nextBusinessDay(fromKey) {
+    const d = parseKey(fromKey);
+    for (let i = 0; i < 120; i++) { d.setDate(d.getDate() + 1); const k = toKey(d); if (!isClosed(k)) return k; }
+    return toKey(d);
+  }
+
+  /* ---------- 部位換算 ---------- */
+  const emptyParts = () => ({ leg: 0, fil: 0, wing: 0 });
+  const pieceOfLabel = (label) => { if (/翅/.test(label)) return "wing"; const m = String(label).match(/(\d+)\s*塊/); return m ? m[1] : null; };
+  function partsFromSales(sales) {
+    const p = emptyParts();
+    Object.keys(sales || {}).forEach((label) => {
+      const u = MAP[pieceOfLabel(label)]; if (!u) return;
+      const q = Number(sales[label]) || 0;
+      p.leg += q * u.leg; p.fil += q * u.fil; p.wing += q * u.wing;
+    });
+    return p;
+  }
+
+  /* ---------- 解析 Excel ---------- */
+  function classify(name) {
+    name = String(name || "");
+    const fried = name.includes("薄皮炸雞"), baked = name.includes("鮮嫩烤雞");
+    if (!fried && !baked) return null;
+    const kind = fried ? "炸" : "烤";
+    if (name.includes("翅")) return { piece: "wing", label: `6塊${kind}雞翅` }; // 先判斷「翅」
+    const m = name.match(/(\d+)\s*塊/); if (!m) return null;
+    const n = Number(m[1]); if (![2, 3, 5, 9].includes(n)) return null;
+    return { piece: String(n), label: `${n}塊${kind}雞` };
+  }
+  function parseWorkbook(buf) {
+    let wb;
+    try { wb = XLSX.read(buf, { type: "array" }); } catch (e) { return { error: "無法讀取這個檔案，請確認是 Excel 檔。" }; }
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    if (!ws) return { error: "檔案裡沒有工作表。" };
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" });
+    // 日期：前幾列找 YYYY/MM/DD（統計期間）
+    let date = null;
+    for (let i = 0; i < Math.min(rows.length, 6); i++) {
+      const m = (rows[i] || []).map((x) => String(x)).join(" ").match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+      if (m) { date = `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`; break; }
+    }
+    // 表頭列：同時有「餐點名稱」與「銷售數量」（合計欄，非單售／套餐）
+    let hr = -1, nameCol = -1, qtyCol = -1;
+    for (let i = 0; i < Math.min(rows.length, 15); i++) {
+      const r = rows[i] || [];
+      const nc = r.findIndex((c) => String(c).trim() === "餐點名稱");
+      const qc = r.findIndex((c) => String(c).trim() === "銷售數量");
+      if (nc >= 0 && qc >= 0) { hr = i; nameCol = nc; qtyCol = qc; break; }
+    }
+    if (!date) return { error: "讀不到統計日期，請確認是門市『餐點銷售』Excel。" };
+    if (hr < 0) return { error: "找不到『餐點名稱／銷售數量』欄位，請確認是門市『餐點銷售』Excel。" };
+    const sales = {};
+    for (let i = hr + 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const name = r[nameCol]; if (!name) continue;
+      const cl = classify(name); if (!cl) continue;
+      const qty = Number(r[qtyCol]) || 0; if (qty <= 0) continue;
+      sales[cl.label] = (sales[cl.label] || 0) + qty;
+    }
+    if (!Object.keys(sales).length) return { error: "這份檔案找不到雞肉品項（薄皮炸雞／鮮嫩烤雞）。", date };
+    return { date, sales, parts: partsFromSales(sales) };
+  }
+
+  /* ---------- 同步狀態燈 ---------- */
+  function setBadge(s) {
+    const el = $("ckSync"); if (!el) return;
+    const map = { init: ["◌ 初始化", "init"], connecting: ["◌ 連線中", "connecting"], saving: ["↻ 儲存中", "saving"], synced: ["✓ 已同步", "synced"], offline: ["⚠ 離線", "offline"], error: ["⚠ 連線異常", "error"], local: ["● 本機模式", "local"] };
+    const [txt, cls] = map[s] || map.init;
+    el.textContent = txt; el.className = "sync-badge " + cls;
+  }
+
+  /* ---------- 月曆 ---------- */
+  const monthRefOf = (ym) => db.collection(COLL).doc("poultry_" + ym);
+  function watchMonth(ym) {
+    viewYM = ym;
+    if (monthUnsub) { monthUnsub(); monthUnsub = null; }
+    days = {};
+    if (!db) { render(); return; }
+    setBadge("connecting");
+    monthUnsub = monthRefOf(ym).onSnapshot({ includeMetadataChanges: true }, (snap) => {
+      const d = snap.data(); days = (d && d.days) || {};
+      setBadge(snap.metadata.hasPendingWrites ? "saving" : (snap.metadata.fromCache ? "offline" : "synced"));
+      render();
+    }, (err) => { console.error(err); setBadge("error"); });
+  }
+  function partLines(p) {
+    return `<span class="ck-parts"><span class="ck-line"><i>腿</i><b class="ck-leg">${p.leg}</b></span><span class="ck-line"><i>排</i><b class="ck-fil">${p.fil}</b></span><span class="ck-line"><i>翅</i><b class="ck-wing">${p.wing}</b></span></span>`;
+  }
+  function render() {
+    if (!viewYM) return;
+    const [y, m] = viewYM.split("-").map(Number);
+    const lbl = $("ckMonthLabel"); if (lbl) lbl.textContent = `${y} 年 ${m} 月`;
+    const first = new Date(y, m - 1, 1), dim = new Date(y, m, 0).getDate();
+    const startDow = (first.getDay() + 6) % 7;      // 週一起始
+    const tk = todayKey();
+    let html = "";
+    for (let i = 0; i < startDow; i++) html += `<div class="employee-cal-day ck-out"></div>`;
+    for (let dd = 1; dd <= dim; dd++) {
+      const k = `${viewYM}-${pad(dd)}`;
+      const rec = days[k] || {};
+      const hasSales = !!(rec.sales && Object.keys(rec.sales).length && rec.parts);
+      const hasOrder = !!rec.order;
+      const nat = natHoliday(k), fut = k > tk;
+      const mark = hasOrder ? `<span class="ck-ord-mark" title="已記錄叫貨">📝</span>` : "";
+      let cls = "employee-cal-day", inner = `<span class="day-number">${dd}</span>`, disabled = "";
+      if (isClosed(k)) { cls += " ck-rest"; disabled = "disabled"; inner += `<span class="ck-tag">${closedLabel(k)}</span>`; }
+      else if (nat) { cls += " ck-holiday"; inner = `<span class="day-number">${dd}</span>${mark}<span class="ck-tag">${nat}</span>` + (hasSales ? partLines(rec.parts) : (hasOrder ? partLines(rec.order) : "")); }
+      else if (hasSales) { cls += " available"; inner = `<span class="day-number">${dd}</span>${mark}` + partLines(rec.parts); }
+      else if (hasOrder) { cls += " ck-order"; inner = `<span class="day-number">${dd}</span><span class="ck-tag ck-ord-tag">已排叫貨</span>` + partLines(rec.order); }
+      else if (k === tk) { cls += " ck-today"; inner += `<span class="ck-tag">今天·未上傳</span>`; }
+      else if (fut) { cls += " ck-future"; }
+      else { cls += " ck-pending"; inner += `<span class="ck-tag">未上傳</span>`; }
+      html += `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
+    }
+    const grid = $("ckGrid"); if (!grid) return;
+    grid.innerHTML = html;
+    grid.querySelectorAll("button[data-date]:not([disabled])").forEach((b) => b.addEventListener("click", () => openDetail(b.dataset.date)));
+  }
+
+  /* ---------- 共用：部位三格、明細表 ---------- */
+  function statTiles(p) {
+    return `<div class="ck-parts-grid">
+      <div class="ck-stat leg"><span>🍗 雞腿</span><strong>${p.leg}</strong></div>
+      <div class="ck-stat fil"><span>🥩 雞排</span><strong>${p.fil}</strong></div>
+      <div class="ck-stat wing"><span>🪽 雞翅</span><strong>${p.wing}</strong></div></div>`;
+  }
+  function itemTable(sales, parts) {
+    const labels = Object.keys(sales).sort((a, b) => { const ia = ITEM_ORDER.indexOf(a), ib = ITEM_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+    let rows = "";
+    labels.forEach((l) => {
+      const u = MAP[pieceOfLabel(l)] || emptyParts(), q = sales[l];
+      const meal = l.includes("2塊") ? `<small style="color:var(--muted)">（套餐）</small>` : "";
+      rows += `<tr><td>${l}${meal}</td><td>${q}</td><td>${q * u.leg}</td><td>${q * u.fil}</td><td>${q * u.wing}</td></tr>`;
+    });
+    rows += `<tr class="sum"><td>合計</td><td>—</td><td>${parts.leg}</td><td>${parts.fil}</td><td>${parts.wing}</td></tr>`;
+    return `<table class="ck-items"><thead><tr><th>品項</th><th>數量</th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  /* ---------- 彈窗：顯示／隱藏 ---------- */
+  function show(id) { $(id).classList.remove("hidden"); }
+  function hide(id) { $(id).classList.add("hidden"); }
+
+  /* ---------- 上傳銷售 ---------- */
+  function openUpload() {
+    lastParse = null;
+    $("ckFile").value = "";
+    $("uploadResult").innerHTML = "";
+    $("uploadDrop").classList.remove("hidden");
+    show("uploadBackdrop");
+  }
+  function onFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const res = parseWorkbook(new Uint8Array(e.target.result));
+      if (res.error) { $("uploadResult").innerHTML = `<div class="ck-err">⚠ ${res.error}</div>`; return; }
+      lastParse = res;
+      saveSales(res, () => {
+        $("uploadDrop").classList.add("hidden");
+        $("uploadResult").innerHTML =
+          `<div class="ck-datehead">已解析並儲存：<b>${res.date.replace(/-/g, " / ")}</b></div>` +
+          statTiles(res.parts) +
+          itemTable(res.sales, res.parts) +
+          `<div class="ck-saved">✓ 已儲存到雲端（${res.date} 覆蓋更新）・共 ${Object.keys(res.sales).length} 個雞肉品項</div>` +
+          `<div class="modal-actions"><button class="ghost-btn" id="uploadAgain">再上傳別天</button><button class="primary-btn" id="uploadDone">完成</button></div>`;
+        $("uploadAgain").onclick = openUpload;
+        $("uploadDone").onclick = () => hide("uploadBackdrop");
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  function saveSales(res, done) {
+    if (!db) { done && done(); return; }
+    const ym = ymOf(res.date);
+    const patch = {}; patch["days." + res.date + ".sales"] = res.sales;
+    patch["days." + res.date + ".parts"] = res.parts;
+    patch["days." + res.date + ".uploadedAt"] = Date.now();
+    patch["updatedAt"] = Date.now();
+    monthRefOf(ym).set({ days: { [res.date]: { sales: res.sales, parts: res.parts, uploadedAt: Date.now() } }, updatedAt: Date.now() }, { merge: true })
+      .then(() => { if (ym !== viewYM) watchMonth(ym); done && done(); })
+      .catch((err) => { console.error(err); $("uploadResult").innerHTML += `<div class="ck-err">⚠ 儲存失敗：${err.message || err}</div>`; });
+  }
+
+  /* ---------- 記錄叫貨 ---------- */
+  function openOrder(dateKey, existing) {
+    const k = dateKey || nextBusinessDay(todayKey());
+    $("orderDate").value = k;
+    $("orderLeg").value = existing ? existing.leg : "";
+    $("orderFil").value = existing ? existing.fil : "";
+    $("orderWing").value = existing ? existing.wing : "";
+    updateOrderHint();
+    show("orderBackdrop");
+  }
+  function updateOrderHint() {
+    const def = nextBusinessDay(todayKey());
+    $("orderHint").textContent = `預設帶入「次營業日」＝ ${def.slice(5).replace("-", "/")}（今天 ${todayKey().slice(5).replace("-", "/")} 的下一個營業日，已跳過公休）；可自行修改。`;
+  }
+  function saveOrder() {
+    const k = $("orderDate").value;
+    if (!k) { alert("請選擇使用日期"); return; }
+    const order = { leg: Number($("orderLeg").value) || 0, fil: Number($("orderFil").value) || 0, wing: Number($("orderWing").value) || 0 };
+    if (!db) { hide("orderBackdrop"); return; }
+    const ym = ymOf(k);
+    monthRefOf(ym).set({ days: { [k]: { order: order, orderAt: Date.now() } }, updatedAt: Date.now() }, { merge: true })
+      .then(() => { hide("orderBackdrop"); if (ym !== viewYM) watchMonth(ym); })
+      .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
+  }
+
+  /* ---------- 點某天：明細／對比 ---------- */
+  function cell(obj, k) { return obj ? `<td>${obj[k]}</td>` : `<td class="ck-muted">—</td>`; }
+  function diffCell(v) { const c = v < 0 ? "var(--danger)" : v > 0 ? "var(--ok)" : "var(--muted)"; return `<td style="color:${c};font-weight:800">${v > 0 ? "+" : ""}${v}</td>`; }
+  function openDetail(k) {
+    const rec = days[k] || {};
+    const hasSales = !!(rec.sales && Object.keys(rec.sales).length && rec.parts);
+    const hasOrder = !!rec.order;
+    $("detailTitle").textContent = fmtFull(k);
+    let html = "";
+    if (hasSales || hasOrder) {
+      const o = rec.order || null, u = hasSales ? rec.parts : null;
+      html += `<div class="cmp-h">叫貨 vs 實際消耗</div>`;
+      html += `<table class="ck-items" style="margin-bottom:6px"><thead><tr><th></th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>`;
+      html += `<tr><td>實際叫貨</td>${cell(o, "leg")}${cell(o, "fil")}${cell(o, "wing")}</tr>`;
+      html += `<tr><td>實際消耗</td>${cell(u, "leg")}${cell(u, "fil")}${cell(u, "wing")}</tr>`;
+      if (o && u) html += `<tr class="sum"><td>差額（叫−用）</td>${diffCell(o.leg - u.leg)}${diffCell(o.fil - u.fil)}${diffCell(o.wing - u.wing)}</tr>`;
+      html += `</tbody></table>`;
+      if (!o) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未記錄叫貨。</div>`;
+      else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對消耗。</div>`;
+      else html += `<div class="hint" style="margin:-2px 2px 12px">負數＝叫貨不夠用；正數＝有剩。供調整下次叫貨參考。</div>`;
+    }
+    if (hasSales) html += `<div class="cmp-h">當日銷售明細（換算消耗）</div>` + itemTable(rec.sales, rec.parts);
+    else html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
+    $("detailBody").innerHTML = html;
+    $("detailEditOrder").onclick = () => { hide("detailBackdrop"); openOrder(k, rec.order); };
+    show("detailBackdrop");
+  }
+
+  /* ---------- PIN 閘門（與排班後台同一組） ---------- */
+  function enterApp() { hide("pinGate"); show("app"); }
+  function tryUnlock() {
+    const ref = settings.adminPin || "1234";
+    if (($("pinInput").value || "").trim() === ref) { try { sessionStorage.setItem("adminUnlocked", "1"); } catch (e) {} enterApp(); $("pinError").textContent = ""; }
+    else { $("pinError").textContent = "PIN 碼錯誤，請再試一次"; $("pinInput").value = ""; }
+  }
+
+  /* ---------- 月份切換 ---------- */
+  function shiftMonth(n) {
+    const [y, m] = viewYM.split("-").map(Number);
+    const d = new Date(y, m - 1 + n, 1);
+    watchMonth(d.getFullYear() + "-" + pad(d.getMonth() + 1));
+  }
+
+  /* ---------- 啟動 ---------- */
+  function wire() {
+    $("pinSubmit").onclick = tryUnlock;
+    $("pinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
+    $("ckUploadBtn").onclick = openUpload;
+    $("ckOrderBtn").onclick = () => openOrder(null, null);
+    $("ckPrevMonth").onclick = () => shiftMonth(-1);
+    $("ckNextMonth").onclick = () => shiftMonth(1);
+    $("uploadDrop").onclick = () => $("ckFile").click();
+    $("ckFile").addEventListener("change", (e) => onFile(e.target.files[0]));
+    $("orderSave").onclick = saveOrder;
+    // 彈窗關閉（X、背景、取消）
+    document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => hide(b.getAttribute("data-close"))));
+    document.querySelectorAll(".modal-backdrop").forEach((bd) => bd.addEventListener("click", (e) => { if (e.target === bd) hide(bd.id); }));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelectorAll(".modal-backdrop:not(.hidden)").forEach((bd) => hide(bd.id)); });
+  }
+  function init() {
+    wire();
+    try { if (sessionStorage.getItem("adminUnlocked") === "1") enterApp(); } catch (e) {}
+    viewYM = ymOf(todayKey());
+    const haveCfg = typeof firebase !== "undefined" && typeof firebaseConfig !== "undefined" && firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId;
+    if (!haveCfg || !window.firebase) { setBadge("local"); render(); return; }
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    mainRef = db.collection(COLL).doc(MAIN);
+    if (firebase.auth) firebase.auth().signInAnonymously().catch((e) => console.warn("匿名登入失敗，仍嘗試連線：", e));
+    mainRef.onSnapshot((snap) => {
+      const d = snap.data(), s = (d && d.data && d.data.settings) || {};
+      settings.closedDays = s.closedDays || settings.closedDays;
+      settings.holidays = s.holidays || [];
+      settings.nationalHolidays = s.nationalHolidays || [];
+      settings.adminPin = s.adminPin || "1234";
+      settings.storeName = s.storeName || settings.storeName;
+      mainLoaded = true;
+      render();
+    }, (err) => console.error("main snapshot", err));
+    watchMonth(viewYM);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
