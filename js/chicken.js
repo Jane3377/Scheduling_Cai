@@ -567,6 +567,7 @@
     $("backupExport").onclick = doBackupExport;
     $("backupImport").onclick = () => $("backupFile").click();
     $("backupFile").addEventListener("change", (e) => onBackupFile(e.target.files[0]));
+    $("ckGuideBtn").onclick = () => show("guideBackdrop");
     $("ckPartsBtn").onclick = openParts;
     $("partsReset").onclick = resetParts;
     $("partsSave").onclick = saveParts;
