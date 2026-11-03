@@ -66,6 +66,22 @@
     return toKey(d);
   }
   function dateMinus(k, n) { const d = parseKey(k); d.setDate(d.getDate() - n); return toKey(d); }
+  // 以台灣時區（UTC+8）判斷「現在」的日期與小時，避免裝置時區設定錯誤導致誤判
+  function taipeiNow() {
+    try {
+      const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false }).formatToParts(new Date());
+      const g = (t) => (p.find((x) => x.type === t) || {}).value;
+      return { key: `${g("year")}-${g("month")}-${g("day")}`, hour: Number(g("hour")) % 24 };
+    } catch (e) { const d = new Date(); return { key: toKey(d), hour: d.getHours() }; }
+  }
+  const REPORT_CUTOFF_HOUR = 20; // 店家 20:00 打烊；過 20:00 且當天有營業 → 預設帶當天，否則帶前一個營業日
+  // 銷售報表預設日期：{ key, today }
+  function reportTarget() {
+    const tw = taipeiNow();
+    if (tw.hour >= REPORT_CUTOFF_HOUR && !isClosed(tw.key)) return { key: tw.key, today: true };
+    return { key: prevBusinessDay(tw.key), today: false };
+  }
+  const fmtReportDate = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}/${pad(d.getDate())}（週${DOW[d.getDay()]}）`; };
   function addMonthYM(ym, n) { const [y, m] = ym.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
   const fmtBuf = (v) => (Math.round(v * 10) / 10).toFixed(1);
   // 日型分組：公休(null，不推估) / 假日(六日＋國定) / 週五 / 平日(其餘)
@@ -237,8 +253,10 @@
 
   /* ---------- 上傳銷售 ---------- */
   function openReport() {
-    const ds = prevBusinessDay(todayKey()).replace(/-/g, "/"); // 前一個營業日（今天通常還沒有完整資料）
-    const url = `${IDELIVERY_BASE}?start_time=${encodeURIComponent(ds)}&end_time=${encodeURIComponent(ds)}&period=day&store_ids%5B0%5D=${STORE_ID}`;
+    const t = reportTarget();
+    const ds = t.key.replace(/-/g, "/");
+    const period = t.today ? "real_time" : "day"; // 當天用即時、前一個營業日用整日結算
+    const url = `${IDELIVERY_BASE}?start_time=${encodeURIComponent(ds)}&end_time=${encodeURIComponent(ds)}&period=${period}&store_ids%5B0%5D=${STORE_ID}`;
     window.open(url, "_blank", "noopener");
   }
   function openUpload() {
@@ -246,6 +264,7 @@
     $("ckFile").value = "";
     $("uploadResult").innerHTML = "";
     $("uploadDrop").classList.remove("hidden");
+    const rd = $("ckReportDate"); if (rd) rd.textContent = fmtReportDate(reportTarget().key);
     show("uploadBackdrop");
   }
   function onFile(file) {
