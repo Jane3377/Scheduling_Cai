@@ -45,11 +45,10 @@ service cloud.firestore {
         && request.resource.data.updatedAt is number
         && request.resource.data.updatedAt > 0;
 
-      // 採購雞肉設定（安全緩衝倍率等）：單一文件 poultry_config
+      // 採購雞肉設定（安全緩衝倍率、部位對照表）：單一文件 poultry_config
       allow create, update: if request.auth != null
         && docId == 'poultry_config'
-        && request.resource.data.keys().hasOnly(['bufferFactor', 'updatedAt'])
-        && request.resource.data.bufferFactor is number
+        && request.resource.data.keys().hasOnly(['bufferFactor', 'parts', 'updatedAt'])
         && request.resource.data.updatedAt is number
         && request.resource.data.updatedAt > 0;
 

@@ -11,14 +11,17 @@
 (function () {
   "use strict";
   const COLL = "scheduler", MAIN = "main";
-  // 部位對照（炸／烤同一批生雞，相加計算）
-  const MAP = {
+  // 部位對照（炸／烤同一批生雞，相加計算）；可在「部位對照設定」覆寫，存 poultry_config.parts
+  const DEFAULT_MAP = {
     "2": { leg: 1, fil: 1, wing: 0 },
     "3": { leg: 1, fil: 1, wing: 1 },
     "5": { leg: 1, fil: 2, wing: 2 },
     "9": { leg: 3, fil: 3, wing: 3 },
     wing: { leg: 0, fil: 0, wing: 6 },
   };
+  const PIECES = ["2", "3", "5", "9", "wing"];
+  const PIECE_LABEL = { "2": "2 塊", "3": "3 塊", "5": "5 塊", "9": "9 塊", wing: "6塊雞翅" };
+  let partMap = JSON.parse(JSON.stringify(DEFAULT_MAP));   // 目前生效的對照（預設＝DEFAULT_MAP，載入設定後覆寫）
   const DOW = "日一二三四五六";
   const ITEM_ORDER = ["9塊炸雞", "9塊烤雞", "5塊炸雞", "5塊烤雞", "3塊炸雞", "3塊烤雞", "2塊炸雞", "2塊烤雞", "6塊炸雞翅", "6塊烤雞翅"];
   // iDelivery 報表捷徑（店家自己的後台；只是帶今天日期開啟，仍需在該站登入／輸入驗證碼）
@@ -98,7 +101,7 @@
   function partsFromSales(sales) {
     const p = emptyParts();
     Object.keys(sales || {}).forEach((label) => {
-      const u = MAP[pieceOfLabel(label)]; if (!u) return;
+      const u = partMap[pieceOfLabel(label)]; if (!u) return;
       const q = Number(sales[label]) || 0;
       p.leg += q * u.leg; p.fil += q * u.fil; p.wing += q * u.wing;
     });
@@ -214,13 +217,14 @@
   }
   function itemTable(sales, parts) {
     const labels = Object.keys(sales).sort((a, b) => { const ia = ITEM_ORDER.indexOf(a), ib = ITEM_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
-    let rows = "";
+    let rows = "", sum = emptyParts();
     labels.forEach((l) => {
-      const u = MAP[pieceOfLabel(l)] || emptyParts(), q = sales[l];
+      const u = partMap[pieceOfLabel(l)] || emptyParts(), q = sales[l];
+      sum.leg += q * u.leg; sum.fil += q * u.fil; sum.wing += q * u.wing;
       const meal = l.includes("2塊") ? `<small style="color:var(--muted)">（套餐）</small>` : "";
       rows += `<tr><td>${l}${meal}</td><td>${q}</td><td>${q * u.leg}</td><td>${q * u.fil}</td><td>${q * u.wing}</td></tr>`;
     });
-    rows += `<tr class="sum"><td>合計</td><td>—</td><td>${parts.leg}</td><td>${parts.fil}</td><td>${parts.wing}</td></tr>`;
+    rows += `<tr class="sum"><td>合計</td><td>—</td><td>${sum.leg}</td><td>${sum.fil}</td><td>${sum.wing}</td></tr>`;
     return `<table class="ck-items"><thead><tr><th>品項</th><th>數量</th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
@@ -366,33 +370,63 @@
       predUnsubs.push(u);
     });
   }
+  const configRef = () => db.collection(COLL).doc("poultry_config");
+  function applyConfig(d) {
+    bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
+    partMap = JSON.parse(JSON.stringify(DEFAULT_MAP));
+    if (d && d.parts && typeof d.parts === "object") {
+      PIECES.forEach((pc) => { const v = d.parts[pc]; if (v && typeof v === "object") partMap[pc] = { leg: Number(v.leg) || 0, fil: Number(v.fil) || 0, wing: Number(v.wing) || 0 }; });
+    }
+  }
   function watchConfig() {
     if (!db) return;
-    configUnsub = db.collection(COLL).doc("poultry_config").onSnapshot((snap) => {
-      const d = snap.data();
-      bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
-      refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
+    configUnsub = configRef().onSnapshot((snap) => {
+      applyConfig(snap.data());
+      render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
     }, (err) => console.error("config snapshot", err));
   }
   function saveBuffer(v) {
     bufferFactor = v;
-    if (db) db.collection(COLL).doc("poultry_config").set({ bufferFactor: v, updatedAt: Date.now() }, { merge: true }).catch((e) => console.error(e));
+    if (db) configRef().set({ bufferFactor: v, updatedAt: Date.now() }, { merge: true }).catch((e) => console.error(e));
   }
+  // 找「上個同型日」已記錄的叫貨（目標日之前、同日型、最近一天）
+  function lastSameTypeOrder(targetKey) {
+    const g = dayGroup(targetKey); if (!g) return null;
+    let best = null;
+    Object.keys(predDays).forEach((k) => {
+      if (k >= targetKey) return;
+      if (dayGroup(k) !== g) return;
+      const o = predDays[k] && predDays[k].order; if (!o) return;
+      if (!best || k > best.date) best = { date: k, order: o };
+    });
+    return best;
+  }
+  function fillOrder(o) { $("orderLeg").value = o.leg; $("orderFil").value = o.fil; $("orderWing").value = o.wing; }
   function renderSuggestion(k) {
     const box = $("sugBlock"); if (!box || !k) return;
-    const p = predict(k), d = parseKey(k);
+    const p = predict(k);
     if (p.group === null) { box.classList.add("hidden"); return; }   // 公休不顯示建議
     box.classList.remove("hidden");
-    $("sugMeta").textContent = `${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}·${p.group}）`;
     const sel = $("sugBuffer"); if (sel) sel.value = fmtBuf(bufferFactor);
+    // 系統建議
     if (!p.n) {
       $("sugNums").classList.add("hidden"); $("sugApply").classList.add("hidden");
-      $("sugBasis").textContent = "同類型營業日的上傳資料還不足，先持續每天上傳銷售，累積幾天後就會自動推估。";
+      $("sugBasis").textContent = `${p.group}·資料累積中，多上傳幾天就會自動推估`;
     } else {
       $("sugNums").classList.remove("hidden"); $("sugApply").classList.remove("hidden");
       $("sugLeg").textContent = p.rec.leg; $("sugFil").textContent = p.rec.fil; $("sugWing").textContent = p.rec.wing;
-      $("sugBasis").textContent = `依近一個月 ${p.n} 個「${p.group}」平均消耗（腿 ${p.avg.leg}・排 ${p.avg.fil}・翅 ${p.avg.wing}）× 緩衝 ${fmtBuf(p.buf)}`;
-      $("sugApply").onclick = () => { $("orderLeg").value = p.rec.leg; $("orderFil").value = p.rec.fil; $("orderWing").value = p.rec.wing; };
+      $("sugBasis").textContent = `近一月 ${p.n} 個「${p.group}」平均 × 緩衝 ${fmtBuf(p.buf)}`;
+      $("sugApply").onclick = () => fillOrder(p.rec);
+    }
+    // 上個同型日叫貨
+    const last = lastSameTypeOrder(k), lr = $("lastRow");
+    if (last) {
+      lr.classList.remove("hidden");
+      $("lastTag").textContent = `🕑 上個${p.group}（${last.date.slice(5).replace("-", "/")}）`;
+      $("lastLeg").textContent = last.order.leg; $("lastFil").textContent = last.order.fil; $("lastWing").textContent = last.order.wing;
+      $("lastApply").onclick = () => fillOrder(last.order);
+    } else {
+      lr.classList.add("hidden");
     }
   }
   function refreshHint() {
@@ -402,6 +436,84 @@
     if (!p.group) el.innerHTML = `${head}：公休`;
     else if (!p.n) el.innerHTML = `${head}：建議叫貨資料累積中 ›`;
     else el.innerHTML = `${head} 建議：<b class="ck-leg">腿 ${p.rec.leg}</b>　<b class="ck-fil">排 ${p.rec.fil}</b>　<b class="ck-wing">翅 ${p.rec.wing}</b> ›`;
+  }
+
+  /* ---------- 匯出 CSV（選月份、每日彙總） ---------- */
+  function csvEscape(v) { v = String(v == null ? "" : v); return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; }
+  function triggerDownload(blob, name) { const a = document.createElement("a"), url = URL.createObjectURL(blob); a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0); }
+  function downloadCSV(name, rows) { const csv = "﻿" + rows.map((r) => r.map(csvEscape).join(",")).join("\r\n"); triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8;" }), name); }
+  function openCsv() { $("csvMonth").value = viewYM; show("csvBackdrop"); }
+  function doCsvExport() {
+    const ym = $("csvMonth").value; if (!ym) { alert("請選擇月份"); return; }
+    if (!db) { alert("尚未連線，無法匯出。"); return; }
+    monthRefOf(ym).get().then((snap) => {
+      const data = (snap.data() && snap.data().days) || {};
+      const [y, m] = ym.split("-").map(Number), dim = new Date(y, m, 0).getDate();
+      const rows = [["日期", "星期", "日型", "狀態", "消耗腿", "消耗排", "消耗翅", "叫貨腿", "叫貨排", "叫貨翅", "差額腿", "差額排", "差額翅"]];
+      for (let dd = 1; dd <= dim; dd++) {
+        const k = `${ym}-${pad(dd)}`, rec = data[k] || {}, d = parseKey(k), star = DOW[d.getDay()];
+        if (isClosed(k)) { rows.push([k, star, "", closedLabel(k), "", "", "", "", "", "", "", "", ""]); continue; }
+        const g = dayGroup(k) || "";
+        const u = (rec.sales && Object.keys(rec.sales).length && rec.parts) ? rec.parts : null;
+        const o = rec.order || null;
+        const df = (u && o) ? { leg: o.leg - u.leg, fil: o.fil - u.fil, wing: o.wing - u.wing } : null;
+        rows.push([k, star, g, "營業", u ? u.leg : "", u ? u.fil : "", u ? u.wing : "", o ? o.leg : "", o ? o.fil : "", o ? o.wing : "", df ? df.leg : "", df ? df.fil : "", df ? df.wing : ""]);
+      }
+      downloadCSV(`${settings.storeName || "採購雞肉"}_採購雞肉_${ym}.csv`, rows);
+      hide("csvBackdrop");
+    }).catch((err) => { console.error(err); alert("匯出失敗：" + (err.message || err)); });
+  }
+
+  /* ---------- 部位對照設定 ---------- */
+  function fillPartsInputs(map) { PIECES.forEach((pc) => ["leg", "fil", "wing"].forEach((part) => { const el = $(`pm_${pc}_${part}`); if (el) el.value = (map[pc] && map[pc][part] != null) ? map[pc][part] : 0; })); }
+  function openParts() { fillPartsInputs(partMap); show("partsBackdrop"); }
+  function resetParts() { fillPartsInputs(DEFAULT_MAP); }
+  function saveParts() {
+    const parts = {};
+    PIECES.forEach((pc) => { parts[pc] = { leg: Number($(`pm_${pc}_leg`).value) || 0, fil: Number($(`pm_${pc}_fil`).value) || 0, wing: Number($(`pm_${pc}_wing`).value) || 0 }; });
+    if (!db) { hide("partsBackdrop"); return; }
+    configRef().set({ parts, updatedAt: Date.now() }, { merge: true }).then(() => hide("partsBackdrop")).catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
+  }
+
+  /* ---------- 備份／還原（整包 JSON 匯出匯入） ---------- */
+  function openBackup() { show("backupBackdrop"); }
+  function doBackupExport() {
+    if (!db) { alert("尚未連線，無法備份。"); return; }
+    const FP = firebase.firestore.FieldPath.documentId();
+    db.collection(COLL).where(FP, ">=", "poultry_").where(FP, "<", "poultry`").get().then((qs) => {
+      const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {} };
+      qs.forEach((doc) => {
+        const id = doc.id, data = doc.data() || {};
+        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, parts: data.parts };
+        else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
+      });
+      triggerDownload(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }), `${settings.storeName || "採購雞肉"}_雞肉備份_${todayKey()}.json`);
+    }).catch((err) => { console.error(err); alert("備份失敗：" + (err.message || err)); });
+  }
+  function onBackupFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      let data; try { data = JSON.parse(e.target.result); } catch (x) { alert("這不是有效的備份檔（JSON 解析失敗）。"); return; }
+      if (!data || data.type !== "poultry-backup" || !data.months) { alert("這不是採購雞肉的備份檔。"); return; }
+      const n = Object.keys(data.months).length;
+      if (!confirm(`將匯入 ${n} 個月份的資料${data.config ? "＋設定" : ""}，並覆蓋目前的雞肉資料。確定匯入？`)) return;
+      doBackupImport(data);
+    };
+    reader.readAsText(file);
+    $("backupFile").value = "";
+  }
+  function doBackupImport(data) {
+    if (!db) { alert("尚未連線。"); return; }
+    const writes = [];
+    Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
+    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (data.config.parts) c.parts = data.config.parts; writes.push({ ref: configRef(), data: c }); }
+    let i = 0;
+    (function next() {
+      if (i >= writes.length) { hide("backupBackdrop"); alert("匯入完成。"); watchMonth(viewYM); return; }
+      const batch = db.batch(), chunk = writes.slice(i, i + 400); chunk.forEach((w) => batch.set(w.ref, w.data)); i += chunk.length;
+      batch.commit().then(next).catch((err) => { console.error(err); alert("匯入失敗：" + (err.message || err)); });
+    })();
   }
 
   /* ---------- 啟動 ---------- */
@@ -414,6 +526,16 @@
     $("orderDate").addEventListener("change", () => renderSuggestion($("orderDate").value));
     $("sugBuffer").addEventListener("change", (e) => { saveBuffer(Number(e.target.value) || 1.0); renderSuggestion($("orderDate").value); });
     $("ckHint").onclick = () => { const k = nextBusinessDay(todayKey()); openOrder(k, (predDays[k] || {}).order); };
+    // 月曆下方工具：匯出 CSV／備份還原／部位對照
+    $("ckExportCsvBtn").onclick = openCsv;
+    $("csvDownload").onclick = doCsvExport;
+    $("ckBackupBtn").onclick = openBackup;
+    $("backupExport").onclick = doBackupExport;
+    $("backupImport").onclick = () => $("backupFile").click();
+    $("backupFile").addEventListener("change", (e) => onBackupFile(e.target.files[0]));
+    $("ckPartsBtn").onclick = openParts;
+    $("partsReset").onclick = resetParts;
+    $("partsSave").onclick = saveParts;
     $("ckPrevMonth").onclick = () => shiftMonth(-1);
     $("ckNextMonth").onclick = () => shiftMonth(1);
     $("uploadDrop").onclick = () => $("ckFile").click();
