@@ -268,14 +268,15 @@
     };
     reader.readAsArrayBuffer(file);
   }
+  // 目前對照表是否已自訂（與預設不同）→ 只有自訂時才需要逐日存 map，省資料
+  function mapIsCustom() { return PIECES.some((pc) => ["leg", "fil", "wing"].some((k) => (partMap[pc] || {})[k] !== DEFAULT_MAP[pc][k])); }
   function saveSales(res, done) {
     if (!db) { done && done(); return; }
     const ym = ymOf(res.date);
-    const patch = {}; patch["days." + res.date + ".sales"] = res.sales;
-    patch["days." + res.date + ".parts"] = res.parts;
-    patch["days." + res.date + ".uploadedAt"] = Date.now();
-    patch["updatedAt"] = Date.now();
-    monthRefOf(ym).set({ days: { [res.date]: { sales: res.sales, parts: res.parts, map: JSON.parse(JSON.stringify(partMap)), uploadedAt: Date.now() } }, updatedAt: Date.now() }, { merge: true })
+    // 只有自訂對照表才存當天 map；用預設時不存（並清掉可能殘留的舊 map）
+    const dayRec = { sales: res.sales, parts: res.parts, uploadedAt: Date.now() };
+    dayRec.map = mapIsCustom() ? JSON.parse(JSON.stringify(partMap)) : firebase.firestore.FieldValue.delete();
+    monthRefOf(ym).set({ days: { [res.date]: dayRec }, updatedAt: Date.now() }, { merge: true })
       .then(() => { if (ym !== viewYM) watchMonth(ym); done && done(); })
       .catch((err) => { console.error(err); $("uploadResult").innerHTML += `<div class="ck-err">⚠ 儲存失敗：${err.message || err}</div>`; });
   }
