@@ -115,7 +115,7 @@
     <div class="pin-card">
       <div class="brand-mark large-mark"><img src="icons/icon-192.svg" alt="蔡叔叔比薩屋" /></div>
       <h1>採購雞肉管理</h1>
-      <p>請輸入 PIN 碼進入（與排班後台相同）</p>
+      <p>請輸入 PIN 碼進入</p>
       <input id="pinInput" class="input big-input" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN 碼" />
       <button id="pinSubmit" class="primary-btn full">進入</button>
       <div id="pinError" class="form-error"></div>
@@ -156,7 +156,7 @@
         <div class="weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
         <div id="ckGrid" class="employee-calendar-grid"></div>
         <div class="calendar-legend">
-          <span><i class="legend-dot available"></i>已上傳消耗</span>
+          <span><i class="legend-dot available"></i>已上傳銷售</span>
           <span><i class="legend-dot" style="background:#ecd98f"></i>已排叫貨</span>
           <span><i class="legend-dot closed"></i>公休</span>
           <span><i class="legend-dot" style="background:#b3261e"></i>假日／國定假日（紅字）</span>
@@ -169,12 +169,12 @@
   <!-- 上傳銷售彈窗 -->
   <div id="uploadBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(560px,100%)">
-      <div class="modal-head"><div><h3>上傳當日銷售</h3><p>選門市「餐點銷售」Excel → 自動換算部位 → 儲存</p></div><button class="icon-btn" data-close="uploadBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3>上傳銷售報表</h3><p>選門市「餐點銷售狀況」匯出Excel → 自動換算部位 → 儲存</p></div><button class="icon-btn" data-close="uploadBackdrop">✕</button></div>
       <div class="modal-body">
         <div class="ck-fetch">
-          <p class="ck-fetch-h">① 先去 iDelivery 下載報表</p>
-          <button class="secondary-btn full" id="ckOpenReport">🔗 開啟 iDelivery 銷售報表（自動帶前一個營業日）</button>
-          <p class="hint">會另開 iDelivery 並帶入「前一個營業日」日期；登入／驗證碼請在該頁完成。開啟後請點上方「<b>餐點銷售狀況</b>」分頁 → 匯出，再回到這裡上傳。</p>
+          <p class="ck-fetch-h">① 先去『大麥智能餐飲系統』下載報表</p>
+          <button class="secondary-btn full" id="ckOpenReport">🔗 開啟『大麥智能餐飲系統』銷售報表（自動帶前一個營業日）</button>
+          <p class="hint">會另開並帶入「前一個營業日」日期；登入／驗證碼請在該頁完成。開啟後請點上方「<b>餐點銷售狀況</b>」分頁 → 匯出，再回到這裡上傳。</p>
         </div>
         <div class="ck-drop" id="uploadDrop">
           <div class="ico">📄⬆️</div>
