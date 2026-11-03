@@ -37,6 +37,7 @@
   // 第二階段：次營業日叫貨建議
   const PRED_WINDOW = 35; // 取樣範圍：近 35 天同日型
   let predUnsubs = [], configUnsub = null, predMonthData = {}, predDays = {}, bufferFactor = 1.0;
+  let partsHistory = [];  // 部位對照表版本紀錄 [{date:'YYYY-MM-DD', map:{...}}]（日期升冪，最後一筆＝目前）
 
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2, "0");
@@ -380,7 +381,9 @@
     if (d && d.parts && typeof d.parts === "object") {
       PIECES.forEach((pc) => { const v = d.parts[pc]; if (v && typeof v === "object") partMap[pc] = { leg: Number(v.leg) || 0, fil: Number(v.fil) || 0, wing: Number(v.wing) || 0 }; });
     }
+    partsHistory = (d && Array.isArray(d.partsHistory)) ? d.partsHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
   }
+  const mapEq = (a, b) => PIECES.every((pc) => ["leg", "fil", "wing"].every((k) => ((a[pc] || {})[k] || 0) === ((b[pc] || {})[k] || 0)));
   function watchConfig() {
     if (!db) return;
     configUnsub = configRef().onSnapshot((snap) => {
@@ -470,14 +473,40 @@
 
   /* ---------- 部位對照設定 ---------- */
   function fillPartsInputs(map) { PIECES.forEach((pc) => ["leg", "fil", "wing"].forEach((part) => { const el = $(`pm_${pc}_${part}`); if (el) el.value = (map[pc] && map[pc][part] != null) ? map[pc][part] : 0; })); }
-  function openParts() { fillPartsInputs(partMap); show("partsBackdrop"); }
+  function openParts() { fillPartsInputs(partMap); renderPmHist(); show("partsBackdrop"); }
   function resetParts() { fillPartsInputs(DEFAULT_MAP); }
   function saveParts() {
     const parts = {};
     PIECES.forEach((pc) => { parts[pc] = { leg: Number($(`pm_${pc}_leg`).value) || 0, fil: Number($(`pm_${pc}_fil`).value) || 0, wing: Number($(`pm_${pc}_wing`).value) || 0 }; });
+    if (mapEq(parts, partMap)) { hide("partsBackdrop"); return; }   // 沒變動 → 不確認、不記版本
     if (!confirm("確定要修改部位對照表嗎？\n\n之後上傳的報表都會改用新的對照換算；\n已上傳的歷史數字不受影響。")) return;
     if (!db) { hide("partsBackdrop"); return; }
-    configRef().set({ parts, updatedAt: Date.now() }, { merge: true }).then(() => hide("partsBackdrop")).catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
+    const today = todayKey();
+    const hist = partsHistory.filter((v) => v.date !== today);  // 當天去重
+    hist.push({ date: today, map: parts });
+    hist.sort((a, b) => (a.date < b.date ? -1 : 1));
+    configRef().set({ parts, partsHistory: hist, updatedAt: Date.now() }, { merge: true }).then(() => hide("partsBackdrop")).catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
+  }
+  // 部位對照表版本紀錄（唯讀查看）
+  function renderPmHist() {
+    const box = $("pmHistList"); if (!box) return;
+    if (!partsHistory.length) { box.innerHTML = `<div class="pm-hist-empty">尚無版本紀錄，改一次並儲存後會開始記錄。</div>`; return; }
+    const asc = partsHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    let html = "";
+    for (let i = asc.length - 1; i >= 0; i--) {
+      const v = asc[i], latest = (i === asc.length - 1);
+      html += `<button type="button" class="pm-ver" data-idx="${i}"><span class="d">${v.date.replace(/-/g, "/")} 起版本</span>${latest ? `<span class="now">目前版本</span>` : ""}<span class="arrow">›</span></button>`;
+    }
+    box.innerHTML = html;
+    box.querySelectorAll("button[data-idx]").forEach((b) => b.addEventListener("click", () => openPmVer(asc, Number(b.dataset.idx))));
+  }
+  function openPmVer(asc, i) {
+    const v = asc[i], next = asc[i + 1], ds = (x) => x.replace(/-/g, "/");
+    $("pmVerTitle").textContent = `對照表版本 · ${ds(v.date)} 起`;
+    $("pmVerRange").textContent = next ? `此版自 ${ds(v.date)} 起套用，到 ${ds(next.date)} 改版` : `此版自 ${ds(v.date)} 起套用（目前仍在使用）`;
+    const rows = PIECES.map((pc) => { const u = v.map[pc] || { leg: 0, fil: 0, wing: 0 }; return `<tr><td>${PIECE_LABEL[pc]}</td><td>${u.leg}</td><td>${u.fil}</td><td>${u.wing}</td></tr>`; }).join("");
+    $("pmVerBody").innerHTML = `<table class="pm"><thead><tr><th>品項</th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>${rows}</tbody></table>`;
+    show("pmVerBackdrop");
   }
 
   /* ---------- 備份／還原（整包 JSON 匯出匯入） ---------- */

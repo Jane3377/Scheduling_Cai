@@ -61,6 +61,15 @@
     table.pm td:first-child, table.pm th:first-child { text-align: left; font-weight: 700; }
     table.pm input { width: 60px; border: 1px solid #dcd4ce; border-radius: 9px; padding: 9px 6px; text-align: center; font: inherit; font-size: 17px; font-weight: 700; }
     .pm-note { color: var(--muted); font-size: 12px; margin: 12px 2px 0; line-height: 1.6; }
+    /* 部位對照表修改紀錄 */
+    .pm-hist { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
+    .pm-hist-title { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+    .pm-hist-empty { font-size: 13px; color: var(--muted); padding: 4px 2px; }
+    .pm-ver { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: #faf7f4; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 7px; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer; }
+    .pm-ver .d { color: var(--brand-dark); }
+    .pm-ver .now { font-size: 11.5px; color: #fff; background: var(--ok); border-radius: 999px; padding: 2px 8px; }
+    .pm-ver .arrow { margin-left: auto; color: var(--muted); }
+    .pm-ver-range { background: #eef2f7; color: #4a5668; border-radius: 10px; padding: 9px 12px; font-size: 13px; margin-bottom: 12px; }
     /* 月曆格 */
     .employee-cal-day { min-height: 90px; justify-content: flex-start; position: relative; color: var(--ink); }
     .employee-cal-day .day-number { color: var(--ink); }           /* 明確設定，避免 iOS 把按鈕文字變藍 */
@@ -318,7 +327,23 @@
           </tbody>
         </table>
         <p class="pm-note">※ 改完之後，<b>之後上傳</b>的報表會用新的對照換算；已存的歷史數字不會變動。</p>
+        <div class="pm-hist">
+          <div class="pm-hist-title">修改紀錄（點可查看該版）</div>
+          <div id="pmHistList"></div>
+        </div>
         <div class="modal-actions"><button class="danger-btn" id="partsReset" style="margin-right:auto">恢復預設值</button><button class="ghost-btn" data-close="partsBackdrop">取消</button><button class="primary-btn" id="partsSave">儲存設定</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 對照表版本查看（唯讀） -->
+  <div id="pmVerBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(400px,100%)">
+      <div class="modal-head"><div><h3 id="pmVerTitle"></h3><p>這是當時實際使用的對照（唯讀）</p></div><button class="icon-btn" data-close="pmVerBackdrop">✕</button></div>
+      <div class="modal-body">
+        <div class="pm-ver-range" id="pmVerRange"></div>
+        <div id="pmVerBody"></div>
+        <div class="modal-actions"><button class="primary-btn" data-close="pmVerBackdrop">關閉</button></div>
       </div>
     </div>
   </div>
