@@ -8,14 +8,16 @@
   "theme_color": "#241f1c",
   "icons": [
     {
-      "src": "icons/icon_192_chicken.svg",
+      "src": "icons/icon_192_chicken.png",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "icons/icon_512_chicken.svg",
+      "src": "icons/icon_512_chicken.png",
       "sizes": "512x512",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
