@@ -215,16 +215,18 @@
       <div class="ck-stat fil"><span>🥩 雞排</span><strong>${p.fil}</strong></div>
       <div class="ck-stat wing"><span>🪽 雞翅</span><strong>${p.wing}</strong></div></div>`;
   }
-  function itemTable(sales, parts) {
+  // map：這天上傳當下用的對照表（凍結歷史）；沒存的舊資料回退 DEFAULT_MAP（當時對照表尚不可編輯）。合計用已存的 parts，不即時重算。
+  function itemTable(sales, parts, map) {
+    const mp = map || DEFAULT_MAP;
     const labels = Object.keys(sales).sort((a, b) => { const ia = ITEM_ORDER.indexOf(a), ib = ITEM_ORDER.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
-    let rows = "", sum = emptyParts();
+    let rows = "";
     labels.forEach((l) => {
-      const u = partMap[pieceOfLabel(l)] || emptyParts(), q = sales[l];
-      sum.leg += q * u.leg; sum.fil += q * u.fil; sum.wing += q * u.wing;
+      const u = mp[pieceOfLabel(l)] || emptyParts(), q = sales[l];
       const meal = l.includes("2塊") ? `<small style="color:var(--muted)">（套餐）</small>` : "";
       rows += `<tr><td>${l}${meal}</td><td>${q}</td><td>${q * u.leg}</td><td>${q * u.fil}</td><td>${q * u.wing}</td></tr>`;
     });
-    rows += `<tr class="sum"><td>合計</td><td>—</td><td>${sum.leg}</td><td>${sum.fil}</td><td>${sum.wing}</td></tr>`;
+    const t = parts || emptyParts();
+    rows += `<tr class="sum"><td>合計</td><td>—</td><td>${t.leg}</td><td>${t.fil}</td><td>${t.wing}</td></tr>`;
     return `<table class="ck-items"><thead><tr><th>品項</th><th>數量</th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
@@ -257,7 +259,7 @@
         $("uploadResult").innerHTML =
           `<div class="ck-datehead">已解析並儲存：<b>${res.date.replace(/-/g, " / ")}</b></div>` +
           statTiles(res.parts) +
-          itemTable(res.sales, res.parts) +
+          itemTable(res.sales, res.parts, partMap) +
           `<div class="ck-saved">✓ 已儲存到雲端（${res.date} 覆蓋更新）・共 ${Object.keys(res.sales).length} 個雞肉品項</div>` +
           `<div class="modal-actions"><button class="ghost-btn" id="uploadAgain">再上傳別天</button><button class="primary-btn" id="uploadDone">完成</button></div>`;
         $("uploadAgain").onclick = openUpload;
@@ -273,7 +275,7 @@
     patch["days." + res.date + ".parts"] = res.parts;
     patch["days." + res.date + ".uploadedAt"] = Date.now();
     patch["updatedAt"] = Date.now();
-    monthRefOf(ym).set({ days: { [res.date]: { sales: res.sales, parts: res.parts, uploadedAt: Date.now() } }, updatedAt: Date.now() }, { merge: true })
+    monthRefOf(ym).set({ days: { [res.date]: { sales: res.sales, parts: res.parts, map: JSON.parse(JSON.stringify(partMap)), uploadedAt: Date.now() } }, updatedAt: Date.now() }, { merge: true })
       .then(() => { if (ym !== viewYM) watchMonth(ym); done && done(); })
       .catch((err) => { console.error(err); $("uploadResult").innerHTML += `<div class="ck-err">⚠ 儲存失敗：${err.message || err}</div>`; });
   }
@@ -333,7 +335,7 @@
       else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對消耗。</div>`;
       else html += `<div class="hint" style="margin:-2px 2px 12px">負數＝叫貨不夠用；正數＝有剩。供調整下次叫貨參考。</div>`;
     }
-    if (hasSales) html += `<div class="cmp-h">當日銷售明細（換算消耗）</div>` + itemTable(rec.sales, rec.parts);
+    if (hasSales) html += `<div class="cmp-h">當日銷售明細（換算消耗）</div>` + itemTable(rec.sales, rec.parts, rec.map);
     else html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
     $("detailBody").innerHTML = html;
     $("detailEditOrder").onclick = () => { hide("detailBackdrop"); openOrder(k, rec.order); };
@@ -472,6 +474,7 @@
   function saveParts() {
     const parts = {};
     PIECES.forEach((pc) => { parts[pc] = { leg: Number($(`pm_${pc}_leg`).value) || 0, fil: Number($(`pm_${pc}_fil`).value) || 0, wing: Number($(`pm_${pc}_wing`).value) || 0 }; });
+    if (!confirm("確定要修改部位對照表嗎？\n\n之後上傳的報表都會改用新的對照換算；\n已上傳的歷史數字不受影響。")) return;
     if (!db) { hide("partsBackdrop"); return; }
     configRef().set({ parts, updatedAt: Date.now() }, { merge: true }).then(() => hide("partsBackdrop")).catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
   }
