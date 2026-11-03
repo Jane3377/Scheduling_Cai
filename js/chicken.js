@@ -410,23 +410,24 @@
     const sel = $("sugBuffer"); if (sel) sel.value = fmtBuf(bufferFactor);
     // 系統建議
     if (!p.n) {
-      $("sugNums").classList.add("hidden"); $("sugApply").classList.add("hidden");
+      $("sugNums").classList.add("hidden"); $("sugApply").classList.add("hidden"); $("sugClar").classList.add("hidden");
       $("sugBasis").textContent = `${p.group}·資料累積中，多上傳幾天就會自動推估`;
     } else {
-      $("sugNums").classList.remove("hidden"); $("sugApply").classList.remove("hidden");
+      $("sugNums").classList.remove("hidden"); $("sugApply").classList.remove("hidden"); $("sugClar").classList.remove("hidden");
       $("sugLeg").textContent = p.rec.leg; $("sugFil").textContent = p.rec.fil; $("sugWing").textContent = p.rec.wing;
       $("sugBasis").textContent = `近一月 ${p.n} 個「${p.group}」平均 × 緩衝 ${fmtBuf(p.buf)}`;
       $("sugApply").onclick = () => fillOrder(p.rec);
     }
     // 上個同型日叫貨
-    const last = lastSameTypeOrder(k), lr = $("lastRow");
+    const last = lastSameTypeOrder(k), lr = $("lastRow"), lc = $("lastClar");
     if (last) {
-      lr.classList.remove("hidden");
+      lr.classList.remove("hidden"); lc.classList.remove("hidden");
       $("lastTag").textContent = `🕑 上個${p.group}（${last.date.slice(5).replace("-", "/")}）`;
+      lc.textContent = `「上個${p.group}」＝上次實際採購量`;
       $("lastLeg").textContent = last.order.leg; $("lastFil").textContent = last.order.fil; $("lastWing").textContent = last.order.wing;
       $("lastApply").onclick = () => fillOrder(last.order);
     } else {
-      lr.classList.add("hidden");
+      lr.classList.add("hidden"); lc.classList.add("hidden");
     }
   }
   function refreshHint() {
