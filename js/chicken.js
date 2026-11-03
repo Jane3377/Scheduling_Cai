@@ -589,20 +589,30 @@
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     mainRef = db.collection(COLL).doc(MAIN);
-    if (firebase.auth) firebase.auth().signInAnonymously().catch((e) => console.warn("匿名登入失敗，仍嘗試連線：", e));
-    mainRef.onSnapshot((snap) => {
-      const d = snap.data(), s = (d && d.data && d.data.settings) || {};
-      settings.closedDays = s.closedDays || settings.closedDays;
-      settings.holidays = s.holidays || [];
-      settings.nationalHolidays = s.nationalHolidays || [];
-      settings.adminPin = s.adminPin || "1234";
-      settings.storeName = s.storeName || settings.storeName;
-      mainLoaded = true;
-      render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
-    }, (err) => console.error("main snapshot", err));
-    watchMonth(viewYM);
-    watchPredMonths();
-    watchConfig();
+    setBadge("connecting");
+    // 先完成匿名登入，再掛上所有 Firestore 監聽。
+    // （首次把 PWA 加到主畫面時尚無快取的登入權杖，若在登入完成前就監聽，
+    //   會因安全規則 request.auth != null 被拒 → 顯示「連線異常」；等登入完成才連線即可避免。）
+    const start = () => {
+      mainRef.onSnapshot((snap) => {
+        const d = snap.data(), s = (d && d.data && d.data.settings) || {};
+        settings.closedDays = s.closedDays || settings.closedDays;
+        settings.holidays = s.holidays || [];
+        settings.nationalHolidays = s.nationalHolidays || [];
+        settings.adminPin = s.adminPin || "1234";
+        settings.storeName = s.storeName || settings.storeName;
+        mainLoaded = true;
+        render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
+      }, (err) => console.error("main snapshot", err));
+      watchMonth(viewYM);
+      watchPredMonths();
+      watchConfig();
+    };
+    if (firebase.auth) {
+      firebase.auth().signInAnonymously().then(start).catch((e) => { console.warn("匿名登入失敗，仍嘗試連線：", e); start(); });
+    } else {
+      start();
+    }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
