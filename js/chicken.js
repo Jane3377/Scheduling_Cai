@@ -53,6 +53,11 @@
     for (let i = 0; i < 120; i++) { d.setDate(d.getDate() + 1); const k = toKey(d); if (!isClosed(k)) return k; }
     return toKey(d);
   }
+  function prevBusinessDay(fromKey) {
+    const d = parseKey(fromKey);
+    for (let i = 0; i < 120; i++) { d.setDate(d.getDate() - 1); const k = toKey(d); if (!isClosed(k)) return k; }
+    return toKey(d);
+  }
 
   /* ---------- 部位換算 ---------- */
   const emptyParts = () => ({ leg: 0, fil: 0, wing: 0 });
@@ -151,16 +156,15 @@
       const rec = days[k] || {};
       const hasSales = !!(rec.sales && Object.keys(rec.sales).length && rec.parts);
       const hasOrder = !!rec.order;
-      const nat = natHoliday(k), fut = k > tk;
+      const dow = parseKey(k).getDay();
+      const redNum = (dow === 0 || dow === 6 || !!natHoliday(k));    // 假日／國定假日：日期數字深紅
+      const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
       const mark = hasOrder ? `<span class="ck-ord-mark" title="已記錄叫貨">📝</span>` : "";
-      let cls = "employee-cal-day", inner = `<span class="day-number">${dd}</span>`, disabled = "";
-      if (isClosed(k)) { cls += " ck-rest"; disabled = "disabled"; inner += `<span class="ck-tag">${closedLabel(k)}</span>`; }
-      else if (nat) { cls += " ck-holiday"; inner = `<span class="day-number">${dd}</span>${mark}<span class="ck-tag">${nat}</span>` + (hasSales ? partLines(rec.parts) : (hasOrder ? partLines(rec.order) : "")); }
-      else if (hasSales) { cls += " available"; inner = `<span class="day-number">${dd}</span>${mark}` + partLines(rec.parts); }
-      else if (hasOrder) { cls += " ck-order"; inner = `<span class="day-number">${dd}</span><span class="ck-tag ck-ord-tag">已排叫貨</span>` + partLines(rec.order); }
-      else if (k === tk) { cls += " ck-today"; inner += `<span class="ck-tag">今天·未上傳</span>`; }
-      else if (fut) { cls += " ck-future"; }
-      else { cls += " ck-pending"; inner += `<span class="ck-tag">未上傳</span>`; }
+      let cls = "employee-cal-day", inner = numHtml, disabled = "";
+      if (isClosed(k)) { cls += " ck-rest"; disabled = "disabled"; inner += `<span class="ck-tag">${closedLabel(k)}</span>`; }   // 公休／臨時公休：灰底＋標示
+      else if (hasSales) { cls += " available"; inner = numHtml + mark + partLines(rec.parts); }                               // 已上傳消耗：綠底
+      else if (hasOrder) { cls += " ck-order"; inner = numHtml + mark + `<span class="ck-tag ck-ord-tag">已排叫貨</span>` + partLines(rec.order); } // 已排叫貨：黃底
+      else { if (k === tk) cls += " ck-today"; inner = numHtml; }                                                              // 營業日／未上傳／今天：只有日期，無標記
       html += `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
     }
     const grid = $("ckGrid"); if (!grid) return;
@@ -193,7 +197,7 @@
 
   /* ---------- 上傳銷售 ---------- */
   function openReport() {
-    const ds = todayKey().replace(/-/g, "/"); // YYYY/MM/DD
+    const ds = prevBusinessDay(todayKey()).replace(/-/g, "/"); // 前一個營業日（今天通常還沒有完整資料）
     const url = `${IDELIVERY_BASE}?start_time=${encodeURIComponent(ds)}&end_time=${encodeURIComponent(ds)}&period=day&store_ids%5B0%5D=${STORE_ID}`;
     window.open(url, "_blank", "noopener");
   }
@@ -277,6 +281,8 @@
     const hasOrder = !!rec.order;
     $("detailTitle").textContent = fmtFull(k);
     let html = "";
+    const nat = natHoliday(k);
+    if (nat) html += `<div class="ck-holi-line">📌 國定假日：${nat}</div>`;
     if (hasSales || hasOrder) {
       const o = rec.order || null, u = hasSales ? rec.parts : null;
       html += `<div class="cmp-h">叫貨 vs 實際消耗</div>`;

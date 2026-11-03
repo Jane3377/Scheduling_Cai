@@ -24,7 +24,9 @@
     .ck-next { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; padding: 10px 14px; border: 1px dashed #d8cfc8; border-radius: 12px; background: #fbf9f7; color: var(--muted); font-size: 12.5px; }
     .ck-next b { color: var(--brand-dark); }
     /* 月曆格 */
-    .employee-cal-day { min-height: 90px; justify-content: flex-start; position: relative; }
+    .employee-cal-day { min-height: 90px; justify-content: flex-start; position: relative; color: var(--ink); }
+    .employee-cal-day .day-number { color: var(--ink); }           /* 明確設定，避免 iOS 把按鈕文字變藍 */
+    .employee-cal-day .day-number.ck-red { color: #b3261e; }        /* 假日／國定假日：深紅 */
     .ck-ord-mark { position: absolute; top: 6px; right: 7px; font-size: 12px; }
     .ck-parts { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; width: 100%; }
     .ck-line { display: flex; justify-content: space-between; align-items: center; line-height: 1.25; }
@@ -34,12 +36,10 @@
     .ck-tag { font-size: 10px; color: var(--muted); margin-top: 2px; }
     .ck-ord-tag { color: #b7791f; font-weight: 700; }
     .employee-cal-day.available { background: #f3faf5; border-color: #cfe6d7; }
-    .employee-cal-day.ck-rest { background: #f3f0ed; border-color: #e4ddd7; color: #9a9089; }
-    .employee-cal-day.ck-holiday { background: #fff5e8; border-color: #f0d9b0; }
-    .employee-cal-day.ck-pending { background: #fff; }
-    .employee-cal-day.ck-order { background: #fff8ec; border-color: #f0ddb6; border-style: dashed; }
-    .employee-cal-day.ck-future { background: #faf8f6; border-style: dashed; opacity: .6; }
-    .employee-cal-day.ck-today { background: #fff; box-shadow: inset 0 0 0 2px var(--brand); }
+    .employee-cal-day.ck-rest { background: #f3f0ed; border-color: #e4ddd7; }
+    .employee-cal-day.ck-rest .day-number { color: #9a9089; }
+    .employee-cal-day.ck-order { background: #fff3c9; border-color: #ecd98f; }    /* 已排叫貨：黃底 */
+    .employee-cal-day.ck-today { box-shadow: inset 0 0 0 2px var(--brand); }
     .employee-cal-day.ck-out { border: 0; background: transparent; min-height: 0; }
     .employee-cal-day:not([disabled]) { cursor: pointer; }
     /* 上傳／明細 */
@@ -63,6 +63,7 @@
     .ck-muted { color: var(--muted); }
     .ck-saved { display: flex; align-items: center; gap: 8px; color: var(--ok); font-size: 13px; margin: 8px 2px 0; }
     .ck-err { color: var(--danger); font-size: 14px; padding: 14px; background: #fdeaea; border-radius: 12px; margin-top: 4px; }
+    .ck-holi-line { background: #fff3c9; border: 1px solid #ecd98f; color: #8a6d1f; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; margin-bottom: 12px; }
     .cmp-h { font-size: 13px; font-weight: 800; color: var(--brand-dark); margin: 4px 2px 6px; }
     .ck-form .field { margin: 12px 0; }
     .ck-num3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -150,9 +151,9 @@
         <div id="ckGrid" class="employee-calendar-grid"></div>
         <div class="calendar-legend">
           <span><i class="legend-dot available"></i>已上傳消耗</span>
-          <span><i class="legend-dot" style="background:#e9b96a"></i>已排叫貨／國定假日</span>
-          <span><i class="legend-dot pending"></i>營業日·未上傳</span>
+          <span><i class="legend-dot" style="background:#ecd98f"></i>已排叫貨</span>
           <span><i class="legend-dot closed"></i>公休</span>
+          <span><b style="color:#b3261e">7</b>&nbsp;假日／國定假日</span>
           <span>📝 已記錄叫貨</span>
         </div>
       </section>
@@ -165,9 +166,9 @@
       <div class="modal-head"><div><h3>上傳當日銷售</h3><p>選門市「餐點銷售」Excel → 自動換算部位 → 儲存</p></div><button class="icon-btn" data-close="uploadBackdrop">✕</button></div>
       <div class="modal-body">
         <div class="ck-fetch">
-          <p class="ck-fetch-h">① 先去 iDelivery 下載今日報表</p>
-          <button class="secondary-btn full" id="ckOpenReport">🔗 開啟 iDelivery 今日銷售報表（自動帶今天日期）</button>
-          <p class="hint">會另開 iDelivery 頁面並帶入今天日期；登入／驗證碼請在該頁完成，下載「餐點銷售」Excel 後回到這裡。</p>
+          <p class="ck-fetch-h">① 先去 iDelivery 下載報表</p>
+          <button class="secondary-btn full" id="ckOpenReport">🔗 開啟 iDelivery 銷售報表（自動帶前一個營業日）</button>
+          <p class="hint">會另開 iDelivery 並帶入「前一個營業日」日期；登入／驗證碼請在該頁完成。開啟後請點上方「<b>餐點銷售狀況</b>」分頁 → 匯出，再回到這裡上傳。</p>
         </div>
         <div class="ck-drop" id="uploadDrop">
           <div class="ico">📄⬆️</div>
