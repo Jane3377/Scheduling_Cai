@@ -416,10 +416,10 @@
     const sel = $("sugBuffer"); if (sel) sel.value = fmtBuf(bufferFactor);
     // 系統建議
     if (!p.n) {
-      $("sugNums").classList.add("hidden"); $("sugApply").classList.add("hidden"); $("sugClar").classList.add("hidden");
+      $("sugNums").classList.add("hidden"); $("sugApply").classList.add("hidden"); $("sugClar").classList.add("hidden"); $("sugNote").classList.add("hidden");
       $("sugBasis").textContent = `${p.group}·資料累積中，多上傳幾天就會自動推估`;
     } else {
-      $("sugNums").classList.remove("hidden"); $("sugApply").classList.remove("hidden"); $("sugClar").classList.remove("hidden");
+      $("sugNums").classList.remove("hidden"); $("sugApply").classList.remove("hidden"); $("sugClar").classList.remove("hidden"); $("sugNote").classList.remove("hidden");
       $("sugLeg").textContent = p.rec.leg; $("sugFil").textContent = p.rec.fil; $("sugWing").textContent = p.rec.wing;
       $("sugBasis").textContent = `近一月 ${p.n} 個「${p.group}」平均 × 緩衝 ${fmtBuf(p.buf)}`;
       $("sugApply").onclick = () => fillOrder(p.rec);

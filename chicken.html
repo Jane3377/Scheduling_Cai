@@ -38,8 +38,10 @@
     /* 參考小區塊（系統建議＋上個同型日，字級統一） */
     .sug { border: 1px solid var(--line); border-radius: 12px; background: #faf7f4; padding: 12px 14px; margin: 16px 0 0; }
     .sug-title { font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
-    .sug-row { display: flex; align-items: center; gap: 10px; padding: 9px 0 3px; font-size: 14px; border-top: 1px dashed #e8ddd4; flex-wrap: wrap; }
-    .sug-row:first-of-type { border-top: 0; }
+    .sug-item { display: contents; }   /* 桌機／平板：不產生外框，子元素照原順序排版 */
+    .sug-note, .sug-brk { display: none; } /* 僅手機版顯示 */
+    .sug-row { display: flex; align-items: center; gap: 10px; padding: 9px 0 3px; font-size: 14px; flex-wrap: wrap; }
+    .sug-item + .sug-item .sug-row { border-top: 1px dashed #e8ddd4; }  /* 兩則建議間的分隔（等同原 :first-of-type 效果） */
     .sug-clar { font-size: 12px; color: var(--muted); padding-left: 2px; margin: 0 2px 5px; }
     .sug-tag { font-weight: 700; white-space: nowrap; }
     .sug-nums b { font-weight: 800; }
@@ -154,10 +156,26 @@
     @media (max-width: 480px) {
       .ck-toolbar h2 { font-size: 22px; } .ck-toolbar p { font-size: 14px; }
       .ck-btns { width: 100%; } .ck-btns .ghost-btn, .ck-btns .primary-btn { flex: 1; font-size: 16px; padding: 14px 10px; }
-      .ck-hint { font-size: 14.5px; } .ord-lbl { font-size: 16px; } .sug-row { font-size: 15px; } .sug-fill { font-size: 14px; } .sug-sub { font-size: 13px; } .sug-clar { font-size: 13px; } .ck-foot button { font-size: 15px; } table.pm input { font-size: 19px; }
-      .employee-cal-day { min-height: 112px; padding: 7px; }
+      .ck-hint { font-size: 14.5px; } .ord-lbl { font-size: 16px; } .ck-foot button { font-size: 15px; } table.pm input { font-size: 19px; }
+      /* 參考區：手機改為小卡（標題行 tag＋說明、數字獨立一行、帶入鈕靠右） */
+      .sug { background: transparent; border: 0; padding: 0; margin-top: 14px; }
+      .sug-title { margin: 0 2px 8px; }
+      .sug-item { display: block; background: #faf7f4; border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; margin-bottom: 10px; }
+      .sug-item + .sug-item .sug-row { border-top: 0; }
+      .sug-row { padding: 0; row-gap: 8px; }
+      .sug-tag { font-size: 14.5px; font-weight: 800; }
+      .sug-note { display: inline; font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 1px; }
+      .sug-brk { display: block; flex-basis: 100%; height: 0; margin: 0; }
+      .sug-nums { font-size: 19px; letter-spacing: .3px; }
+      .sug-fill { margin-left: auto; padding: 9px 18px; font-size: 14px; border-radius: 10px; font-weight: 800; }
+      .sug-clar { display: none; }
+      .sug-sub { margin: 9px 0 0; padding-top: 8px; border-top: 1px dashed #e8ddd4; font-size: 12px; }
+      .employee-cal-day { min-height: 112px; padding: 5px 3px; }
       .employee-cal-day .day-number { font-size: 17px; }
-      .ck-line i { font-size: 12px; } .ck-line b { font-size: 16px; } .ck-tag { font-size: 12px; }
+      /* 月曆：標籤＋數字置中成一組，縮內距字級 → 3 位數也不會被切 */
+      .ck-parts { gap: 2px; }
+      .ck-line { justify-content: center; gap: 3px; align-items: baseline; }
+      .ck-line i { font-size: 11px; } .ck-line b { font-size: 15px; letter-spacing: -0.2px; } .ck-tag { font-size: 12px; }
       .weekdays span { font-size: 14px; } .calendar-legend { font-size: 13px; }
       .ck-form .field > span { font-size: 16px; }
       .ord-cell input { font-size: 30px; }
@@ -315,21 +333,30 @@
           <label class="ord-cell"><span>🪽 雞翅</span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderWing" /></label>
         </div>
 
+        <!-- 參考區：桌機／平板沿用原排版（.sug-item 設 display:contents 不產生外框、.sug-note/.sug-brk 隱藏）；手機改為小卡 -->
         <div class="sug hidden" id="sugBlock">
           <div class="sug-title">參考（點「帶入」自動填到上面）</div>
-          <div class="sug-row">
-            <span class="sug-tag">🔮 系統建議</span>
-            <span class="sug-nums" id="sugNums"><b class="ck-leg">腿<span id="sugLeg">—</span></b>　<b class="ck-fil">排<span id="sugFil">—</span></b>　<b class="ck-wing">翅<span id="sugWing">—</span></b></span>
-            <button type="button" class="sug-fill" id="sugApply">帶入</button>
+          <div class="sug-item">
+            <div class="sug-row">
+              <span class="sug-tag">🔮 系統建議</span>
+              <span class="sug-note" id="sugNote">依實際用量推估</span>
+              <span class="sug-brk"></span>
+              <span class="sug-nums" id="sugNums"><b class="ck-leg">腿<span id="sugLeg">—</span></b>　<b class="ck-fil">排<span id="sugFil">—</span></b>　<b class="ck-wing">翅<span id="sugWing">—</span></b></span>
+              <button type="button" class="sug-fill" id="sugApply">帶入</button>
+            </div>
+            <div class="sug-clar" id="sugClar">「系統建議」＝依實際用量推估</div>
+            <div class="sug-sub">緩衝倍率 <select id="sugBuffer"><option>1.0</option><option>1.1</option><option>1.2</option><option>1.3</option></select> <span id="sugBasis"></span></div>
           </div>
-          <div class="sug-clar" id="sugClar">「系統建議」＝依實際用量推估</div>
-          <div class="sug-sub">緩衝倍率 <select id="sugBuffer"><option>1.0</option><option>1.1</option><option>1.2</option><option>1.3</option></select> <span id="sugBasis"></span></div>
-          <div class="sug-row" id="lastRow">
-            <span class="sug-tag" id="lastTag">🕑 上個同型日</span>
-            <span class="sug-nums"><b class="ck-leg">腿<span id="lastLeg">—</span></b>　<b class="ck-fil">排<span id="lastFil">—</span></b>　<b class="ck-wing">翅<span id="lastWing">—</span></b></span>
-            <button type="button" class="sug-fill" id="lastApply">帶入</button>
+          <div class="sug-item">
+            <div class="sug-row" id="lastRow">
+              <span class="sug-tag" id="lastTag">🕑 上個同型日</span>
+              <span class="sug-note" id="lastNote">上次實際採購量</span>
+              <span class="sug-brk"></span>
+              <span class="sug-nums"><b class="ck-leg">腿<span id="lastLeg">—</span></b>　<b class="ck-fil">排<span id="lastFil">—</span></b>　<b class="ck-wing">翅<span id="lastWing">—</span></b></span>
+              <button type="button" class="sug-fill" id="lastApply">帶入</button>
+            </div>
+            <div class="sug-clar hidden" id="lastClar"></div>
           </div>
-          <div class="sug-clar hidden" id="lastClar"></div>
         </div>
 
         <div class="modal-actions"><button class="ghost-btn" data-close="orderBackdrop">取消</button><button class="primary-btn" id="orderSave">儲存叫貨紀錄</button></div>
