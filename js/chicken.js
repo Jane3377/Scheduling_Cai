@@ -21,6 +21,9 @@
   };
   const DOW = "日一二三四五六";
   const ITEM_ORDER = ["9塊炸雞", "9塊烤雞", "5塊炸雞", "5塊烤雞", "3塊炸雞", "3塊烤雞", "2塊炸雞", "2塊烤雞", "6塊炸雞翅", "6塊烤雞翅"];
+  // iDelivery 報表捷徑（店家自己的後台；只是帶今天日期開啟，仍需在該站登入／輸入驗證碼）
+  const IDELIVERY_BASE = "https://admin.idelivery.com.tw/admin/store/reports/v3/sales_detail";
+  const STORE_ID = "10661";
 
   let db = null, mainRef = null, monthUnsub = null;
   const settings = { closedDays: [1], holidays: [], nationalHolidays: [], adminPin: "1234", storeName: "蔡叔叔比薩屋" };
@@ -189,6 +192,11 @@
   function hide(id) { $(id).classList.add("hidden"); }
 
   /* ---------- 上傳銷售 ---------- */
+  function openReport() {
+    const ds = todayKey().replace(/-/g, "/"); // YYYY/MM/DD
+    const url = `${IDELIVERY_BASE}?start_time=${encodeURIComponent(ds)}&end_time=${encodeURIComponent(ds)}&period=day&store_ids%5B0%5D=${STORE_ID}`;
+    window.open(url, "_blank", "noopener");
+  }
   function openUpload() {
     lastParse = null;
     $("ckFile").value = "";
@@ -249,7 +257,13 @@
     const order = { leg: Number($("orderLeg").value) || 0, fil: Number($("orderFil").value) || 0, wing: Number($("orderWing").value) || 0 };
     if (!db) { hide("orderBackdrop"); return; }
     const ym = ymOf(k);
-    monthRefOf(ym).set({ days: { [k]: { order: order, orderAt: Date.now() } }, updatedAt: Date.now() }, { merge: true })
+    // 三個都 0 → 視為「未叫貨」：清掉這天的叫貨紀錄（月曆不顯示 📝、明細顯示 —）
+    const allZero = order.leg === 0 && order.fil === 0 && order.wing === 0;
+    const DEL = firebase.firestore.FieldValue.delete();
+    const payload = allZero
+      ? { days: { [k]: { order: DEL, orderAt: DEL } }, updatedAt: Date.now() }
+      : { days: { [k]: { order: order, orderAt: Date.now() } }, updatedAt: Date.now() };
+    monthRefOf(ym).set(payload, { merge: true })
       .then(() => { hide("orderBackdrop"); if (ym !== viewYM) watchMonth(ym); })
       .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
   }
@@ -303,6 +317,7 @@
     $("pinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
     $("ckUploadBtn").onclick = openUpload;
     $("ckOrderBtn").onclick = () => openOrder(null, null);
+    $("ckOpenReport").onclick = openReport;
     $("ckPrevMonth").onclick = () => shiftMonth(-1);
     $("ckNextMonth").onclick = () => shiftMonth(1);
     $("uploadDrop").onclick = () => $("ckFile").click();

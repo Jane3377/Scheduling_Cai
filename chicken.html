@@ -45,6 +45,9 @@
     /* 上傳／明細 */
     .ck-drop { border: 2px dashed #d9ccc3; border-radius: 14px; background: #fcfaf8; padding: 24px; text-align: center; cursor: pointer; }
     .ck-drop .ico { font-size: 28px; } .ck-drop p { margin: 6px 0 2px; font-weight: 700; } .ck-drop small { color: var(--muted); }
+    .ck-fetch { border: 1px solid var(--line); border-radius: 12px; background: #fcfaf8; padding: 14px; margin-bottom: 14px; }
+    .ck-fetch-h { margin: 0 0 8px; font-weight: 800; color: var(--brand-dark); font-size: 14px; }
+    .ck-fetch .hint { margin-top: 8px; }
     .ck-datehead { font-size: 14px; color: var(--muted); margin-bottom: 10px; }
     .ck-datehead b { color: var(--ink); font-size: 16px; }
     .ck-parts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 4px 0 12px; }
@@ -64,6 +67,22 @@
     .ck-form .field { margin: 12px 0; }
     .ck-num3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    /* 平板放大（字太小不好讀） */
+    @media (min-width: 481px) and (max-width: 1200px) {
+      .ck-toolbar h2 { font-size: 22px; } .ck-toolbar p { font-size: 14px; }
+      .employee-cal-day { min-height: 104px; }
+      .employee-cal-day .day-number { font-size: 16px; }
+      .ck-line i { font-size: 11px; } .ck-line b { font-size: 15px; } .ck-tag { font-size: 11px; }
+      .weekdays span { font-size: 14px; } .calendar-legend { font-size: 13px; }
+      .ck-form .field > span { font-size: 16px; }
+      .ck-num3 .input { font-size: 24px; text-align: center; padding: 14px 6px; font-weight: 700; }
+      .modal-head h3 { font-size: 20px; }
+      .modal-body .input[type=date] { font-size: 18px; padding: 13px; }
+      .modal-actions .ghost-btn, .modal-actions .primary-btn { font-size: 16px; }
+      table.ck-items th { font-size: 12px; } table.ck-items td { font-size: 15px; padding: 10px 6px; }
+      .cmp-h { font-size: 15px; } .ck-stat span { font-size: 14px; } .ck-stat strong { font-size: 34px; }
+      .ck-fetch-h { font-size: 15px; }
+    }
     /* 手機版放大（主要使用者年長，好讀好輸入） */
     @media (max-width: 480px) {
       .ck-toolbar h2 { font-size: 22px; } .ck-toolbar p { font-size: 14px; }
@@ -145,9 +164,14 @@
     <div class="modal" style="width:min(560px,100%)">
       <div class="modal-head"><div><h3>上傳當日銷售</h3><p>選門市「餐點銷售」Excel → 自動換算部位 → 儲存</p></div><button class="icon-btn" data-close="uploadBackdrop">✕</button></div>
       <div class="modal-body">
+        <div class="ck-fetch">
+          <p class="ck-fetch-h">① 先去 iDelivery 下載今日報表</p>
+          <button class="secondary-btn full" id="ckOpenReport">🔗 開啟 iDelivery 今日銷售報表（自動帶今天日期）</button>
+          <p class="hint">會另開 iDelivery 頁面並帶入今天日期；登入／驗證碼請在該頁完成，下載「餐點銷售」Excel 後回到這裡。</p>
+        </div>
         <div class="ck-drop" id="uploadDrop">
           <div class="ico">📄⬆️</div>
-          <p>點這裡選「餐點銷售」Excel</p>
+          <p>② 點這裡選剛下載的「餐點銷售」Excel</p>
           <small>只讀雞肉品項的「銷售數量（含套餐＋單售）」；原始檔不會儲存</small>
         </div>
         <div id="uploadResult"></div>
