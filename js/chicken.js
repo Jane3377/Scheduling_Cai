@@ -31,6 +31,9 @@
   let viewYM = null;      // 目前顯示的月份 'YYYY-MM'
   let days = {};          // date → 記錄（目前顯示月份）
   let lastParse = null;   // 上傳解析暫存
+  // 第二階段：次營業日叫貨建議
+  const PRED_WINDOW = 35; // 取樣範圍：近 35 天同日型
+  let predUnsubs = [], configUnsub = null, predMonthData = {}, predDays = {}, bufferFactor = 1.0;
 
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2, "0");
@@ -57,6 +60,36 @@
     const d = parseKey(fromKey);
     for (let i = 0; i < 120; i++) { d.setDate(d.getDate() - 1); const k = toKey(d); if (!isClosed(k)) return k; }
     return toKey(d);
+  }
+  function dateMinus(k, n) { const d = parseKey(k); d.setDate(d.getDate() - n); return toKey(d); }
+  function addMonthYM(ym, n) { const [y, m] = ym.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
+  const fmtBuf = (v) => (Math.round(v * 10) / 10).toFixed(1);
+  // 日型分組：公休(null，不推估) / 假日(六日＋國定) / 週五 / 平日(其餘)
+  function dayGroup(k) {
+    if (isClosed(k)) return null;
+    if (natHoliday(k)) return "假日";
+    const dow = parseKey(k).getDay();
+    if (dow === 0 || dow === 6) return "假日";
+    if (dow === 5) return "週五";
+    return "平日";
+  }
+  // 推估某日叫貨量：同日型、近 PRED_WINDOW 天內「有上傳消耗」的日子平均 × 緩衝
+  function predict(targetKey) {
+    const g = dayGroup(targetKey);
+    if (!g) return { group: null };
+    const todayK = todayKey(), start = dateMinus(todayK, PRED_WINDOW);
+    let sum = { leg: 0, fil: 0, wing: 0 }, n = 0;
+    Object.keys(predDays).forEach((k) => {
+      if (k > todayK || k < start) return;            // 僅取近 35 天內的實際日
+      if (dayGroup(k) !== g) return;                   // 同日型
+      const rec = predDays[k];
+      if (!(rec && rec.parts && rec.sales && Object.keys(rec.sales).length)) return; // 需有實際消耗
+      sum.leg += rec.parts.leg; sum.fil += rec.parts.fil; sum.wing += rec.parts.wing; n++;
+    });
+    if (!n) return { group: g, n: 0 };
+    const avg = { leg: sum.leg / n, fil: sum.fil / n, wing: sum.wing / n };
+    const rec = { leg: Math.round(avg.leg * bufferFactor), fil: Math.round(avg.fil * bufferFactor), wing: Math.round(avg.wing * bufferFactor) };
+    return { group: g, n, buf: bufferFactor, avg: { leg: Math.round(avg.leg), fil: Math.round(avg.fil), wing: Math.round(avg.wing) }, rec };
   }
 
   /* ---------- 部位換算 ---------- */
@@ -249,6 +282,7 @@
     $("orderFil").value = existing ? existing.fil : "";
     $("orderWing").value = existing ? existing.wing : "";
     updateOrderHint();
+    renderSuggestion(k);
     show("orderBackdrop");
   }
   function updateOrderHint() {
@@ -317,6 +351,59 @@
     watchMonth(d.getFullYear() + "-" + pad(d.getMonth() + 1));
   }
 
+  /* ---------- 次營業日叫貨建議（第二階段） ---------- */
+  function orderOpen() { return !$("orderBackdrop").classList.contains("hidden"); }
+  function watchPredMonths() {
+    predUnsubs.forEach((u) => u && u()); predUnsubs = []; predMonthData = {};
+    if (!db) return;
+    const tm = ymOf(todayKey());
+    [tm, addMonthYM(tm, -1)].forEach((ym) => {
+      const u = monthRefOf(ym).onSnapshot((snap) => {
+        const d = snap.data(); predMonthData[ym] = (d && d.days) || {};
+        predDays = {}; Object.values(predMonthData).forEach((m) => Object.assign(predDays, m));
+        refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
+      }, (err) => console.error("pred snapshot", err));
+      predUnsubs.push(u);
+    });
+  }
+  function watchConfig() {
+    if (!db) return;
+    configUnsub = db.collection(COLL).doc("poultry_config").onSnapshot((snap) => {
+      const d = snap.data();
+      bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
+      refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
+    }, (err) => console.error("config snapshot", err));
+  }
+  function saveBuffer(v) {
+    bufferFactor = v;
+    if (db) db.collection(COLL).doc("poultry_config").set({ bufferFactor: v, updatedAt: Date.now() }, { merge: true }).catch((e) => console.error(e));
+  }
+  function renderSuggestion(k) {
+    const box = $("sugBlock"); if (!box || !k) return;
+    const p = predict(k), d = parseKey(k);
+    if (p.group === null) { box.classList.add("hidden"); return; }   // 公休不顯示建議
+    box.classList.remove("hidden");
+    $("sugMeta").textContent = `${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}·${p.group}）`;
+    const sel = $("sugBuffer"); if (sel) sel.value = fmtBuf(bufferFactor);
+    if (!p.n) {
+      $("sugNums").classList.add("hidden"); $("sugApply").classList.add("hidden");
+      $("sugBasis").textContent = "同類型營業日的上傳資料還不足，先持續每天上傳銷售，累積幾天後就會自動推估。";
+    } else {
+      $("sugNums").classList.remove("hidden"); $("sugApply").classList.remove("hidden");
+      $("sugLeg").textContent = p.rec.leg; $("sugFil").textContent = p.rec.fil; $("sugWing").textContent = p.rec.wing;
+      $("sugBasis").textContent = `依近一個月 ${p.n} 個「${p.group}」平均消耗（腿 ${p.avg.leg}・排 ${p.avg.fil}・翅 ${p.avg.wing}）× 緩衝 ${fmtBuf(p.buf)}`;
+      $("sugApply").onclick = () => { $("orderLeg").value = p.rec.leg; $("orderFil").value = p.rec.fil; $("orderWing").value = p.rec.wing; };
+    }
+  }
+  function refreshHint() {
+    const el = $("ckHint"); if (!el) return;
+    const k = nextBusinessDay(todayKey()), d = parseKey(k), p = predict(k);
+    const head = `🔮 次營業日 ${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}${p.group ? "·" + p.group : ""}）`;
+    if (!p.group) el.innerHTML = `${head}：公休`;
+    else if (!p.n) el.innerHTML = `${head}：建議叫貨資料累積中 ›`;
+    else el.innerHTML = `${head} 建議：<b class="ck-leg">腿 ${p.rec.leg}</b>　<b class="ck-fil">排 ${p.rec.fil}</b>　<b class="ck-wing">翅 ${p.rec.wing}</b> ›`;
+  }
+
   /* ---------- 啟動 ---------- */
   function wire() {
     $("pinSubmit").onclick = tryUnlock;
@@ -324,6 +411,9 @@
     $("ckUploadBtn").onclick = openUpload;
     $("ckOrderBtn").onclick = () => openOrder(null, null);
     $("ckOpenReport").onclick = openReport;
+    $("orderDate").addEventListener("change", () => renderSuggestion($("orderDate").value));
+    $("sugBuffer").addEventListener("change", (e) => { saveBuffer(Number(e.target.value) || 1.0); renderSuggestion($("orderDate").value); });
+    $("ckHint").onclick = () => { const k = nextBusinessDay(todayKey()); openOrder(k, (predDays[k] || {}).order); };
     $("ckPrevMonth").onclick = () => shiftMonth(-1);
     $("ckNextMonth").onclick = () => shiftMonth(1);
     $("uploadDrop").onclick = () => $("ckFile").click();
@@ -352,9 +442,11 @@
       settings.adminPin = s.adminPin || "1234";
       settings.storeName = s.storeName || settings.storeName;
       mainLoaded = true;
-      render();
+      render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
     }, (err) => console.error("main snapshot", err));
     watchMonth(viewYM);
+    watchPredMonths();
+    watchConfig();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();

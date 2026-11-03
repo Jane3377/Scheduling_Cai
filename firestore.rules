@@ -45,6 +45,14 @@ service cloud.firestore {
         && request.resource.data.updatedAt is number
         && request.resource.data.updatedAt > 0;
 
+      // 採購雞肉設定（安全緩衝倍率等）：單一文件 poultry_config
+      allow create, update: if request.auth != null
+        && docId == 'poultry_config'
+        && request.resource.data.keys().hasOnly(['bufferFactor', 'updatedAt'])
+        && request.resource.data.bufferFactor is number
+        && request.resource.data.updatedAt is number
+        && request.resource.data.updatedAt > 0;
+
       // 月份文件可刪除（清除舊資料、完整備份還原會用到）
       allow delete: if request.auth != null
         && docId.matches('^((shifts|avail)_([0-9]{4}-[0-9]{2}|none)|poultry_[0-9]{4}-[0-9]{2})$');
