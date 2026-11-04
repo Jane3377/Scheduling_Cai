@@ -67,6 +67,21 @@
     .ps-k { font-size: 15px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
     .ps-sel { margin-left: auto; border: 1.5px solid #d9a689; border-radius: 10px; background: #fffdfb; padding: 8px 12px; font: inherit; font-size: 16px; font-weight: 800; color: var(--ink); min-width: 100px; text-align: center; }
     .ps-d { font-size: 12px; color: var(--muted); margin: 6px 0 0 2px; line-height: 1.5; }
+    /* 批發商休息設定 */
+    .fld-lbl { font-size: 14.5px; font-weight: 800; color: var(--ink); margin: 2px 2px 8px; }
+    .sup-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .sup-week .wd { text-align: center; padding: 11px 0; border: 1.5px solid #e2d8d0; border-radius: 10px; font-size: 15px; font-weight: 700; color: #5a524c; background: #fff; cursor: pointer; }
+    .sup-week .wd.off { background: #fbeae7; border-color: #e0a99b; color: #9a2b1c; }
+    .sup-drow { display: flex; align-items: center; gap: 8px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 10px; background: #faf7f4; margin-bottom: 8px; font-size: 14px; font-weight: 700; }
+    .sup-drow .x { margin-left: auto; color: var(--danger); font-weight: 800; cursor: pointer; background: none; border: 0; font-size: 15px; }
+    .sup-empty { font-size: 13px; color: var(--muted); padding: 2px 2px 10px; }
+    .sup-add { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    .sup-add .input { flex: 1; min-width: 0; }
+    .sup-add .secondary-btn { white-space: nowrap; }
+    .sup-prev { margin-top: 16px; border: 1px dashed #d9ccc3; border-radius: 10px; padding: 11px 13px; background: #fcfaf8; }
+    .sup-prev h4 { margin: 0 0 7px; font-size: 12.5px; color: var(--brand-dark); }
+    .sup-prev .pl { font-size: 13px; font-weight: 700; color: #5a524c; line-height: 2; }
+    .sup-prev .pl b { color: #b0a79f; margin: 0 2px; } .sup-prev .pl .u { color: #7a2e1c; font-weight: 900; }
     /* 月曆下方工具列 */
     .ck-foot { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
     .ck-foot button { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; font-weight: 700; color: var(--ink); font-size: 14px; cursor: pointer; }
@@ -268,6 +283,7 @@
       <div class="ck-foot">
         <button type="button" id="ckGuideBtn" class="ck-guide-btn">📖 使用說明</button>
         <button type="button" id="ckPredBtn">⚙ 推估設定</button>
+        <button type="button" id="ckSupBtn">🚚 批發商休息</button>
         <button type="button" id="ckExportCsvBtn">⤓ 匯出 CSV</button>
         <button type="button" id="ckBackupBtn">💾 備份／還原</button>
         <button type="button" id="ckPartsBtn">⚙ 部位對照設定</button>
@@ -426,6 +442,30 @@
           <div class="ps-d">平均（預設）／中位數（最穩）／近期加權（越近越重）／同型日最大（最保守）。</div>
         </div>
         <div class="modal-actions"><button class="ghost-btn" data-close="predBackdrop">取消</button><button class="primary-btn" id="psSave">儲存設定</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 批發商休息設定彈窗 -->
+  <div id="supBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(460px,100%)">
+      <div class="modal-head"><div><h3>🚚 批發商休息設定</h3><p>批發商沒上班就不能下單與到貨（通常週日休）</p></div><button class="icon-btn" data-close="supBackdrop">✕</button></div>
+      <div class="modal-body">
+        <div class="fld-lbl">每週固定休</div>
+        <div class="sup-week" id="supWeek"></div>
+        <div class="hint" style="margin:6px 2px 14px">點週幾可切換「休／送」。預設：週日休。</div>
+
+        <div class="fld-lbl">臨時休市日（畜牧休息等）</div>
+        <div id="supDateList"></div>
+        <div class="sup-add">
+          <input class="input" type="date" id="supNewDate" />
+          <input class="input" id="supNewNote" placeholder="原因（選填）" autocomplete="off" />
+          <button type="button" class="secondary-btn" id="supAddBtn">＋ 新增</button>
+        </div>
+
+        <div class="sup-prev" id="supPrev"></div>
+
+        <div class="modal-actions"><button class="ghost-btn" data-close="supBackdrop">取消</button><button class="primary-btn" id="supSave">儲存設定</button></div>
       </div>
     </div>
   </div>

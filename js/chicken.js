@@ -45,6 +45,9 @@
   const EST_METHODS = ["avg", "median", "weighted", "max"];
   const METHOD_LABEL = { avg: "平均", median: "中位數", weighted: "近期加權", max: "同型日最大" }; // 推估方式標籤
   let predWindow = 35, estMethod = "avg"; // 可在「推估設定」調整，存 poultry_config
+  // 批發商休息：每週固定休（0=日…6=六，預設週日）＋臨時休市日；存 poultry_config.supplierOff
+  const DEFAULT_SUPPLIER_OFF = { weekdays: [0], dates: [] };
+  let supplierOff = JSON.parse(JSON.stringify(DEFAULT_SUPPLIER_OFF));
   let predUnsubs = [], configUnsub = null, predMonthData = {}, predDays = {}, bufferFactor = 1.0;
   let partsHistory = [];  // 部位對照表版本紀錄 [{date:'YYYY-MM-DD', map:{...}}]（日期升冪，最後一筆＝目前）
 
@@ -74,6 +77,39 @@
     for (let i = 0; i < 120; i++) { d.setDate(d.getDate() - 1); const k = toKey(d); if (!isClosed(k)) return k; }
     return toKey(d);
   }
+  /* ---------- 叫貨時程引擎（批發商休息 ＋ 店家營業 推算下單／到貨／使用） ---------- */
+  // 批發商是否上班：非每週固定休、非臨時休市日
+  function supplierOpen(k) {
+    if ((supplierOff.weekdays || []).includes(parseKey(k).getDay())) return false;
+    if ((supplierOff.dates || []).some((x) => x.date === k)) return false;
+    return true;
+  }
+  // 某使用日的「到貨日」＝該日之前、最近一個「店家營業 且 批發商上班」的日子（沒人收貨就不送）
+  function deliveryDayFor(useKey) {
+    const d = parseKey(useKey);
+    for (let i = 0; i < 21; i++) { d.setDate(d.getDate() - 1); const k = toKey(d); if (!isClosed(k) && supplierOpen(k)) return k; }
+    return null;
+  }
+  // 某使用日的「下單日」＝到貨日之前、最近一個「批發商上班」的日子
+  function orderDayFor(useKey) {
+    const del = deliveryDayFor(useKey); if (!del) return null;
+    const d = parseKey(del);
+    for (let i = 0; i < 14; i++) { d.setDate(d.getDate() - 1); const k = toKey(d); if (supplierOpen(k)) return k; }
+    return null;
+  }
+  // 某下單日會涵蓋哪些使用日（往後掃，使用日的下單日剛好等於它）
+  function coveredUseDays(orderKey) {
+    const out = [], d = parseKey(orderKey);
+    for (let i = 1; i <= 10; i++) { d.setDate(d.getDate() + 1); const k = toKey(d); if (isClosed(k)) continue; if (orderDayFor(k) === orderKey) out.push(k); }
+    return out;
+  }
+  // 從今天起，最近一個下單日所要備的第一個使用日（記錄叫貨預設用）
+  function nextCoveredUse() {
+    const d = parseKey(todayKey());
+    for (let i = 0; i < 14; i++) { const k = toKey(d); const u = coveredUseDays(k); if (u.length) return u[0]; d.setDate(d.getDate() + 1); }
+    return nextBusinessDay(todayKey());
+  }
+  const mdw = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}）`; };
   function dateMinus(k, n) { const d = parseKey(k); d.setDate(d.getDate() - n); return toKey(d); }
   // 以台灣時區（UTC+8）判斷「現在」的日期與小時，避免裝置時區設定錯誤導致誤判
   function taipeiNow() {
@@ -334,7 +370,7 @@
   /* ---------- 記錄叫貨 ---------- */
   // rec：該天的完整紀錄（含 order 隻數、orderKg 公斤）；可為 null（全新）
   function openOrder(dateKey, rec) {
-    const k = dateKey || nextBusinessDay(todayKey());
+    const k = dateKey || nextCoveredUse();
     $("orderDate").value = k;
     const o = rec && rec.order, kg = rec && rec.orderKg;
     // ① 叫貨量（隻）：編輯沿用舊值；全新則留空（由使用者點「帶入」或自行輸入）
@@ -371,8 +407,17 @@
     box.classList.remove("hidden");
   }
   function updateOrderHint() {
-    const def = nextBusinessDay(todayKey());
-    $("orderHint").textContent = `預設帶入「次營業日」＝ ${def.slice(5).replace("-", "/")}（今天 ${todayKey().slice(5).replace("-", "/")} 的下一個營業日，已跳過公休）；可自行修改。`;
+    const u = $("orderDate").value; if (!u) { $("orderHint").textContent = ""; return; }
+    const od = orderDayFor(u), del = deliveryDayFor(u);
+    let t = "";
+    if (od && del) t = `此使用日 ${mdw(u)}：${mdw(od)} 下單 → ${mdw(del)} 到貨。`;
+    else t = `使用日 ${mdw(u)}。`;
+    // 同一下單日若還要備別的使用日，提醒一下
+    if (od) {
+      const also = coveredUseDays(od).filter((x) => x !== u);
+      if (also.length) t += ` ⚠ 這天（${mdw(od)}）下單也要備：${also.map(mdw).join("、")}，記得另外再記一筆。`;
+    }
+    $("orderHint").textContent = t;
   }
   function saveOrder() {
     const k = $("orderDate").value;
@@ -459,6 +504,11 @@
     bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
     predWindow = (d && WINDOW_OPTIONS.includes(d.predWindow)) ? d.predWindow : 35;
     estMethod = (d && EST_METHODS.includes(d.estMethod)) ? d.estMethod : "avg";
+    supplierOff = JSON.parse(JSON.stringify(DEFAULT_SUPPLIER_OFF));
+    if (d && d.supplierOff && typeof d.supplierOff === "object") {
+      if (Array.isArray(d.supplierOff.weekdays)) supplierOff.weekdays = d.supplierOff.weekdays.filter((n) => n >= 0 && n <= 6);
+      if (Array.isArray(d.supplierOff.dates)) supplierOff.dates = d.supplierOff.dates.filter((x) => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date));
+    }
     partMap = JSON.parse(JSON.stringify(DEFAULT_MAP));
     if (d && d.parts && typeof d.parts === "object") {
       PIECES.forEach((pc) => { const v = d.parts[pc]; if (v && typeof v === "object") partMap[pc] = { leg: Number(v.leg) || 0, fil: Number(v.fil) || 0, wing: Number(v.wing) || 0 }; });
@@ -492,6 +542,45 @@
     hide("predBackdrop");
     render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
     if (db) configRef().set({ bufferFactor: buf, predWindow: win, estMethod: m, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
+  }
+  /* ---------- 批發商休息設定 ---------- */
+  let supDraft = null;
+  function openSupSet() {
+    supDraft = { weekdays: (supplierOff.weekdays || []).slice(), dates: (supplierOff.dates || []).map((x) => ({ date: x.date, note: x.note || "" })) };
+    $("supNewDate").value = ""; $("supNewNote").value = "";
+    renderSupWeek(); renderSupDates(); renderSupPrev();
+    show("supBackdrop");
+  }
+  function renderSupWeek() {
+    const box = $("supWeek"), names = ["日", "一", "二", "三", "四", "五", "六"];
+    box.innerHTML = names.map((nm, i) => `<button type="button" class="wd${supDraft.weekdays.includes(i) ? " off" : ""}" data-w="${i}">${nm}${supDraft.weekdays.includes(i) ? "✓" : ""}</button>`).join("");
+    box.querySelectorAll("button[data-w]").forEach((b) => b.onclick = () => { const w = Number(b.dataset.w), i = supDraft.weekdays.indexOf(w); if (i >= 0) supDraft.weekdays.splice(i, 1); else supDraft.weekdays.push(w); renderSupWeek(); renderSupPrev(); });
+  }
+  function renderSupDates() {
+    const box = $("supDateList"), ds = supDraft.dates.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    if (!ds.length) { box.innerHTML = `<div class="sup-empty">目前沒有臨時休市日。</div>`; return; }
+    box.innerHTML = ds.map((x) => `<div class="sup-drow">${mdw(x.date)}${x.note ? " · " + x.note : ""}<button type="button" class="x" data-d="${x.date}">✕</button></div>`).join("");
+    box.querySelectorAll("button[data-d]").forEach((b) => b.onclick = () => { supDraft.dates = supDraft.dates.filter((x) => x.date !== b.dataset.d); renderSupDates(); renderSupPrev(); });
+  }
+  function addSupDate() {
+    const dt = $("supNewDate").value; if (!dt) { alert("請選日期"); return; }
+    if (!supDraft.dates.some((x) => x.date === dt)) supDraft.dates.push({ date: dt, note: ($("supNewNote").value || "").trim() });
+    $("supNewDate").value = ""; $("supNewNote").value = ""; renderSupDates(); renderSupPrev();
+  }
+  function renderSupPrev() {
+    const saved = supplierOff; supplierOff = supDraft;  // 暫時套用草稿來推算
+    try {
+      const t = parseKey(todayKey()), mon = new Date(t); mon.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+      const lines = [], d = new Date(mon);
+      for (let i = 0; i < 7; i++) { const k = toKey(d), u = coveredUseDays(k); if (u.length) lines.push(`${DOW[d.getDay()]}<b>→</b><span class="u">${u.map((x) => DOW[parseKey(x).getDay()]).join("＋")}</span>`); d.setDate(d.getDate() + 1); }
+      $("supPrev").innerHTML = `<h4>📅 下單日 → 使用日（自動推算）</h4><div class="pl">${lines.length ? lines.join("　·　") : "（這週沒有可下單日）"}</div>`;
+    } finally { supplierOff = saved; }
+  }
+  function saveSupSet() {
+    supplierOff = { weekdays: supDraft.weekdays.slice().sort((a, b) => a - b), dates: supDraft.dates.slice() };
+    hide("supBackdrop");
+    render(); refreshHint(); if (orderOpen()) { updateOrderHint(); renderSuggestion($("orderDate").value); }
+    if (db) configRef().set({ supplierOff: supplierOff, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
   }
   // 找「上個同型日」已記錄的叫貨（目標日之前、同日型、最近一天）
   function lastSameTypeOrder(targetKey) {
@@ -535,9 +624,12 @@
   }
   function refreshHint() {
     const el = $("ckHint"); if (!el) return;
-    const k = nextBusinessDay(todayKey()), d = parseKey(k), p = predict(k);
-    const head = `🔮 推估建議：次營業日 ${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}${p.group ? "·" + p.group : ""}）叫貨`;
-    if (!p.group) el.innerHTML = `${head}：公休`;
+    const today = todayKey(), uses = coveredUseDays(today);
+    if (!uses.length) { el.innerHTML = `🛈 今天不是下單日（批發商休或不需叫貨）；點這裡仍可手動記錄 ›`; return; }
+    const k = uses[0], d = parseKey(k), p = predict(k);
+    const more = uses.length > 1 ? `（另含 ${uses.slice(1).map((x) => mdw(x)).join("、")}）` : "";
+    const head = `🔮 推估建議：今天下單 → 使用 ${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}${p.group ? "·" + p.group : ""}）${more}`;
+    if (!p.group) el.innerHTML = `${head} ›`;
     else if (!p.n) el.innerHTML = `${head} 資料累積中 ›`;
     else el.innerHTML = `${head} <b class="ck-leg">腿 ${p.rec.leg}</b>　<b class="ck-fil">排 ${p.rec.fil}</b>　<b class="ck-wing">翅 ${p.rec.wing}</b> ›`;
   }
@@ -629,7 +721,7 @@
       const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
-        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory };
+        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory };
         else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
       triggerDownload(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }), `${settings.storeName || "採購雞肉"}_雞肉備份_${todayKey()}.json`);
@@ -652,7 +744,7 @@
     if (!db) { alert("尚未連線。"); return; }
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
-    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; writes.push({ ref: configRef(), data: c }); }
+    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; writes.push({ ref: configRef(), data: c }); }
     let i = 0;
     (function next() {
       if (i >= writes.length) { hide("backupBackdrop"); alert("匯入完成。"); watchMonth(viewYM); return; }
@@ -668,15 +760,18 @@
     $("ckUploadBtn").onclick = openUpload;
     $("ckOrderBtn").onclick = () => openOrder(null, null);
     $("ckOpenReport").onclick = openReport;
-    $("orderDate").addEventListener("change", () => renderSuggestion($("orderDate").value));
+    $("orderDate").addEventListener("change", () => { updateOrderHint(); renderSuggestion($("orderDate").value); });
     // ① 叫貨量（隻）改變 → 自動換算公斤；② 公斤改變 → 更新「將記錄」
     ["orderLeg", "orderFil", "orderWing"].forEach((id) => $(id).addEventListener("input", recalcKg));
     ["orderKgleg", "orderKgfil", "orderKgwing"].forEach((id) => $(id).addEventListener("input", updateWillSave));
-    $("ckHint").onclick = () => { const k = nextBusinessDay(todayKey()); openOrder(k, predDays[k] || null); };
+    $("ckHint").onclick = () => { const k = nextCoveredUse(); openOrder(k, predDays[k] || null); };
     // 推估設定（叫貨彈窗連結＋工具列按鈕）
     $("openPredSet").onclick = openPredSet;
     $("ckPredBtn").onclick = openPredSet;
     $("psSave").onclick = savePredSet;
+    $("ckSupBtn").onclick = openSupSet;
+    $("supAddBtn").onclick = addSupDate;
+    $("supSave").onclick = saveSupSet;
     // 月曆下方工具：匯出 CSV／備份還原／部位對照
     $("ckExportCsvBtn").onclick = openCsv;
     $("csvDownload").onclick = doCsvExport;

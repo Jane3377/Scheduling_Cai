@@ -48,7 +48,7 @@ service cloud.firestore {
       // 採購雞肉設定（安全緩衝倍率、部位對照表、採購換算、版本紀錄）：單一文件 poultry_config
       allow create, update: if request.auth != null
         && docId == 'poultry_config'
-        && request.resource.data.keys().hasOnly(['bufferFactor', 'predWindow', 'estMethod', 'parts', 'purchase', 'partsHistory', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['bufferFactor', 'predWindow', 'estMethod', 'supplierOff', 'parts', 'purchase', 'partsHistory', 'updatedAt'])
         && request.resource.data.updatedAt is number
         && request.resource.data.updatedAt > 0;
 
