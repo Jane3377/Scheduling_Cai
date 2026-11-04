@@ -54,7 +54,8 @@
     .sug-title { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
     .sug-empty { font-size: 13px; color: var(--muted); padding: 6px 2px; }
     .sug-row2 { display: flex; align-items: center; gap: 8px; padding: 9px 0; font-size: 14px; }
-    #lastRow { border-top: 1px dashed #e8ddd4; }
+    #lastRow, #deductRow { border-top: 1px dashed #e8ddd4; }
+    .sug-tag2.deduct { color: var(--brand-dark); }
     .sug-tag2 { font-weight: 800; white-space: nowrap; font-size: 13px; color: var(--ink); }
     .sug-pill { font-size: 10px; background: #e7f1ea; color: #2f7d52; border-radius: 6px; padding: 1px 6px; margin-left: 3px; font-weight: 800; }
     .sug-nums2 { margin-left: auto; font-size: 14.5px; font-weight: 800; white-space: nowrap; }
@@ -400,6 +401,11 @@
             <span class="sug-tag2">系統建議<span class="sug-pill" id="sugMethod">平均</span></span>
             <span class="sug-nums2" id="sugNums">—</span>
             <button type="button" class="sug-fill2" id="sugApply">帶入</button>
+          </div>
+          <div class="sug-row2 hidden" id="deductRow">
+            <span class="sug-tag2 deduct">扣庫存後</span>
+            <span class="sug-nums2" id="deductNums">—</span>
+            <button type="button" class="sug-fill2" id="deductApply">帶入</button>
           </div>
           <div class="sug-row2" id="lastRow">
             <span class="sug-tag2" id="lastTag">🕑 上次同型日</span>

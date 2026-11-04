@@ -517,7 +517,7 @@
       const u = stockRefOf(ym).onSnapshot((snap) => {
         const d = snap.data(), days = (d && d.days) || {};
         Object.keys(days).forEach((k) => { stockDays[k] = days[k]; });
-        if (orderOpen()) renderStock();
+        if (orderOpen()) { renderStock(); renderSuggestion($("orderDate").value); }
       }, (err) => console.error("stock snapshot", err));
       stockUnsubs.push(u);
     });
@@ -642,6 +642,14 @@
       $("sugNums").innerHTML = numsHTML(p.rec);
       $("sugApply").onclick = () => fillOrder(p.rec);
     }
+    // 扣庫存後＝系統建議 − 目前庫存（不為負）；有庫存且有系統建議才顯示
+    const s = currentStock(), dr = $("deductRow");
+    if (p.n && s) {
+      const d = { leg: Math.max(0, p.rec.leg - s.leg), fil: Math.max(0, p.rec.fil - s.fil), wing: Math.max(0, p.rec.wing - s.wing) };
+      dr.classList.remove("hidden");
+      $("deductNums").innerHTML = numsHTML(d);
+      $("deductApply").onclick = () => fillOrder(d);
+    } else { dr.classList.add("hidden"); }
     // 上次同型日叫貨
     const last = lastSameTypeOrder(k), lr = $("lastRow");
     if (last) {
