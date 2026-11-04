@@ -41,7 +41,10 @@
   let days = {};          // date → 記錄（目前顯示月份）
   let lastParse = null;   // 上傳解析暫存
   // 第二階段：次營業日叫貨建議
-  const PRED_WINDOW = 35; // 取樣範圍：近 35 天同日型
+  const WINDOW_OPTIONS = [14, 21, 28, 35, 42, 49, 56, 60]; // 回算天數可選值（每 7 天一階，上限 60）
+  const EST_METHODS = ["avg", "median", "weighted", "max"];
+  const METHOD_LABEL = { avg: "平均", median: "中位數", weighted: "近期加權", max: "同型日最大" }; // 推估方式標籤
+  let predWindow = 35, estMethod = "avg"; // 可在「推估設定」調整，存 poultry_config
   let predUnsubs = [], configUnsub = null, predMonthData = {}, predDays = {}, bufferFactor = 1.0;
   let partsHistory = [];  // 部位對照表版本紀錄 [{date:'YYYY-MM-DD', map:{...}}]（日期升冪，最後一筆＝目前）
 
@@ -106,23 +109,36 @@
     if (dow === 5) return "週五";
     return "平日";
   }
-  // 推估某日叫貨量：同日型、近 PRED_WINDOW 天內「有上傳消耗」的日子平均 × 緩衝
+  /* 推估方式（各部位獨立；傳入陣列為「舊→新」排序）：
+     - 平均：算術平均
+     - 中位數：取中間值（不受偶發爆量/超冷清影響）
+     - 近期加權：最新權重最高，每往前一次少一級（最新 N、次新 N−1…最舊 1）的加權平均
+     - 同型日最大：取最高值（保守、幾乎不缺貨） */
+  const estMean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
+  const estMedian = (a) => { const s = a.slice().sort((x, y) => x - y), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  const estWeighted = (a) => { let sw = 0, sv = 0; a.forEach((x, i) => { const w = i + 1; sw += w; sv += w * x; }); return sw ? sv / sw : 0; };
+  const estMax = (a) => a.reduce((m, x) => Math.max(m, x), 0);
+  const ESTIMATORS = { avg: estMean, median: estMedian, weighted: estWeighted, max: estMax };
+  // 推估某日叫貨量：同日型、回算視窗內「有上傳消耗」的日子，依推估方式計算 × 緩衝
   function predict(targetKey) {
     const g = dayGroup(targetKey);
     if (!g) return { group: null };
-    const todayK = todayKey(), start = dateMinus(todayK, PRED_WINDOW);
-    let sum = { leg: 0, fil: 0, wing: 0 }, n = 0;
+    const todayK = todayKey(), start = dateMinus(todayK, predWindow);
+    const samples = [];
     Object.keys(predDays).forEach((k) => {
-      if (k > todayK || k < start) return;            // 僅取近 35 天內的實際日
+      if (k > todayK || k < start) return;            // 僅取回算視窗內的實際日
       if (dayGroup(k) !== g) return;                   // 同日型
       const rec = predDays[k];
       if (!(rec && rec.parts && rec.sales && Object.keys(rec.sales).length)) return; // 需有實際消耗
-      sum.leg += rec.parts.leg; sum.fil += rec.parts.fil; sum.wing += rec.parts.wing; n++;
+      samples.push({ date: k, parts: rec.parts });
     });
+    const n = samples.length;
     if (!n) return { group: g, n: 0 };
-    const avg = { leg: sum.leg / n, fil: sum.fil / n, wing: sum.wing / n };
-    const rec = { leg: Math.round(avg.leg * bufferFactor), fil: Math.round(avg.fil * bufferFactor), wing: Math.round(avg.wing * bufferFactor) };
-    return { group: g, n, buf: bufferFactor, avg: { leg: Math.round(avg.leg), fil: Math.round(avg.fil), wing: Math.round(avg.wing) }, rec };
+    samples.sort((a, b) => (a.date < b.date ? -1 : 1));  // 舊 → 新
+    const fn = ESTIMATORS[estMethod] || estMean;
+    const base = {}; PARTS3.forEach((p) => { base[p] = fn(samples.map((s) => Number(s.parts[p]) || 0)); });
+    const rec = { leg: Math.round(base.leg * bufferFactor), fil: Math.round(base.fil * bufferFactor), wing: Math.round(base.wing * bufferFactor) };
+    return { group: g, n, buf: bufferFactor, method: estMethod, avg: { leg: Math.round(base.leg), fil: Math.round(base.fil), wing: Math.round(base.wing) }, rec };
   }
 
   /* ---------- 部位換算 ---------- */
@@ -320,13 +336,15 @@
     const k = dateKey || nextBusinessDay(todayKey());
     $("orderDate").value = k;
     const o = rec && rec.order, kg = rec && rec.orderKg;
-    // ① 預估需求（隻）
-    $("orderLeg").value = o ? o.leg : "";
-    $("orderFil").value = o ? o.fil : "";
-    $("orderWing").value = o ? o.wing : "";
+    // ① 叫貨量（隻）：編輯沿用舊值；全新則自動帶入「系統建議」（預設推估方式）
+    const p = o ? null : predict(k);
+    const src = o || (p && p.n ? p.rec : null);
+    $("orderLeg").value = src ? src.leg : "";
+    $("orderFil").value = src ? src.fil : "";
+    $("orderWing").value = src ? src.wing : "";
     // ② 實際下單（公斤）：有存就用；否則由①估；都沒有就留空
     if (kg) { $("orderKgleg").value = kg.leg; $("orderKgfil").value = kg.fil; $("orderKgwing").value = kg.wing; }
-    else if (o) { $("orderKgleg").value = kgSuggest(o.leg, "leg"); $("orderKgfil").value = kgSuggest(o.fil, "fil"); $("orderKgwing").value = kgSuggest(o.wing, "wing"); }
+    else if (src) { $("orderKgleg").value = kgSuggest(src.leg, "leg"); $("orderKgfil").value = kgSuggest(src.fil, "fil"); $("orderKgwing").value = kgSuggest(src.wing, "wing"); }
     else { $("orderKgleg").value = ""; $("orderKgfil").value = ""; $("orderKgwing").value = ""; }
     renderKgLabels();
     updateWillSave();
@@ -428,7 +446,7 @@
     predUnsubs.forEach((u) => u && u()); predUnsubs = []; predMonthData = {};
     if (!db) return;
     const tm = ymOf(todayKey());
-    [tm, addMonthYM(tm, -1)].forEach((ym) => {
+    [tm, addMonthYM(tm, -1), addMonthYM(tm, -2)].forEach((ym) => {
       const u = monthRefOf(ym).onSnapshot((snap) => {
         const d = snap.data(); predMonthData[ym] = (d && d.days) || {};
         predDays = {}; Object.values(predMonthData).forEach((m) => Object.assign(predDays, m));
@@ -440,6 +458,8 @@
   const configRef = () => db.collection(COLL).doc("poultry_config");
   function applyConfig(d) {
     bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
+    predWindow = (d && WINDOW_OPTIONS.includes(d.predWindow)) ? d.predWindow : 35;
+    estMethod = (d && EST_METHODS.includes(d.estMethod)) ? d.estMethod : "avg";
     partMap = JSON.parse(JSON.stringify(DEFAULT_MAP));
     if (d && d.parts && typeof d.parts === "object") {
       PIECES.forEach((pc) => { const v = d.parts[pc]; if (v && typeof v === "object") partMap[pc] = { leg: Number(v.leg) || 0, fil: Number(v.fil) || 0, wing: Number(v.wing) || 0 }; });
@@ -458,9 +478,21 @@
       render(); refreshHint(); if (orderOpen()) { renderKgLabels(); renderSuggestion($("orderDate").value); updateWillSave(); }
     }, (err) => console.error("config snapshot", err));
   }
-  function saveBuffer(v) {
-    bufferFactor = v;
-    if (db) configRef().set({ bufferFactor: v, updatedAt: Date.now() }, { merge: true }).catch((e) => console.error(e));
+  /* ---------- 推估設定（緩衝倍率／回算天數／推估方式） ---------- */
+  function openPredSet() {
+    $("psBuffer").value = fmtBuf(bufferFactor);
+    $("psWindow").value = String(predWindow);
+    $("psMethod").value = estMethod;
+    show("predBackdrop");
+  }
+  function savePredSet() {
+    const buf = Number($("psBuffer").value) || 1.0;
+    const win = WINDOW_OPTIONS.includes(Number($("psWindow").value)) ? Number($("psWindow").value) : 35;
+    const m = EST_METHODS.includes($("psMethod").value) ? $("psMethod").value : "avg";
+    bufferFactor = buf; predWindow = win; estMethod = m;
+    hide("predBackdrop");
+    render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
+    if (db) configRef().set({ bufferFactor: buf, predWindow: win, estMethod: m, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
   }
   // 找「上個同型日」已記錄的叫貨（目標日之前、同日型、最近一天）
   function lastSameTypeOrder(targetKey) {
@@ -475,41 +507,40 @@
     return best;
   }
   function fillOrder(o) { $("orderLeg").value = o.leg; $("orderFil").value = o.fil; $("orderWing").value = o.wing; recalcKg(); }
+  const numsHTML = (o) => `<i>腿</i><b class="ck-leg">${o.leg}</b> <i>排</i><b class="ck-fil">${o.fil}</b> <i>翅</i><b class="ck-wing">${o.wing}</b>`;
   function renderSuggestion(k) {
     const box = $("sugBlock"); if (!box || !k) return;
     const p = predict(k);
     if (p.group === null) { box.classList.add("hidden"); return; }   // 公休不顯示建議
     box.classList.remove("hidden");
-    const sel = $("sugBuffer"); if (sel) sel.value = fmtBuf(bufferFactor);
-    // 系統建議
+    $("sugMethod").textContent = METHOD_LABEL[estMethod] || "平均";
+    // 系統建議（依推估方式）
     if (!p.n) {
-      $("sugNums").classList.add("hidden"); $("sugApply").classList.add("hidden"); $("sugClar").classList.add("hidden"); $("sugNote").classList.add("hidden");
-      $("sugBasis").textContent = `${p.group}·資料累積中，多上傳幾天就會自動推估`;
+      $("sugRow").classList.add("hidden"); $("sugEmpty").classList.remove("hidden");
+      $("sugEmpty").textContent = `系統建議：${p.group}・資料累積中，多上傳幾天就會自動推估`;
     } else {
-      $("sugNums").classList.remove("hidden"); $("sugApply").classList.remove("hidden"); $("sugClar").classList.remove("hidden"); $("sugNote").classList.remove("hidden");
-      $("sugLeg").textContent = p.rec.leg; $("sugFil").textContent = p.rec.fil; $("sugWing").textContent = p.rec.wing;
-      $("sugBasis").textContent = `近一月 ${p.n} 個「${p.group}」平均 × 緩衝 ${fmtBuf(p.buf)}`;
+      $("sugRow").classList.remove("hidden"); $("sugEmpty").classList.add("hidden");
+      $("sugNums").innerHTML = numsHTML(p.rec);
       $("sugApply").onclick = () => fillOrder(p.rec);
     }
-    // 上個同型日叫貨
-    const last = lastSameTypeOrder(k), li = $("lastItem"), lr = $("lastRow"), lc = $("lastClar");
+    // 上次同型日叫貨
+    const last = lastSameTypeOrder(k), lr = $("lastRow");
     if (last) {
-      li.classList.remove("hidden"); lr.classList.remove("hidden"); lc.classList.remove("hidden");
-      $("lastTag").textContent = `🕑 上個${p.group}（${last.date.slice(5).replace("-", "/")}）`;
-      lc.textContent = `「上個${p.group}」＝上次實際採購量`;
-      $("lastLeg").textContent = last.order.leg; $("lastFil").textContent = last.order.fil; $("lastWing").textContent = last.order.wing;
+      lr.classList.remove("hidden");
+      $("lastTag").textContent = `🕑 上次${p.group}（${last.date.slice(5).replace("-", "/")}）`;
+      $("lastNums").innerHTML = numsHTML(last.order);
       $("lastApply").onclick = () => fillOrder(last.order);
-    } else {
-      li.classList.add("hidden"); lr.classList.add("hidden"); lc.classList.add("hidden");
-    }
+    } else { lr.classList.add("hidden"); }
+    // 推估設定摘要
+    $("predSummary").textContent = `緩衝 ${fmtBuf(bufferFactor)} · 回算 ${predWindow} 天 · ${METHOD_LABEL[estMethod] || "平均"}`;
   }
   function refreshHint() {
     const el = $("ckHint"); if (!el) return;
     const k = nextBusinessDay(todayKey()), d = parseKey(k), p = predict(k);
-    const head = `🔮 次營業日 ${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}${p.group ? "·" + p.group : ""}）`;
+    const head = `🔮 推估建議：次營業日 ${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}${p.group ? "·" + p.group : ""}）叫貨`;
     if (!p.group) el.innerHTML = `${head}：公休`;
-    else if (!p.n) el.innerHTML = `${head}：建議叫貨資料累積中 ›`;
-    else el.innerHTML = `${head} 建議：<b class="ck-leg">腿 ${p.rec.leg}</b>　<b class="ck-fil">排 ${p.rec.fil}</b>　<b class="ck-wing">翅 ${p.rec.wing}</b> ›`;
+    else if (!p.n) el.innerHTML = `${head} 資料累積中 ›`;
+    else el.innerHTML = `${head} <b class="ck-leg">腿 ${p.rec.leg}</b>　<b class="ck-fil">排 ${p.rec.fil}</b>　<b class="ck-wing">翅 ${p.rec.wing}</b> ›`;
   }
 
   /* ---------- 匯出 CSV（選月份、每日彙總） ---------- */
@@ -599,7 +630,7 @@
       const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
-        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory };
+        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory };
         else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
       triggerDownload(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }), `${settings.storeName || "採購雞肉"}_雞肉備份_${todayKey()}.json`);
@@ -622,7 +653,7 @@
     if (!db) { alert("尚未連線。"); return; }
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
-    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; writes.push({ ref: configRef(), data: c }); }
+    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; writes.push({ ref: configRef(), data: c }); }
     let i = 0;
     (function next() {
       if (i >= writes.length) { hide("backupBackdrop"); alert("匯入完成。"); watchMonth(viewYM); return; }
@@ -639,11 +670,14 @@
     $("ckOrderBtn").onclick = () => openOrder(null, null);
     $("ckOpenReport").onclick = openReport;
     $("orderDate").addEventListener("change", () => renderSuggestion($("orderDate").value));
-    $("sugBuffer").addEventListener("change", (e) => { saveBuffer(Number(e.target.value) || 1.0); renderSuggestion($("orderDate").value); });
-    // ① 預估需求（隻）改變 → 自動換算公斤；② 公斤改變 → 更新「將記錄」
+    // ① 叫貨量（隻）改變 → 自動換算公斤；② 公斤改變 → 更新「將記錄」
     ["orderLeg", "orderFil", "orderWing"].forEach((id) => $(id).addEventListener("input", recalcKg));
     ["orderKgleg", "orderKgfil", "orderKgwing"].forEach((id) => $(id).addEventListener("input", updateWillSave));
     $("ckHint").onclick = () => { const k = nextBusinessDay(todayKey()); openOrder(k, predDays[k] || null); };
+    // 推估設定（叫貨彈窗連結＋工具列按鈕）
+    $("openPredSet").onclick = openPredSet;
+    $("ckPredBtn").onclick = openPredSet;
+    $("psSave").onclick = savePredSet;
     // 月曆下方工具：匯出 CSV／備份還原／部位對照
     $("ckExportCsvBtn").onclick = openCsv;
     $("csvDownload").onclick = doCsvExport;
