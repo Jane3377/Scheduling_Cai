@@ -84,19 +84,17 @@
     if ((supplierOff.dates || []).some((x) => x.date === k)) return false;
     return true;
   }
-  // 某使用日的「到貨日」＝該日之前、最近一個「店家營業 且 批發商上班」的日子（沒人收貨就不送）
+  const prevDay = (k) => { const d = parseKey(k); d.setDate(d.getDate() - 1); return toKey(d); };
+  // 有效到貨日：店家營業、批發商上班，且「前一天批發商也上班」（嚴格 D+1：前一天才能下單）
+  function validDelivery(k) { return !isClosed(k) && supplierOpen(k) && supplierOpen(prevDay(k)); }
+  // 某使用日的「到貨日」＝該日之前、最近一個「有效到貨日」（至少留 1 天醃製）
   function deliveryDayFor(useKey) {
     const d = parseKey(useKey);
-    for (let i = 0; i < 21; i++) { d.setDate(d.getDate() - 1); const k = toKey(d); if (!isClosed(k) && supplierOpen(k)) return k; }
+    for (let i = 0; i < 21; i++) { d.setDate(d.getDate() - 1); const k = toKey(d); if (validDelivery(k)) return k; }
     return null;
   }
-  // 某使用日的「下單日」＝到貨日之前、最近一個「批發商上班」的日子
-  function orderDayFor(useKey) {
-    const del = deliveryDayFor(useKey); if (!del) return null;
-    const d = parseKey(del);
-    for (let i = 0; i < 14; i++) { d.setDate(d.getDate() - 1); const k = toKey(d); if (supplierOpen(k)) return k; }
-    return null;
-  }
+  // 某使用日的「下單日」＝到貨日的前一天（嚴格 D 下單、D+1 到貨）
+  function orderDayFor(useKey) { const del = deliveryDayFor(useKey); return del ? prevDay(del) : null; }
   // 某下單日會涵蓋哪些使用日（往後掃，使用日的下單日剛好等於它）
   function coveredUseDays(orderKey) {
     const out = [], d = parseKey(orderKey);
