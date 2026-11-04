@@ -260,7 +260,16 @@
   function partLines(p) {
     return `<span class="ck-parts"><span class="ck-line"><i>腿</i><b class="ck-leg">${p.leg}</b></span><span class="ck-line"><i>排</i><b class="ck-fil">${p.fil}</b></span><span class="ck-line"><i>翅</i><b class="ck-wing">${p.wing}</b></span></span>`;
   }
+  // 主頁置頂：最新盤點庫存
+  function renderStockTop() {
+    const el = $("ckStockTop"); if (!el) return;
+    const s = currentStock();
+    if (!s) { el.classList.add("hidden"); el.innerHTML = ""; return; }
+    el.classList.remove("hidden");
+    el.innerHTML = `📦 目前庫存　<b class="ck-leg big">腿${s.leg}</b>　<b class="ck-fil big">排${s.fil}</b>　<b class="ck-wing big">翅${s.wing}</b>　<small>（${mdw(s.date)}${s.byName ? " " + s.byName : ""} 盤點）</small>`;
+  }
   function render() {
+    renderStockTop();
     if (!viewYM) return;
     const [y, m] = viewYM.split("-").map(Number);
     const lbl = $("ckMonthLabel"); if (lbl) lbl.textContent = `${y} 年 ${m} 月`;
@@ -517,6 +526,7 @@
       const u = stockRefOf(ym).onSnapshot((snap) => {
         const d = snap.data(), days = (d && d.days) || {};
         Object.keys(days).forEach((k) => { stockDays[k] = days[k]; });
+        renderStockTop();
         if (orderOpen()) { renderStock(); renderSuggestion($("orderDate").value); }
       }, (err) => console.error("stock snapshot", err));
       stockUnsubs.push(u);

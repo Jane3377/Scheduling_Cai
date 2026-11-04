@@ -40,6 +40,11 @@
     .ord-flow { text-align: center; font-size: 12.5px; color: var(--muted); font-weight: 700; margin: 16px 0 10px; }
     .stock-line { font-size: 13.5px; font-weight: 700; color: #4a5668; background: #eef2f7; border: 1px solid #d8e0ea; border-radius: 10px; padding: 9px 12px; margin: 2px 0 12px; }
     .stock-line .ck-leg { color: #8f3521; } .stock-line .ck-fil { color: #2f7d52; } .stock-line .ck-wing { color: #b7791f; }
+    /* 主頁置頂：最新盤點庫存 */
+    .ck-stock-top { display: block; width: 100%; margin: 14px 0 0; padding: 11px 15px; border: 1px solid #d8e0ea; border-radius: 12px; background: linear-gradient(135deg, #fff 0%, #eef2f7 100%); color: #3a4452; font-size: 14px; font-weight: 700; }
+    .ck-stock-top b { font-weight: 900; } .ck-stock-top .big { font-size: 16px; }
+    .ck-stock-top .ck-leg { color: #8f3521; } .ck-stock-top .ck-fil { color: #2f7d52; } .ck-stock-top .ck-wing { color: #b7791f; }
+    .ck-stock-top small { color: var(--muted); font-weight: 600; }
     /* ② 實際下單公斤：醒目可改 */
     .ord-cell.kg > span b { color: var(--brand-dark); }
     .ord-cell.kg input { border-color: #d9a689; background: #fffdfb; box-shadow: 0 0 0 3px rgba(217,166,137,.14); }
@@ -263,6 +268,8 @@
           <button class="primary-btn" id="ckUploadBtn">＋ 上傳銷售報表</button>
         </div>
       </div>
+
+      <div class="ck-stock-top hidden" id="ckStockTop"></div>
 
       <button type="button" class="ck-hint" id="ckHint">🔮 推估建議：次營業日叫貨</button>
 
