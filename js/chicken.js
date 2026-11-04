@@ -22,6 +22,12 @@
   const PIECES = ["2", "3", "5", "9", "wing"];
   const PIECE_LABEL = { "2": "2 塊", "3": "3 塊", "5": "5 塊", "9": "9 塊", wing: "6塊雞翅" };
   let partMap = JSON.parse(JSON.stringify(DEFAULT_MAP));   // 目前生效的對照（預設＝DEFAULT_MAP，載入設定後覆寫）
+  // 採購換算：每個部位的批發代號與「每支約幾公克」；可在「部位對照設定 ②」覆寫，存 poultry_config.purchase
+  const DEFAULT_PURCHASE = { leg: { code: "D5", g: 120 }, fil: { code: "TS4", g: 150 }, wing: { code: "W6", g: 100 } };
+  const PARTS3 = ["leg", "fil", "wing"];
+  const PART_LABEL = { leg: "雞腿", fil: "雞排", wing: "雞翅" };
+  const PART_EMO = { leg: "🍗", fil: "🥩", wing: "🪽" };
+  let purchase = JSON.parse(JSON.stringify(DEFAULT_PURCHASE));
   const DOW = "日一二三四五六";
   const ITEM_ORDER = ["9塊炸雞", "9塊烤雞", "5塊炸雞", "5塊烤雞", "3塊炸雞", "3塊烤雞", "2塊炸雞", "2塊烤雞", "6塊炸雞翅", "6塊烤雞翅"];
   // iDelivery 報表捷徑（店家自己的後台；只是帶今天日期開啟，仍需在該站登入／輸入驗證碼）
@@ -84,6 +90,13 @@
   const fmtReportDate = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}/${pad(d.getDate())}（週${DOW[d.getDay()]}）`; };
   function addMonthYM(ym, n) { const [y, m] = ym.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
   const fmtBuf = (v) => (Math.round(v * 10) / 10).toFixed(1);
+  /* ---------- 採購換算（隻 ↔ 公斤） ---------- */
+  const purG = (part) => (purchase[part] && Number(purchase[part].g)) || DEFAULT_PURCHASE[part].g;
+  const purCode = (part) => (purchase[part] && purchase[part].code) || DEFAULT_PURCHASE[part].code;
+  // 隻 → 建議公斤（四捨五入；需求>0 時至少 1 公斤，避免算成 0）
+  const kgSuggest = (pieces, part) => { const p = Number(pieces) || 0; if (p <= 0) return 0; return Math.max(1, Math.round((p * purG(part)) / 1000)); };
+  // 公斤 → 隻（無條件捨去，保守不高估庫存）
+  const kgToPieces = (kg, part) => { const k = Number(kg) || 0, g = purG(part); return k <= 0 || g <= 0 ? 0 : Math.floor((k * 1000) / g); };
   // 日型分組：公休(null，不推估) / 假日(六日＋國定) / 週五 / 平日(其餘)
   function dayGroup(k) {
     if (isClosed(k)) return null;
@@ -302,15 +315,43 @@
   }
 
   /* ---------- 記錄叫貨 ---------- */
-  function openOrder(dateKey, existing) {
+  // rec：該天的完整紀錄（含 order 隻數、orderKg 公斤）；可為 null（全新）
+  function openOrder(dateKey, rec) {
     const k = dateKey || nextBusinessDay(todayKey());
     $("orderDate").value = k;
-    $("orderLeg").value = existing ? existing.leg : "";
-    $("orderFil").value = existing ? existing.fil : "";
-    $("orderWing").value = existing ? existing.wing : "";
+    const o = rec && rec.order, kg = rec && rec.orderKg;
+    // ① 預估需求（隻）
+    $("orderLeg").value = o ? o.leg : "";
+    $("orderFil").value = o ? o.fil : "";
+    $("orderWing").value = o ? o.wing : "";
+    // ② 實際下單（公斤）：有存就用；否則由①估；都沒有就留空
+    if (kg) { $("orderKgleg").value = kg.leg; $("orderKgfil").value = kg.fil; $("orderKgwing").value = kg.wing; }
+    else if (o) { $("orderKgleg").value = kgSuggest(o.leg, "leg"); $("orderKgfil").value = kgSuggest(o.fil, "fil"); $("orderKgwing").value = kgSuggest(o.wing, "wing"); }
+    else { $("orderKgleg").value = ""; $("orderKgfil").value = ""; $("orderKgwing").value = ""; }
+    renderKgLabels();
+    updateWillSave();
     updateOrderHint();
     renderSuggestion(k);
     show("orderBackdrop");
+  }
+  function renderKgLabels() { PARTS3.forEach((p) => { const el = $(`lblKg${p}`); if (el) el.textContent = purCode(p); }); }
+  // ① 改變 → 自動帶入建議公斤（四捨五入）
+  function recalcKg() {
+    PARTS3.forEach((p) => {
+      const src = { leg: "orderLeg", fil: "orderFil", wing: "orderWing" }[p];
+      const v = $(src).value;
+      $(`orderKg${p}`).value = (v !== "" && Number(v) > 0) ? kgSuggest(v, p) : "";
+    });
+    updateWillSave();
+  }
+  // ② 公斤 → 顯示「將記錄 ≈ 幾隻」
+  function updateWillSave() {
+    const read = (p) => Number($(`orderKg${p}`).value) || 0;
+    const data = { leg: read("leg"), fil: read("fil"), wing: read("wing") };
+    const box = $("willSave");
+    if (!(data.leg || data.fil || data.wing)) { box.classList.add("hidden"); return; }
+    $("wsText").innerHTML = PARTS3.map((p) => `${PART_EMO[p]} ${data[p]}公斤 ≈ <b class="ck-${p}">${kgToPieces(data[p], p)}</b> 隻`).join("　");
+    box.classList.remove("hidden");
   }
   function updateOrderHint() {
     const def = nextBusinessDay(todayKey());
@@ -319,15 +360,16 @@
   function saveOrder() {
     const k = $("orderDate").value;
     if (!k) { alert("請選擇使用日期"); return; }
-    const order = { leg: Number($("orderLeg").value) || 0, fil: Number($("orderFil").value) || 0, wing: Number($("orderWing").value) || 0 };
+    const kg = { leg: Number($("orderKgleg").value) || 0, fil: Number($("orderKgfil").value) || 0, wing: Number($("orderKgwing").value) || 0 };
+    const order = { leg: kgToPieces(kg.leg, "leg"), fil: kgToPieces(kg.fil, "fil"), wing: kgToPieces(kg.wing, "wing") };
     if (!db) { hide("orderBackdrop"); return; }
     const ym = ymOf(k);
-    // 三個都 0 → 視為「未叫貨」：清掉這天的叫貨紀錄（月曆不顯示 📝、明細顯示 —）
-    const allZero = order.leg === 0 && order.fil === 0 && order.wing === 0;
+    // 三個公斤都 0 → 視為「未叫貨」：清掉這天的叫貨紀錄（月曆不顯示 📝、明細顯示 —）
+    const allZero = kg.leg === 0 && kg.fil === 0 && kg.wing === 0;
     const DEL = firebase.firestore.FieldValue.delete();
     const payload = allZero
-      ? { days: { [k]: { order: DEL, orderAt: DEL } }, updatedAt: Date.now() }
-      : { days: { [k]: { order: order, orderAt: Date.now() } }, updatedAt: Date.now() };
+      ? { days: { [k]: { order: DEL, orderAt: DEL, orderKg: DEL } }, updatedAt: Date.now() }
+      : { days: { [k]: { order: order, orderKg: kg, orderAt: Date.now() } }, updatedAt: Date.now() };
     monthRefOf(ym).set(payload, { merge: true })
       .then(() => { hide("orderBackdrop"); if (ym !== viewYM) watchMonth(ym); })
       .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
@@ -352,6 +394,8 @@
       html += `<tr><td>實際消耗</td>${cell(u, "leg")}${cell(u, "fil")}${cell(u, "wing")}</tr>`;
       if (o && u) html += `<tr class="sum"><td>差額（叫−用）</td>${diffCell(o.leg - u.leg)}${diffCell(o.fil - u.fil)}${diffCell(o.wing - u.wing)}</tr>`;
       html += `</tbody></table>`;
+      const kg = rec.orderKg;
+      if (kg) html += `<div class="ck-kgline">📦 當天下單公斤：${PARTS3.map((p) => `${PART_EMO[p]} ${kg[p]}`).join("　")}（公斤）</div>`;
       if (!o) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未記錄叫貨。</div>`;
       else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對消耗。</div>`;
       else html += `<div class="hint" style="margin:-2px 2px 12px">負數＝叫貨不夠用；正數＝有剩。供調整下次叫貨參考。</div>`;
@@ -359,7 +403,7 @@
     if (hasSales) html += `<div class="cmp-h">當日銷售明細（換算消耗）</div>` + itemTable(rec.sales, rec.parts, rec.map);
     else html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
     $("detailBody").innerHTML = html;
-    $("detailEditOrder").onclick = () => { hide("detailBackdrop"); openOrder(k, rec.order); };
+    $("detailEditOrder").onclick = () => { hide("detailBackdrop"); openOrder(k, rec); };
     show("detailBackdrop");
   }
 
@@ -400,6 +444,10 @@
     if (d && d.parts && typeof d.parts === "object") {
       PIECES.forEach((pc) => { const v = d.parts[pc]; if (v && typeof v === "object") partMap[pc] = { leg: Number(v.leg) || 0, fil: Number(v.fil) || 0, wing: Number(v.wing) || 0 }; });
     }
+    purchase = JSON.parse(JSON.stringify(DEFAULT_PURCHASE));
+    if (d && d.purchase && typeof d.purchase === "object") {
+      PARTS3.forEach((p) => { const v = d.purchase[p]; if (v && typeof v === "object") purchase[p] = { code: String(v.code || DEFAULT_PURCHASE[p].code), g: Number(v.g) || DEFAULT_PURCHASE[p].g }; });
+    }
     partsHistory = (d && Array.isArray(d.partsHistory)) ? d.partsHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
   }
   const mapEq = (a, b) => PIECES.every((pc) => ["leg", "fil", "wing"].every((k) => ((a[pc] || {})[k] || 0) === ((b[pc] || {})[k] || 0)));
@@ -407,7 +455,7 @@
     if (!db) return;
     configUnsub = configRef().onSnapshot((snap) => {
       applyConfig(snap.data());
-      render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
+      render(); refreshHint(); if (orderOpen()) { renderKgLabels(); renderSuggestion($("orderDate").value); updateWillSave(); }
     }, (err) => console.error("config snapshot", err));
   }
   function saveBuffer(v) {
@@ -426,7 +474,7 @@
     });
     return best;
   }
-  function fillOrder(o) { $("orderLeg").value = o.leg; $("orderFil").value = o.fil; $("orderWing").value = o.wing; }
+  function fillOrder(o) { $("orderLeg").value = o.leg; $("orderFil").value = o.fil; $("orderWing").value = o.wing; recalcKg(); }
   function renderSuggestion(k) {
     const box = $("sugBlock"); if (!box || !k) return;
     const p = predict(k);
@@ -444,15 +492,15 @@
       $("sugApply").onclick = () => fillOrder(p.rec);
     }
     // 上個同型日叫貨
-    const last = lastSameTypeOrder(k), lr = $("lastRow"), lc = $("lastClar");
+    const last = lastSameTypeOrder(k), li = $("lastItem"), lr = $("lastRow"), lc = $("lastClar");
     if (last) {
-      lr.classList.remove("hidden"); lc.classList.remove("hidden");
+      li.classList.remove("hidden"); lr.classList.remove("hidden"); lc.classList.remove("hidden");
       $("lastTag").textContent = `🕑 上個${p.group}（${last.date.slice(5).replace("-", "/")}）`;
       lc.textContent = `「上個${p.group}」＝上次實際採購量`;
       $("lastLeg").textContent = last.order.leg; $("lastFil").textContent = last.order.fil; $("lastWing").textContent = last.order.wing;
       $("lastApply").onclick = () => fillOrder(last.order);
     } else {
-      lr.classList.add("hidden"); lc.classList.add("hidden");
+      li.classList.add("hidden"); lr.classList.add("hidden"); lc.classList.add("hidden");
     }
   }
   function refreshHint() {
@@ -475,15 +523,15 @@
     monthRefOf(ym).get().then((snap) => {
       const data = (snap.data() && snap.data().days) || {};
       const [y, m] = ym.split("-").map(Number), dim = new Date(y, m, 0).getDate();
-      const rows = [["日期", "星期", "日型", "狀態", "消耗腿", "消耗排", "消耗翅", "叫貨腿", "叫貨排", "叫貨翅", "差額腿", "差額排", "差額翅"]];
+      const rows = [["日期", "星期", "日型", "狀態", "消耗腿", "消耗排", "消耗翅", "叫貨腿", "叫貨排", "叫貨翅", "叫貨腿kg", "叫貨排kg", "叫貨翅kg", "差額腿", "差額排", "差額翅"]];
       for (let dd = 1; dd <= dim; dd++) {
         const k = `${ym}-${pad(dd)}`, rec = data[k] || {}, d = parseKey(k), star = DOW[d.getDay()];
-        if (isClosed(k)) { rows.push([k, star, "", closedLabel(k), "", "", "", "", "", "", "", "", ""]); continue; }
+        if (isClosed(k)) { rows.push([k, star, "", closedLabel(k), "", "", "", "", "", "", "", "", "", "", "", ""]); continue; }
         const g = dayGroup(k) || "";
         const u = (rec.sales && Object.keys(rec.sales).length && rec.parts) ? rec.parts : null;
-        const o = rec.order || null;
+        const o = rec.order || null, okg = rec.orderKg || null;
         const df = (u && o) ? { leg: o.leg - u.leg, fil: o.fil - u.fil, wing: o.wing - u.wing } : null;
-        rows.push([k, star, g, "營業", u ? u.leg : "", u ? u.fil : "", u ? u.wing : "", o ? o.leg : "", o ? o.fil : "", o ? o.wing : "", df ? df.leg : "", df ? df.fil : "", df ? df.wing : ""]);
+        rows.push([k, star, g, "營業", u ? u.leg : "", u ? u.fil : "", u ? u.wing : "", o ? o.leg : "", o ? o.fil : "", o ? o.wing : "", okg ? okg.leg : "", okg ? okg.fil : "", okg ? okg.wing : "", df ? df.leg : "", df ? df.fil : "", df ? df.wing : ""]);
       }
       downloadCSV(`${settings.storeName || "採購雞肉"}_採購雞肉_${ym}.csv`, rows);
       hide("csvBackdrop");
@@ -492,39 +540,53 @@
 
   /* ---------- 部位對照設定 ---------- */
   function fillPartsInputs(map) { PIECES.forEach((pc) => ["leg", "fil", "wing"].forEach((part) => { const el = $(`pm_${pc}_${part}`); if (el) el.value = (map[pc] && map[pc][part] != null) ? map[pc][part] : 0; })); }
-  function openParts() { fillPartsInputs(partMap); renderPmHist(); show("partsBackdrop"); }
-  function resetParts() { fillPartsInputs(DEFAULT_MAP); }
+  function fillPurchaseInputs(pur) { PARTS3.forEach((p) => { const c = $(`pu_${p}_code`), g = $(`pu_${p}_g`); if (c) c.value = (pur[p] && pur[p].code != null) ? pur[p].code : ""; if (g) g.value = (pur[p] && pur[p].g != null) ? pur[p].g : ""; }); }
+  function readPurchaseInputs() { const pur = {}; PARTS3.forEach((p) => { pur[p] = { code: (($(`pu_${p}_code`).value) || "").trim() || DEFAULT_PURCHASE[p].code, g: Number($(`pu_${p}_g`).value) || DEFAULT_PURCHASE[p].g }; }); return pur; }
+  const purEq = (a, b) => PARTS3.every((p) => (a[p] || {}).code === (b[p] || {}).code && Number((a[p] || {}).g) === Number((b[p] || {}).g));
+  function openParts() { fillPartsInputs(partMap); fillPurchaseInputs(purchase); renderPmHist(); show("partsBackdrop"); }
+  function resetParts() { fillPartsInputs(DEFAULT_MAP); fillPurchaseInputs(DEFAULT_PURCHASE); }
   function saveParts() {
     const parts = {};
     PIECES.forEach((pc) => { parts[pc] = { leg: Number($(`pm_${pc}_leg`).value) || 0, fil: Number($(`pm_${pc}_fil`).value) || 0, wing: Number($(`pm_${pc}_wing`).value) || 0 }; });
-    if (mapEq(parts, partMap)) { hide("partsBackdrop"); return; }   // 沒變動 → 不確認、不記版本
-    if (!confirm("確定要修改部位對照表嗎？\n\n之後上傳的報表都會改用新的對照換算；\n已上傳的歷史數字不受影響。")) return;
+    const purch = readPurchaseInputs();
+    if (mapEq(parts, partMap) && purEq(purch, purchase)) { hide("partsBackdrop"); return; }   // 都沒變動 → 不確認、不記版本
+    if (!confirm("確定要修改設定嗎？\n\n之後上傳／叫貨都會改用新的設定換算；\n已存的歷史數字不受影響。")) return;
     if (!db) { hide("partsBackdrop"); return; }
     const today = todayKey();
     const hist = partsHistory.filter((v) => v.date !== today);  // 當天去重
-    hist.push({ date: today, map: parts });
+    hist.push({ date: today, map: parts, purchase: purch });
     hist.sort((a, b) => (a.date < b.date ? -1 : 1));
-    configRef().set({ parts, partsHistory: hist, updatedAt: Date.now() }, { merge: true }).then(() => hide("partsBackdrop")).catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
+    configRef().set({ parts, purchase: purch, partsHistory: hist, updatedAt: Date.now() }, { merge: true }).then(() => hide("partsBackdrop")).catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
   }
-  // 部位對照表版本紀錄（唯讀查看）
+  // 設定版本紀錄（唯讀查看 ①份數對照＋②採購換算）；最底下永遠保留「系統預設值（最初）」
   function renderPmHist() {
     const box = $("pmHistList"); if (!box) return;
-    if (!partsHistory.length) { box.innerHTML = `<div class="pm-hist-empty">尚無版本紀錄，改一次並儲存後會開始記錄。</div>`; return; }
     const asc = partsHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
     let html = "";
     for (let i = asc.length - 1; i >= 0; i--) {
       const v = asc[i], latest = (i === asc.length - 1);
       html += `<button type="button" class="pm-ver" data-idx="${i}"><span class="d">${v.date.replace(/-/g, "/")} 起版本</span>${latest ? `<span class="now">目前版本</span>` : ""}<span class="arrow">›</span></button>`;
     }
+    // 永遠保留的「系統預設值（最初）」
+    const baseCurrent = (asc.length === 0);
+    html += `<button type="button" class="pm-ver pm-ver-base" data-idx="-1"><span class="d">📦 系統預設值</span>${baseCurrent ? `<span class="now">目前使用中</span>` : `<span class="org">最初</span>`}<span class="arrow">›</span></button>`;
     box.innerHTML = html;
     box.querySelectorAll("button[data-idx]").forEach((b) => b.addEventListener("click", () => openPmVer(asc, Number(b.dataset.idx))));
   }
   function openPmVer(asc, i) {
-    const v = asc[i], next = asc[i + 1], ds = (x) => x.replace(/-/g, "/");
-    $("pmVerTitle").textContent = `對照表版本 · ${ds(v.date)} 起`;
-    $("pmVerRange").textContent = next ? `此版自 ${ds(v.date)} 起套用，到 ${ds(next.date)} 改版` : `此版自 ${ds(v.date)} 起套用（目前仍在使用）`;
-    const rows = PIECES.map((pc) => { const u = v.map[pc] || { leg: 0, fil: 0, wing: 0 }; return `<tr><td>${PIECE_LABEL[pc]}</td><td>${u.leg}</td><td>${u.fil}</td><td>${u.wing}</td></tr>`; }).join("");
-    $("pmVerBody").innerHTML = `<table class="pm"><thead><tr><th>品項</th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>${rows}</tbody></table>`;
+    const base = (i < 0), ds = (x) => x.replace(/-/g, "/");
+    const v = base ? { date: null, map: DEFAULT_MAP, purchase: DEFAULT_PURCHASE } : asc[i];
+    const next = base ? null : asc[i + 1];
+    $("pmVerTitle").textContent = base ? "系統預設值（最初）" : `設定版本 · ${ds(v.date)} 起`;
+    $("pmVerRange").textContent = base
+      ? (asc.length ? `系統最初的預設值，沿用到 ${ds(asc[0].date)} 第一次修改` : "系統預設值（目前使用中）")
+      : (next ? `此版自 ${ds(v.date)} 起套用，到 ${ds(next.date)} 改版` : `此版自 ${ds(v.date)} 起套用（目前仍在使用）`);
+    const pur = v.purchase || DEFAULT_PURCHASE;
+    const mapRows = PIECES.map((pc) => { const u = v.map[pc] || { leg: 0, fil: 0, wing: 0 }; return `<tr><td>${PIECE_LABEL[pc]}</td><td>${u.leg}</td><td>${u.fil}</td><td>${u.wing}</td></tr>`; }).join("");
+    const purRows = PARTS3.map((p) => { const u = pur[p] || DEFAULT_PURCHASE[p]; return `<tr><td>${PART_EMO[p]} ${PART_LABEL[p]}</td><td>${u.code}</td><td>${u.g} 克</td></tr>`; }).join("");
+    $("pmVerBody").innerHTML =
+      `<div class="pm-ver-sub">① 份數 → 部位</div><table class="pm"><thead><tr><th>品項</th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>${mapRows}</tbody></table>` +
+      `<div class="pm-ver-sub">② 採購換算</div><table class="pm"><thead><tr><th>部位</th><th>代號</th><th>每支約</th></tr></thead><tbody>${purRows}</tbody></table>`;
     show("pmVerBackdrop");
   }
 
@@ -537,7 +599,7 @@
       const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
-        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, parts: data.parts };
+        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory };
         else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
       triggerDownload(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }), `${settings.storeName || "採購雞肉"}_雞肉備份_${todayKey()}.json`);
@@ -560,7 +622,7 @@
     if (!db) { alert("尚未連線。"); return; }
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
-    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (data.config.parts) c.parts = data.config.parts; writes.push({ ref: configRef(), data: c }); }
+    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; writes.push({ ref: configRef(), data: c }); }
     let i = 0;
     (function next() {
       if (i >= writes.length) { hide("backupBackdrop"); alert("匯入完成。"); watchMonth(viewYM); return; }
@@ -578,7 +640,10 @@
     $("ckOpenReport").onclick = openReport;
     $("orderDate").addEventListener("change", () => renderSuggestion($("orderDate").value));
     $("sugBuffer").addEventListener("change", (e) => { saveBuffer(Number(e.target.value) || 1.0); renderSuggestion($("orderDate").value); });
-    $("ckHint").onclick = () => { const k = nextBusinessDay(todayKey()); openOrder(k, (predDays[k] || {}).order); };
+    // ① 預估需求（隻）改變 → 自動換算公斤；② 公斤改變 → 更新「將記錄」
+    ["orderLeg", "orderFil", "orderWing"].forEach((id) => $(id).addEventListener("input", recalcKg));
+    ["orderKgleg", "orderKgfil", "orderKgwing"].forEach((id) => $(id).addEventListener("input", updateWillSave));
+    $("ckHint").onclick = () => { const k = nextBusinessDay(todayKey()); openOrder(k, predDays[k] || null); };
     // 月曆下方工具：匯出 CSV／備份還原／部位對照
     $("ckExportCsvBtn").onclick = openCsv;
     $("csvDownload").onclick = doCsvExport;

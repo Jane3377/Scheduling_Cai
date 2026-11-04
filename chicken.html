@@ -35,6 +35,17 @@
     .ord-cell { display: grid; gap: 6px; }
     .ord-cell > span { font-size: 14px; font-weight: 700; }
     .ord-cell input { width: 100%; font-size: 30px; text-align: center; font-weight: 800; padding: 15px 6px; border: 2px solid #e2d8d0; border-radius: 12px; background: #fff; color: var(--ink); }
+    .ord-step { color: var(--brand-dark); font-weight: 900; margin-right: 2px; }
+    .ord-edit { font-size: 12px; font-weight: 700; color: var(--brand-dark); margin-left: 4px; }
+    .ord-flow { text-align: center; font-size: 12.5px; color: var(--muted); font-weight: 700; margin: 16px 0 10px; }
+    /* ② 實際下單公斤：醒目可改 */
+    .ord-cell.kg > span b { color: var(--brand-dark); }
+    .ord-cell.kg input { border-color: #d9a689; background: #fffdfb; box-shadow: 0 0 0 3px rgba(217,166,137,.14); }
+    /* 將記錄 */
+    .will-save { margin-top: 14px; border: 1px solid #cfe6d7; border-radius: 12px; background: #f3faf5; padding: 11px 13px; }
+    .will-save .ws-line { font-size: 14.5px; line-height: 1.7; color: var(--ink); }
+    .will-save .ws-line b { font-weight: 900; }
+    .will-save .ws-note { font-size: 11.5px; color: #6f8a79; margin-top: 5px; }
     /* 參考小區塊（系統建議＋上個同型日，字級統一） */
     .sug { border: 1px solid var(--line); border-radius: 12px; background: #faf7f4; padding: 12px 14px; margin: 16px 0 0; }
     .sug-title { font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
@@ -79,6 +90,16 @@
     table.pm td:first-child, table.pm th:first-child { text-align: left; font-weight: 700; }
     table.pm input { width: 60px; border: 1px solid #dcd4ce; border-radius: 9px; padding: 9px 6px; text-align: center; font: inherit; font-size: 17px; font-weight: 700; }
     .pm-note { color: var(--muted); font-size: 12px; margin: 12px 2px 0; line-height: 1.6; }
+    /* 設定分區標題 ＋ ② 採購換算 */
+    .pm-sec-h { font-size: 14px; font-weight: 800; color: var(--brand-dark); margin: 2px 2px 8px; }
+    .pm-sec2 { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 14px; }
+    .pm-sec-sub { font-size: 12px; color: var(--muted); margin: -4px 2px 10px; }
+    .pu-head { display: flex; align-items: center; gap: 8px; padding: 0 2px 6px; font-size: 12px; color: var(--muted); }
+    .pu-head .h1 { flex: 1; } .pu-head .h2 { width: 92px; text-align: center; } .pu-head .h3 { width: 92px; text-align: center; }
+    .pu-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+    .pu-row .pl { flex: 1; font-weight: 700; font-size: 15px; white-space: nowrap; }
+    .pu-in { width: 92px; box-sizing: border-box; border: 1px solid #dcd4ce; border-radius: 9px; padding: 10px 4px; text-align: center; font: inherit; font-size: 16px; font-weight: 700; color: var(--ink); background: #fff; }
+    .pu-in.g { width: 92px; } .pu-u { font-size: 13px; color: var(--muted); width: 16px; }
     /* 部位對照表修改紀錄 */
     .pm-hist { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
     .pm-hist-title { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
@@ -88,6 +109,10 @@
     .pm-ver .now { font-size: 11.5px; color: #fff; background: var(--ok); border-radius: 999px; padding: 2px 8px; }
     .pm-ver .arrow { margin-left: auto; color: var(--muted); }
     .pm-ver-range { background: #eef2f7; color: #4a5668; border-radius: 10px; padding: 9px 12px; font-size: 13px; margin-bottom: 12px; }
+    .pm-ver.pm-ver-base { background: #f1f4f8; border-color: #d8e0ea; }
+    .pm-ver .org { font-size: 11.5px; color: #fff; background: #6b7a90; border-radius: 999px; padding: 2px 8px; }
+    .pm-ver-sub { font-size: 12.5px; font-weight: 800; color: var(--brand-dark); margin: 12px 2px 6px; }
+    .pm-ver-sub:first-child { margin-top: 0; }
     /* 月曆格 */
     .employee-cal-day { min-height: 90px; justify-content: flex-start; position: relative; color: var(--ink); }
     .employee-cal-day .day-number { color: var(--ink); }           /* 明確設定，避免 iOS 把按鈕文字變藍 */
@@ -130,6 +155,7 @@
     .ck-saved { display: flex; align-items: center; gap: 8px; color: var(--ok); font-size: 13px; margin: 8px 2px 0; }
     .ck-err { color: var(--danger); font-size: 14px; padding: 14px; background: #fdeaea; border-radius: 12px; margin-top: 4px; }
     .ck-holi-line { background: #fff3c9; border: 1px solid #ecd98f; color: #8a6d1f; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+    .ck-kgline { background: #fbeee7; border: 1px solid #e7cdbf; color: #7a2e1c; border-radius: 10px; padding: 9px 12px; font-size: 14px; font-weight: 700; margin: 0 0 12px; }
     .cmp-h { font-size: 13px; font-weight: 800; color: var(--brand-dark); margin: 4px 2px 6px; }
     .ck-form .field { margin: 12px 0; }
     .ck-num3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -326,7 +352,7 @@
           <span class="hint" id="orderHint"></span>
         </label>
 
-        <span class="ord-lbl">叫貨量</span>
+        <span class="ord-lbl"><b class="ord-step">①</b> 預估需求（隻）</span>
         <div class="ck-num3">
           <label class="ord-cell"><span>🍗 雞腿</span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderLeg" /></label>
           <label class="ord-cell"><span>🥩 雞排</span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderFil" /></label>
@@ -347,7 +373,7 @@
             <div class="sug-clar" id="sugClar">「系統建議」＝依實際用量推估</div>
             <div class="sug-sub">緩衝倍率 <select id="sugBuffer"><option>1.0</option><option>1.1</option><option>1.2</option><option>1.3</option></select> <span id="sugBasis"></span></div>
           </div>
-          <div class="sug-item">
+          <div class="sug-item" id="lastItem">
             <div class="sug-row" id="lastRow">
               <span class="sug-tag" id="lastTag">🕑 上個同型日</span>
               <span class="sug-note" id="lastNote">上次實際採購量</span>
@@ -357,6 +383,20 @@
             </div>
             <div class="sug-clar hidden" id="lastClar"></div>
           </div>
+        </div>
+
+        <div class="ord-flow">↓ 自動換算（四捨五入），下面可手動微調</div>
+
+        <span class="ord-lbl"><b class="ord-step">②</b> 實際下單（公斤）<small class="ord-edit">✏️ 可改</small></span>
+        <div class="ck-num3">
+          <label class="ord-cell kg"><span>🍗 雞腿 <b id="lblKgleg">D5</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgleg" /></label>
+          <label class="ord-cell kg"><span>🥩 雞排 <b id="lblKgfil">TS4</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgfil" /></label>
+          <label class="ord-cell kg"><span>🪽 雞翅 <b id="lblKgwing">W6</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgwing" /></label>
+        </div>
+
+        <div class="will-save hidden" id="willSave">
+          <div class="ws-line"><b>將記錄：</b><span id="wsText"></span></div>
+          <div class="ws-note">以「實際公斤」無條件捨去回算隻數 → 紀錄＝真正買到的量</div>
         </div>
 
         <div class="modal-actions"><button class="ghost-btn" data-close="orderBackdrop">取消</button><button class="primary-btn" id="orderSave">儲存叫貨紀錄</button></div>
@@ -405,6 +445,7 @@
     <div class="modal" style="width:min(440px,100%)">
       <div class="modal-head"><div><h3>部位對照設定</h3><p>每份品項換算幾個生雞部位（炸、烤共用）</p></div><button class="icon-btn" data-close="partsBackdrop">✕</button></div>
       <div class="modal-body">
+        <div class="pm-sec-h"><b class="ord-step">①</b> 份數 → 部位</div>
         <table class="pm">
           <thead><tr><th>品項</th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead>
           <tbody>
@@ -416,8 +457,19 @@
           </tbody>
         </table>
         <p class="pm-note">※ 改完之後，<b>之後上傳</b>的報表會用新的對照換算；已存的歷史數字不會變動。</p>
+
+        <div class="pm-sec2">
+          <div class="pm-sec-h"><b class="ord-step">②</b> 採購換算</div>
+          <div class="pm-sec-sub">每支約幾公克、批發商代號（叫貨時換算公斤用）</div>
+          <div class="pu-head"><span class="h1">部位</span><span class="h2">代號</span><span class="h3">每支約(克)</span></div>
+          <div class="pu-row"><span class="pl">🍗 雞腿</span><input class="pu-in" id="pu_leg_code" autocomplete="off"><input class="pu-in g" id="pu_leg_g" inputmode="numeric"><span class="pu-u">克</span></div>
+          <div class="pu-row"><span class="pl">🥩 雞排</span><input class="pu-in" id="pu_fil_code" autocomplete="off"><input class="pu-in g" id="pu_fil_g" inputmode="numeric"><span class="pu-u">克</span></div>
+          <div class="pu-row"><span class="pl">🪽 雞翅</span><input class="pu-in" id="pu_wing_code" autocomplete="off"><input class="pu-in g" id="pu_wing_g" inputmode="numeric"><span class="pu-u">克</span></div>
+          <p class="pm-note">※ 只影響<b>之後</b>的叫貨換算；已存的歷史叫貨公斤不會變動。</p>
+        </div>
+
         <div class="pm-hist">
-          <div class="pm-hist-title">修改紀錄（點可查看該版）</div>
+          <div class="pm-hist-title">版本紀錄（點可唯讀查看該版的①＋②）</div>
           <div id="pmHistList"></div>
         </div>
         <div class="modal-actions"><button class="danger-btn" id="partsReset" style="margin-right:auto">恢復預設值</button><button class="ghost-btn" data-close="partsBackdrop">取消</button><button class="primary-btn" id="partsSave">儲存設定</button></div>
