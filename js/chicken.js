@@ -93,6 +93,7 @@
   const fmtReportDate = (k) => { const d = parseKey(k); return `${d.getMonth() + 1}/${pad(d.getDate())}（週${DOW[d.getDay()]}）`; };
   function addMonthYM(ym, n) { const [y, m] = ym.split("-").map(Number); const d = new Date(y, m - 1 + n, 1); return d.getFullYear() + "-" + pad(d.getMonth() + 1); }
   const fmtBuf = (v) => (Math.round(v * 10) / 10).toFixed(1);
+  const fmtPct = (v) => Math.round((Number(v) - 1) * 100); // 多備比例：1.2 → 20
   /* ---------- 採購換算（隻 ↔ 公斤） ---------- */
   const purG = (part) => (purchase[part] && Number(purchase[part].g)) || DEFAULT_PURCHASE[part].g;
   const purCode = (part) => (purchase[part] && purchase[part].code) || DEFAULT_PURCHASE[part].code;
@@ -336,15 +337,13 @@
     const k = dateKey || nextBusinessDay(todayKey());
     $("orderDate").value = k;
     const o = rec && rec.order, kg = rec && rec.orderKg;
-    // ① 叫貨量（隻）：編輯沿用舊值；全新則自動帶入「系統建議」（預設推估方式）
-    const p = o ? null : predict(k);
-    const src = o || (p && p.n ? p.rec : null);
-    $("orderLeg").value = src ? src.leg : "";
-    $("orderFil").value = src ? src.fil : "";
-    $("orderWing").value = src ? src.wing : "";
+    // ① 叫貨量（隻）：編輯沿用舊值；全新則留空（由使用者點「帶入」或自行輸入）
+    $("orderLeg").value = o ? o.leg : "";
+    $("orderFil").value = o ? o.fil : "";
+    $("orderWing").value = o ? o.wing : "";
     // ② 實際下單（公斤）：有存就用；否則由①估；都沒有就留空
     if (kg) { $("orderKgleg").value = kg.leg; $("orderKgfil").value = kg.fil; $("orderKgwing").value = kg.wing; }
-    else if (src) { $("orderKgleg").value = kgSuggest(src.leg, "leg"); $("orderKgfil").value = kgSuggest(src.fil, "fil"); $("orderKgwing").value = kgSuggest(src.wing, "wing"); }
+    else if (o) { $("orderKgleg").value = kgSuggest(o.leg, "leg"); $("orderKgfil").value = kgSuggest(o.fil, "fil"); $("orderKgwing").value = kgSuggest(o.wing, "wing"); }
     else { $("orderKgleg").value = ""; $("orderKgfil").value = ""; $("orderKgwing").value = ""; }
     renderKgLabels();
     updateWillSave();
@@ -480,13 +479,13 @@
   }
   /* ---------- 推估設定（緩衝倍率／回算天數／推估方式） ---------- */
   function openPredSet() {
-    $("psBuffer").value = fmtBuf(bufferFactor);
+    $("psBuffer").value = Number(bufferFactor).toFixed(2);   // 對應 1.00 / 1.05 / … / 1.30
     $("psWindow").value = String(predWindow);
     $("psMethod").value = estMethod;
     show("predBackdrop");
   }
   function savePredSet() {
-    const buf = Number($("psBuffer").value) || 1.0;
+    let buf = Number($("psBuffer").value) || 1.0; if (!(buf >= 1 && buf <= 1.3)) buf = 1.0;
     const win = WINDOW_OPTIONS.includes(Number($("psWindow").value)) ? Number($("psWindow").value) : 35;
     const m = EST_METHODS.includes($("psMethod").value) ? $("psMethod").value : "avg";
     bufferFactor = buf; predWindow = win; estMethod = m;
@@ -531,8 +530,8 @@
       $("lastNums").innerHTML = numsHTML(last.order);
       $("lastApply").onclick = () => fillOrder(last.order);
     } else { lr.classList.add("hidden"); }
-    // 推估設定摘要
-    $("predSummary").textContent = `緩衝 ${fmtBuf(bufferFactor)} · 回算 ${predWindow} 天 · ${METHOD_LABEL[estMethod] || "平均"}`;
+    // 推估設定摘要（回算天數帶入當天日型）
+    $("predSummary").textContent = `多備 ${fmtPct(bufferFactor)}% · 回算 ${predWindow} 天${p.group} · ${METHOD_LABEL[estMethod] || "平均"}`;
   }
   function refreshHint() {
     const el = $("ckHint"); if (!el) return;
