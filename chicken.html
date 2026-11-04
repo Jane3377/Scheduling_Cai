@@ -278,14 +278,29 @@
   <!-- 使用說明彈窗 -->
   <div id="guideBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(560px,100%)">
-      <div class="modal-head"><div><h3>📖 使用說明</h3><p>每天只要三個動作，照著做就好</p></div><button class="icon-btn" data-close="guideBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3>📖 使用說明</h3><p>每天三步驟＋系統怎麼幫你推估</p></div><button class="icon-btn" data-close="guideBackdrop">✕</button></div>
       <div class="modal-body gd">
 
         <div class="gd-sec">
           <h4>🗓️ 每天這樣做</h4>
-          <div class="gd-step"><span class="gd-num">1</span><span class="tx"><b>上傳銷售報表</b>：打烊後點右上〈＋ 上傳銷售報表〉，先開大麥系統下載「餐點銷售狀況」Excel，再回來選檔上傳。系統會自動換算當天用掉的 🍗腿／🥩排／🪽翅。</span></div>
-          <div class="gd-step"><span class="gd-num">2</span><span class="tx"><b>看明天建議</b>：點上方〈🔮 次營業日叫貨建議〉，系統會依過去同型日（平日／週五／假日）的實際用量，算出明天建議的叫貨量。</span></div>
-          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>記錄叫貨</b>：叫完貨把實際叫的數量填進去存起來。全部填 <b>0 ＝ 當天沒叫貨</b>。存好後月曆那天會出現 📝。</span></div>
+          <div class="gd-step"><span class="gd-num">1</span><span class="tx"><b>上傳銷售報表</b>：打烊後點右上〈＋ 上傳銷售報表〉，開大麥系統下載「餐點銷售狀況」Excel 回來上傳。系統自動換算當天用掉的 🍗腿／🥩排／🪽翅。</span></div>
+          <div class="gd-step"><span class="gd-num">2</span><span class="tx"><b>看推估建議</b>：首頁〈🔮 推估建議〉或〈📝 記錄叫貨〉會算出下次該叫多少（原理見下方）。</span></div>
+          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>記錄叫貨</b>：點「<b>帶入</b>」把推估填到 ①（隻），系統自動換成整數<b>公斤</b> ②（可微調）→ 存。全部 0 ＝ 當天沒叫貨；存好月曆出現 📝。</span></div>
+        </div>
+
+        <div class="gd-sec">
+          <h4>🔮 推估建議怎麼來的</h4>
+          <div class="gd-tools">
+            <div class="gd-tool"><span class="k">分「同型日」</span><span>平日（二三四）／週五／假日（六日＋國定）分開比較，公休不估。</span></div>
+            <div class="gd-tool"><span class="k">依實際用量</span><span>取「回算天數」內（預設 35 天）同型日當天真正用掉的量來估，不是亂猜。</span></div>
+            <div class="gd-tool"><span class="k">算法可調</span><span>平均／中位數／近期加權／同型日最大，再加「多備比例」保險 — 都在〈⚙ 推估設定〉。</span></div>
+            <div class="gd-tool"><span class="k">上次同型日</span><span>旁邊另給你「上次實際叫多少」當對照。</span></div>
+          </div>
+        </div>
+
+        <div class="gd-sec">
+          <h4>📦 為什麼要換公斤</h4>
+          <div class="gd-tip" style="margin:0">你習慣用「<b>隻</b>」估需求，但批發商用「<b>公斤</b>」叫貨。系統會自動把隻數換成整數公斤（可手動微調），並回算「約等於幾隻」記起來。每支約幾克、批發代號在〈⚙ 部位對照設定〉設。</div>
         </div>
 
         <div class="gd-sec">
@@ -295,16 +310,17 @@
             <div class="gd-leg-row"><span class="gd-sw" style="background:#fff3c9;border-color:#ecd98f"></span>黃底／📝：已記錄叫貨</div>
             <div class="gd-leg-row"><span class="gd-sw" style="background:#f3f0ed;border-color:#e4ddd7"></span>灰底：公休</div>
             <div class="gd-leg-row"><span class="gd-sw" style="background:#fff;border-color:#eee;color:#b3261e;display:grid;place-items:center;font-weight:800;font-size:12px">15</span>紅字：假日／國定假日</div>
-            <div class="gd-leg-row">👉 <span>點月曆上<b>任何一天</b>，可看那天「叫貨 vs 實際消耗」的對比。</span></div>
+            <div class="gd-leg-row">👉 <span>點月曆<b>任何一天</b>，可看那天「叫貨 vs 實際消耗」的對比。</span></div>
           </div>
         </div>
 
         <div class="gd-sec">
           <h4>🛠️ 下方工具列</h4>
           <div class="gd-tools">
-            <div class="gd-tool"><span class="k">⤓ 匯出 CSV</span><span>下載某個月每天的消耗／叫貨明細。</span></div>
-            <div class="gd-tool"><span class="k">💾 備份／還原</span><span>把所有資料存成一個檔備用，或從檔案還原。</span></div>
-            <div class="gd-tool"><span class="k">⚙ 部位對照設定</span><span>設定每份幾塊換算幾個部位，平常不用動。</span></div>
+            <div class="gd-tool"><span class="k">⚙ 推估設定</span><span>調多備比例（+0～+30%）、回算天數、推估方式。</span></div>
+            <div class="gd-tool"><span class="k">⚙ 部位對照設定</span><span>每份幾塊換幾個部位；每支約幾克、批發代號。</span></div>
+            <div class="gd-tool"><span class="k">⤓ 匯出 CSV</span><span>下載某月每天的消耗／叫貨明細。</span></div>
+            <div class="gd-tool"><span class="k">💾 備份／還原</span><span>所有資料存成一個檔備用，或從檔案還原。</span></div>
           </div>
         </div>
 
