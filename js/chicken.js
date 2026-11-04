@@ -640,7 +640,7 @@
   function renderSuggestion(k) {
     const box = $("sugBlock"); if (!box || !k) return;
     const p = predict(k);
-    if (p.group === null) { box.classList.add("hidden"); return; }   // 公休不顯示建議
+    if (p.group === null) { box.classList.add("hidden"); $("batchBlock")?.classList.add("hidden"); return; }   // 公休不顯示建議
     box.classList.remove("hidden");
     $("sugMethod").textContent = METHOD_LABEL[estMethod] || "平均";
     // 系統建議（依推估方式）
@@ -670,6 +670,36 @@
     } else { lr.classList.add("hidden"); }
     // 推估設定摘要（回算天數帶入當天日型）
     $("predSummary").textContent = `多備 ${fmtPct(bufferFactor)}% · 回算 ${predWindow} 天${p.group} · ${METHOD_LABEL[estMethod] || "平均"}`;
+    // 多使用日：顯示本批合計要叫；此時隱藏「單日扣庫存後」避免重複扣庫存
+    if (renderBatch(k)) $("deductRow").classList.add("hidden");
+  }
+  // 本批合計：這個下單日若涵蓋多個使用日，算好「合計」與「扣庫存後要叫」，不用自己加總
+  function renderBatch(useKey) {
+    const box = $("batchBlock"); if (!box) return false;
+    const od = orderDayFor(useKey), uses = od ? coveredUseDays(od) : [];
+    if (!od || uses.length < 2) { box.classList.add("hidden"); return false; }
+    const sum = { leg: 0, fil: 0, wing: 0 };
+    let rows = "";
+    uses.forEach((u) => {
+      const p = predict(u), r = (p.n && p.rec) ? p.rec : null;
+      if (r) { sum.leg += r.leg; sum.fil += r.fil; sum.wing += r.wing; }
+      rows += `<div class="bb-row"><span class="bb-d">${mdw(u)}</span><span class="bb-n">${r ? numsHTML(r) : '<span class="ck-muted">資料累積中</span>'}</span></div>`;
+    });
+    $("bbHead").innerHTML = `📦 本批（${mdw(od)} 下單）供 ${uses.length} 個使用日・各自預估`;
+    $("bbRows").innerHTML = rows;
+    $("bbSum").innerHTML = numsHTML(sum);
+    const s = currentStock(), dr = $("bbDeductRow");
+    if (s) {
+      const ded = { leg: Math.max(0, sum.leg - s.leg), fil: Math.max(0, sum.fil - s.fil), wing: Math.max(0, sum.wing - s.wing) };
+      dr.classList.remove("hidden");
+      $("bbDeduct").innerHTML = numsHTML(ded);
+      $("bbStockLine").textContent = `（已扣目前庫存：腿${s.leg} 排${s.fil} 翅${s.wing}）`;
+    } else {
+      dr.classList.add("hidden");
+      $("bbStockLine").textContent = "";
+    }
+    box.classList.remove("hidden");
+    return true;
   }
   function refreshHint() {
     const el = $("ckHint"); if (!el) return;
@@ -678,9 +708,18 @@
     const k = uses[0], d = parseKey(k), p = predict(k);
     const more = uses.length > 1 ? `（另含 ${uses.slice(1).map((x) => mdw(x)).join("、")}）` : "";
     const head = `🔮 推估建議：今天下單 → 使用 ${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}${p.group ? "·" + p.group : ""}）${more}`;
-    if (!p.group) el.innerHTML = `${head} ›`;
-    else if (!p.n) el.innerHTML = `${head} 資料累積中 ›`;
-    else el.innerHTML = `${head} <b class="ck-leg">腿 ${p.rec.leg}</b>　<b class="ck-fil">排 ${p.rec.fil}</b>　<b class="ck-wing">翅 ${p.rec.wing}</b> ›`;
+    if (!p.group) { el.innerHTML = `${head} ›`; return; }
+    if (!p.n) { el.innerHTML = `${head} 資料累積中 ›`; return; }
+    if (uses.length > 1) {
+      // 多使用日：直接給本批合計（扣庫存後要叫），不用自己加總
+      const sum = { leg: 0, fil: 0, wing: 0 };
+      uses.forEach((u) => { const pu = predict(u); if (pu.n && pu.rec) { sum.leg += pu.rec.leg; sum.fil += pu.rec.fil; sum.wing += pu.rec.wing; } });
+      const s = currentStock();
+      const t = s ? { leg: Math.max(0, sum.leg - s.leg), fil: Math.max(0, sum.fil - s.fil), wing: Math.max(0, sum.wing - s.wing) } : sum;
+      el.innerHTML = `${head}　<b>本批合計要叫</b> <b class="ck-leg">腿 ${t.leg}</b>　<b class="ck-fil">排 ${t.fil}</b>　<b class="ck-wing">翅 ${t.wing}</b>${s ? "（已扣庫存）" : ""} ›`;
+    } else {
+      el.innerHTML = `${head} <b class="ck-leg">腿 ${p.rec.leg}</b>　<b class="ck-fil">排 ${p.rec.fil}</b>　<b class="ck-wing">翅 ${p.rec.wing}</b> ›`;
+    }
   }
 
   /* ---------- 匯出 CSV（選月份、每日彙總） ---------- */

@@ -69,6 +69,22 @@
     .sug-fill2 { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 13px; font-weight: 800; color: var(--brand-dark); font-size: 12.5px; cursor: pointer; white-space: nowrap; }
     .sug-setlink { display: flex; align-items: center; width: 100%; margin-top: 9px; background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; font-size: 12.5px; color: var(--muted); font-weight: 700; cursor: pointer; }
     .sug-setlink .ar { margin-left: auto; color: var(--muted); }
+    /* 多使用日：本批合計要叫（系統幫你加總，不用自己算） */
+    .batch-block { border: 1px solid #e7cdbf; border-radius: 12px; background: linear-gradient(135deg,#fff 0%,#fdf6f1 100%); padding: 11px 13px; margin: 12px 0 0; }
+    .batch-block .bb-head { font-size: 13px; font-weight: 800; color: var(--brand-dark); margin-bottom: 6px; }
+    .batch-block .bb-row { display: flex; align-items: center; font-size: 14px; padding: 7px 0; border-top: 1px dashed #ecd7c9; }
+    .batch-block .bb-row:first-of-type { border-top: 0; }
+    .batch-block .bb-d { font-weight: 700; color: #5a524c; }
+    .batch-block .bb-n { margin-left: auto; font-weight: 800; white-space: nowrap; }
+    .batch-block .bb-n i { font-style: normal; color: var(--muted); font-size: 11px; font-weight: 700; margin-right: 1px; }
+    .batch-block .bb-n .ck-leg { color: #8f3521; } .batch-block .bb-n .ck-fil { color: #2f7d52; } .batch-block .bb-n .ck-wing { color: #b7791f; }
+    .batch-block .bb-sum { border-top: 2px solid #e7cdbf; }
+    .batch-block .bb-sum .bb-d { font-weight: 900; color: var(--ink); }
+    .batch-block .bb-sum .bb-n { font-size: 15px; }
+    .batch-block .bb-deduct .bb-d { color: var(--brand-dark); font-weight: 900; }
+    .batch-block .bb-deduct .bb-n { font-size: 15.5px; }
+    .batch-block .bb-stock { font-size: 11.5px; color: var(--muted); text-align: right; margin-top: 2px; }
+    .batch-block .bb-note { font-size: 11.5px; color: #8a7f77; line-height: 1.5; margin-top: 7px; border-top: 1px dashed #ecd7c9; padding-top: 7px; }
     /* 推估設定彈窗 */
     .ps-row { padding: 13px 2px; border-bottom: 1px solid #f0ebe7; }
     .ps-row:last-of-type { border-bottom: 0; }
@@ -392,6 +408,15 @@
         </label>
 
         <div class="stock-line hidden" id="stockLine"></div>
+
+        <div class="batch-block hidden" id="batchBlock">
+          <div class="bb-head" id="bbHead">📦 本批合計</div>
+          <div id="bbRows"></div>
+          <div class="bb-row bb-sum"><span class="bb-d">合計</span><span class="bb-n" id="bbSum">—</span></div>
+          <div class="bb-row bb-deduct hidden" id="bbDeductRow"><span class="bb-d">扣庫存後要叫</span><span class="bb-n" id="bbDeduct">—</span></div>
+          <div class="bb-stock" id="bbStockLine"></div>
+          <div class="bb-note">這批跟批發商叫的總量，系統已幫你加總，不用自己算；各使用日仍各自記一筆。</div>
+        </div>
 
         <span class="ord-lbl"><b class="ord-step">①</b> 叫貨量（隻）<small class="ord-mini">點下方「帶入」或自行輸入</small></span>
         <div class="ck-num3">
