@@ -56,6 +56,7 @@
         <div class="staff-tabs">
           <button class="staff-tab active" data-staff-tab="mySchedule">我的班表</button>
           <button class="staff-tab" data-staff-tab="availability">填寫可上班時間</button>
+          <button class="staff-tab" data-staff-tab="stock">今日打烊剩餘</button>
         </div>
 
         <div class="staff-tab-panel active" id="mySchedulePanel">
@@ -95,6 +96,22 @@
               <div class="selected-day-head"><div><span class="eyebrow">這一天</span><h3 id="myDayTitle"></h3></div></div>
               <div id="myDayBody" class="my-day-body"></div>
             </div>
+          </div>
+        </div>
+
+        <div class="staff-tab-panel" id="stockPanel">
+          <div class="panel">
+            <div class="panel-head"><div><h3>今日打烊剩餘</h3><p>打烊前數一次剩下的總數，填進去送出就好。</p></div></div>
+            <label class="field"><span>盤點日期</span></label>
+            <div class="stock-dates" id="stockDateBtns"></div>
+            <div class="stock-grid">
+              <label class="field"><span>🍗 雞腿</span><input id="stockLeg" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
+              <label class="field"><span>🥩 雞排</span><input id="stockFil" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
+              <label class="field"><span>🪽 雞翅</span><input id="stockWing" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
+            </div>
+            <div id="stockExisting" class="stock-existing hidden"></div>
+            <button id="stockSaveBtn" class="primary-btn full">送出盤點</button>
+            <div id="stockSaved" class="success-note"></div>
           </div>
         </div>
 

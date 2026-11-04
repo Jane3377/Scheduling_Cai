@@ -532,3 +532,15 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .wg-dash{color:#ccc}
 .wg-add{display:block;opacity:0;margin-top:4px;border:1px dashed var(--line);background:#fff;color:var(--muted);border-radius:6px;padding:2px 8px;font-size:11.5px;cursor:pointer;transition:opacity .12s}
 .work-grid td:hover .wg-add{opacity:1}
+/* 員工端：今日打烊剩餘（盤點庫存） */
+.stock-dates{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 16px}
+.stock-dates button{padding:11px 6px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-weight:700;font-size:14px;color:var(--ink);cursor:pointer;line-height:1.35}
+.stock-dates button.on{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-dark)}
+.stock-dates button small{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-top:2px}
+.stock-dates button.on small{color:var(--brand-dark)}
+.stock-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 14px}
+.stock-grid .field{gap:6px}
+.stock-grid .field>span{text-align:center;font-weight:700}
+.stock-grid input{text-align:center;font-size:26px;font-weight:800;padding:14px 4px}
+.stock-existing{font-size:13px;color:#4a5668;background:#eef2f7;border:1px solid #d8e0ea;border-radius:10px;padding:10px 12px;margin:0 0 14px;line-height:1.6}
+.stock-existing b{color:var(--ink)}

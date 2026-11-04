@@ -38,6 +38,8 @@
     .ord-step { color: var(--brand-dark); font-weight: 900; margin-right: 2px; }
     .ord-edit { font-size: 12px; font-weight: 700; color: var(--brand-dark); margin-left: 4px; }
     .ord-flow { text-align: center; font-size: 12.5px; color: var(--muted); font-weight: 700; margin: 16px 0 10px; }
+    .stock-line { font-size: 13.5px; font-weight: 700; color: #4a5668; background: #eef2f7; border: 1px solid #d8e0ea; border-radius: 10px; padding: 9px 12px; margin: 2px 0 12px; }
+    .stock-line .ck-leg { color: #8f3521; } .stock-line .ck-fil { color: #2f7d52; } .stock-line .ck-wing { color: #b7791f; }
     /* ② 實際下單公斤：醒目可改 */
     .ord-cell.kg > span b { color: var(--brand-dark); }
     .ord-cell.kg input { border-color: #d9a689; background: #fffdfb; box-shadow: 0 0 0 3px rgba(217,166,137,.14); }
@@ -380,6 +382,8 @@
           <input class="input" type="date" id="orderDate" />
           <span class="hint" id="orderHint"></span>
         </label>
+
+        <div class="stock-line hidden" id="stockLine"></div>
 
         <span class="ord-lbl"><b class="ord-step">①</b> 叫貨量（隻）<small class="ord-mini">點下方「帶入」或自行輸入</small></span>
         <div class="ck-num3">

@@ -49,6 +49,7 @@
   const DEFAULT_SUPPLIER_OFF = { weekdays: [0], dates: [] };
   let supplierOff = JSON.parse(JSON.stringify(DEFAULT_SUPPLIER_OFF));
   let predUnsubs = [], configUnsub = null, predMonthData = {}, predDays = {}, bufferFactor = 1.0;
+  let stockUnsubs = [], stockDays = {};  // 員工端盤點庫存（poultry_stock_YYYY-MM）
   let partsHistory = [];  // 部位對照表版本紀錄 [{date:'YYYY-MM-DD', map:{...}}]（日期升冪，最後一筆＝目前）
 
   const $ = (id) => document.getElementById(id);
@@ -382,6 +383,7 @@
     renderKgLabels();
     updateWillSave();
     updateOrderHint();
+    renderStock();
     renderSuggestion(k);
     show("orderBackdrop");
   }
@@ -394,6 +396,14 @@
       $(`orderKg${p}`).value = (v !== "" && Number(v) > 0) ? kgSuggest(v, p) : "";
     });
     updateWillSave();
+  }
+  // 目前庫存（員工端最近盤點）顯示在記錄叫貨
+  function renderStock() {
+    const el = $("stockLine"); if (!el) return;
+    const s = currentStock();
+    if (!s) { el.classList.add("hidden"); el.innerHTML = ""; return; }
+    el.classList.remove("hidden");
+    el.innerHTML = `📦 目前庫存（${mdw(s.date)}${s.byName ? " " + s.byName : ""} 盤點）：<b class="ck-leg">腿${s.leg}</b> <b class="ck-fil">排${s.fil}</b> <b class="ck-wing">翅${s.wing}</b>`;
   }
   // ② 公斤 → 顯示「將記錄 ≈ 幾隻」
   function updateWillSave() {
@@ -496,6 +506,29 @@
       }, (err) => console.error("pred snapshot", err));
       predUnsubs.push(u);
     });
+  }
+  // 員工端盤點庫存：訂閱本月＋前兩月（涵蓋「目前庫存」會用到的近期日）
+  const stockRefOf = (ym) => db.collection(COLL).doc("poultry_stock_" + ym);
+  function watchStockMonths() {
+    stockUnsubs.forEach((u) => u && u()); stockUnsubs = []; stockDays = {};
+    if (!db) return;
+    const tm = ymOf(todayKey());
+    [tm, addMonthYM(tm, -1), addMonthYM(tm, -2)].forEach((ym) => {
+      const u = stockRefOf(ym).onSnapshot((snap) => {
+        const d = snap.data(), days = (d && d.days) || {};
+        Object.keys(days).forEach((k) => { stockDays[k] = days[k]; });
+        if (orderOpen()) renderStock();
+      }, (err) => console.error("stock snapshot", err));
+      stockUnsubs.push(u);
+    });
+  }
+  // 目前庫存＝今天（含）以前、最近一筆盤點（往下一個營業日累積顯示）
+  function currentStock() {
+    const t = todayKey();
+    const keys = Object.keys(stockDays).filter((k) => k <= t).sort();
+    if (!keys.length) return null;
+    const k = keys[keys.length - 1], r = stockDays[k];
+    return { date: k, leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0, byName: r.byName || "" };
   }
   const configRef = () => db.collection(COLL).doc("poultry_config");
   function applyConfig(d) {
@@ -716,10 +749,11 @@
     if (!db) { alert("尚未連線，無法備份。"); return; }
     const FP = firebase.firestore.FieldPath.documentId();
     db.collection(COLL).where(FP, ">=", "poultry_").where(FP, "<", "poultry`").get().then((qs) => {
-      const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {} };
+      const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {}, stock: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
         if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory };
+        else if (id.indexOf("poultry_stock_") === 0) out.stock[id.slice("poultry_stock_".length)] = { days: data.days || {} };
         else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
       triggerDownload(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }), `${settings.storeName || "採購雞肉"}_雞肉備份_${todayKey()}.json`);
@@ -742,6 +776,7 @@
     if (!db) { alert("尚未連線。"); return; }
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
+    if (data.stock) Object.keys(data.stock).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: stockRefOf(ym), data: { days: data.stock[ym].days || {}, updatedAt: Date.now() } }); });
     if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; writes.push({ ref: configRef(), data: c }); }
     let i = 0;
     (function next() {
@@ -817,6 +852,7 @@
       }, (err) => console.error("main snapshot", err));
       watchMonth(viewYM);
       watchPredMonths();
+      watchStockMonths();
       watchConfig();
     };
     if (firebase.auth) {

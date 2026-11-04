@@ -470,6 +470,48 @@ function saveSelectedDay(){
   if(!persist())return;
   renderAvailabilityCalendar();closeDaySheet();showToast(`${label} 已儲存`);
 }
+/* ---------- 今日打烊剩餘（盤點庫存，寫入獨立文件 poultry_stock_YYYY-MM） ---------- */
+let stockSelDate=null, stockDays={}, stockSubbed=new Set();
+function stockCol(){try{if(window.firebase&&firebase.apps.length)return firebase.firestore().collection("scheduler");}catch(e){}return null;}
+function prevBizDay(key){const d=new Date(key+"T00:00:00");for(let i=0;i<60;i++){d.setDate(d.getDate()-1);const k=toDateKey(d);if(!isClosedDay(k))return k;}return toDateKey(d);}
+function stockDateOptions(){const t=toDateKey(new Date());const p1=prevBizDay(t),p2=prevBizDay(p1);return [{key:t,label:"今天",sub:formatDate(t)},{key:p1,label:"前1營業日",sub:formatDate(p1)},{key:p2,label:"前2營業日",sub:formatDate(p2)}];}
+function fmtStockTime(ms){if(!ms)return "";const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+function renderStockDates(){
+  const box=byId("stockDateBtns");if(!box)return;
+  const opts=stockDateOptions();
+  if(!stockSelDate||!opts.some(o=>o.key===stockSelDate))stockSelDate=opts[0].key;
+  box.innerHTML=opts.map(o=>`<button type="button" data-k="${o.key}" class="${o.key===stockSelDate?"on":""}">${o.label}<small>${o.sub}</small></button>`).join("");
+  box.querySelectorAll("button[data-k]").forEach(b=>b.onclick=()=>{stockSelDate=b.dataset.k;renderStockDates();prefillStock();});
+}
+function prefillStock(){
+  const rec=stockDays[stockSelDate],ex=byId("stockExisting");if(!ex)return;
+  byId("stockLeg").value=rec?rec.leg:"";byId("stockFil").value=rec?rec.fil:"";byId("stockWing").value=rec?rec.wing:"";
+  if(rec){ex.classList.remove("hidden");ex.innerHTML=`目前紀錄：<b>腿${rec.leg} 排${rec.fil} 翅${rec.wing}</b>（${rec.byName||"？"}・${fmtStockTime(rec.at)} 填）。再送出會覆蓋更新。`;}
+  else{ex.classList.add("hidden");ex.innerHTML="";}
+}
+function subscribeStock(){
+  const c=stockCol();if(!c)return;
+  const ym=k=>k.slice(0,7),t=toDateKey(new Date());
+  const months=new Set([ym(t),ym(prevBizDay(prevBizDay(t)))]);
+  months.forEach(m=>{
+    if(stockSubbed.has(m))return;stockSubbed.add(m);
+    c.doc("poultry_stock_"+m).onSnapshot(snap=>{
+      const days=(snap.data()&&snap.data().days)||{};
+      Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);
+      if(byId("stockPanel")&&byId("stockPanel").classList.contains("active"))prefillStock();
+    },err=>console.warn("stock snapshot",err));
+  });
+}
+function initStock(){renderStockDates();subscribeStock();prefillStock();}
+function saveStock(){
+  const c=stockCol();if(!c){toast("尚未連線，請確認網路後再送出。","error");return;}
+  const e=staffEmployeeId&&employee(staffEmployeeId);if(!e||!stockSelDate)return;
+  const num=id=>Math.max(0,Math.floor(Number(byId(id).value)||0));
+  const rec={leg:num("stockLeg"),fil:num("stockFil"),wing:num("stockWing"),by:staffEmployeeId,byName:e.name,at:Date.now()};
+  c.doc("poultry_stock_"+stockSelDate.slice(0,7)).set({days:{[stockSelDate]:rec},updatedAt:Date.now()},{merge:true})
+    .then(()=>{const n=byId("stockSaved");if(n){n.textContent=`${formatDate(stockSelDate)} 已送出：腿${rec.leg} 排${rec.fil} 翅${rec.wing}`;setTimeout(()=>{n.textContent="";},2600);}})
+    .catch(err=>toast("送出失敗："+(err&&err.message||err),"error"));
+}
 document.addEventListener("DOMContentLoaded",()=>{
   applyStaffBranding();
   byId("staffLoginBtn").onclick=login;
@@ -477,7 +519,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("staffPinInput")?.addEventListener("keydown",e=>{if(e.key==="Enter")login()});
   byId("staffLogoutBtn").onclick=logout;
   byId("addAllCalBtn").onclick=addAllToCalendar;
-  document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active")});
+  document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active");if(b.dataset.staffTab==="stock")initStock();});
+  byId("stockSaveBtn")?.addEventListener("click",saveStock);
   // 我的班表：列表／月曆切換、月份切換、當天明細小卡
   document.querySelectorAll("#myViewTabs .seg-btn").forEach(b=>b.onclick=()=>setMyView(b.dataset.myview));
   byId("myPrevMonthBtn")?.addEventListener("click",()=>{myCalendarDate.setMonth(myCalendarDate.getMonth()-1);renderMyCalendar()});
