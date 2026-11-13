@@ -339,13 +339,20 @@
     const startDow = (first.getDay() + 6) % 7;      // 週一起始
     let html = "";
     for (let i = 0; i < startDow; i++) html += `<div class="employee-cal-day ck-out"></div>`;
-    for (let dd = 1; dd <= dim; dd++) { const k = `${viewYM}-${pad(dd)}`; html += (calMode === "order" ? orderCell(k, dd) : useCell(k, dd)); }
+    const cellFn = calMode === "order" ? orderCell : calMode === "dough" ? doughCell : useCell;
+    for (let dd = 1; dd <= dim; dd++) { const k = `${viewYM}-${pad(dd)}`; html += cellFn(k, dd); }
     grid.innerHTML = html;
-    grid.querySelectorAll("button[data-date]:not([disabled])").forEach((b) => b.addEventListener("click", () => (calMode === "order" ? openOrderForm(b.dataset.date) : openDetail(b.dataset.date))));
-    const lg = $("ckLegend"); if (lg) lg.innerHTML = calMode === "order"
-      ? `<span><i class="legend-dot" style="background:#2f7d52"></i>已到貨</span><span><i class="legend-dot" style="background:#2a5aa0"></i>已叫貨</span><span><i class="legend-dot" style="background:#e0a884"></i>建議下單</span><span><i class="legend-dot closed"></i>公休</span>`
-      : `<span><i class="legend-dot available"></i>已上傳銷售</span><span><i class="legend-dot" style="background:#ecd98f"></i>已排叫貨</span><span><i class="legend-dot closed"></i>公休</span><span>📝 已記錄叫貨</span>`;
-    const t = $("ckCalTitle"); if (t) t.textContent = calMode === "order" ? "每天＝這天叫了什麼（點下單日開叫貨單）" : "每天＝用多少；已上傳日顯示實際消耗，未來日顯示供應狀態";
+    const clickFn = calMode === "order" ? openOrderForm : calMode === "dough" ? openDoughDetail : openDetail;
+    grid.querySelectorAll("button[data-date]:not([disabled])").forEach((b) => b.addEventListener("click", () => clickFn(b.dataset.date)));
+    const lg = $("ckLegend"); if (lg) lg.innerHTML =
+      calMode === "order" ? `<span><i class="legend-dot" style="background:#2f7d52"></i>已到貨</span><span><i class="legend-dot" style="background:#2a5aa0"></i>已訂購</span><span><i class="legend-dot" style="background:#e0a884"></i>建議訂購</span><span><i class="legend-dot closed"></i>公休</span>`
+      : calMode === "dough" ? `<span><i class="legend-dot available"></i>已有製作量</span><span><i class="legend-dot" style="background:#e0a884"></i>推估建議</span><span><i class="legend-dot closed"></i>公休</span>`
+      : `<span><i class="legend-dot available"></i>已上傳銷售</span><span><i class="legend-dot" style="background:#ecd98f"></i>已排訂購</span><span><i class="legend-dot closed"></i>公休</span><span>📝 已訂購</span>`;
+    const t = $("ckCalTitle"); if (t) t.textContent =
+      calMode === "order" ? "每天＝這天訂了什麼（點下單日開訂購單）"
+      : calMode === "dough" ? "每格＝9吋 厚/薄、12吋 厚/薄；有資料的日子顯示實際製作量，其餘為推估建議（點看明細）"
+      : "每天＝用多少；已上傳日顯示實際消耗，未來日顯示供應狀態";
+    applyCalChrome();
   }
   function useCell(k, dd) {
     const rec = days[k] || {};
@@ -378,10 +385,44 @@
     } else { if (k === todayKey()) cls += " ck-today"; disabled = "disabled"; }
     return `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
   }
+  // 餅皮月曆：每格顯示建議做多少（有製作量資料則顯示實際製作量）；格式＝9吋 厚/薄、12吋 厚/薄
+  function doughLines(o, est) {
+    return `<span class="ck-dough${est ? " est" : ""}">` +
+      `<span class="cd-line"><i>9</i><b>${o.t9}</b><s>/</s><b>${o.s9}</b></span>` +
+      `<span class="cd-line"><i>12</i><b>${o.t12}</b><s>/</s><b>${o.s12}</b></span></span>`;
+  }
+  const doughSum = (o) => o ? (Number(o.t9) || 0) + (Number(o.s9) || 0) + (Number(o.t12) || 0) + (Number(o.s12) || 0) : 0;
+  function doughCell(k, dd) {
+    const dow = parseKey(k).getDay(), redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
+    const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
+    if (isClosed(k)) return `<div class="employee-cal-day ck-rest">${numHtml}<span class="ck-tag">${closedLabel(k)}</span></div>`;
+    const made = (k <= todayKey()) ? doughMade(k) : null;
+    let cls = "employee-cal-day ck-dcell", inner = numHtml;
+    if (made) { cls += " available"; inner += doughLines(made, false); }
+    else { const p = predictDough(k); if (k === todayKey()) cls += " ck-today"; inner += (doughSum(p.rec) > 0 ? doughLines(p.rec, true) : `<span class="cd-empty">—</span>`); }
+    return `<button type="button" class="${cls}" data-date="${k}">${inner}</button>`;
+  }
+  let lastChickenMode = "use";
   function setCalMode(mode) {
     calMode = mode;
-    document.querySelectorAll("#ckCalSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+    if (mode === "use" || mode === "order") lastChickenMode = mode;
     render();
+  }
+  // 第一層分類：雞肉管理（使用/訂購）↔ 餅皮管理（餅皮月曆）
+  function setCalCat(cat) {
+    calMode = (cat === "dough") ? "dough" : lastChickenMode;
+    render();
+  }
+  // 依目前 calMode 顯示／隱藏：分類切換、子切換（使用/訂購）、兩個推估提示、庫存條
+  function applyCalChrome() {
+    const dough = (calMode === "dough");
+    const setDisp = (id, show) => { const el = $(id); if (el) el.style.display = show ? "" : "none"; };
+    setDisp("ckCalSwitch", !dough);
+    setDisp("ckHint", !dough);
+    setDisp("ckDoughBtn", dough);
+    setDisp("ckStockTop", !dough);
+    document.querySelectorAll("#ckCatSwitch button").forEach((b) => b.classList.toggle("on", (b.dataset.cat === "dough") === dough));
+    document.querySelectorAll("#ckCalSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === calMode));
   }
 
   /* ---------- 共用：部位三格、明細表 ---------- */
@@ -1462,6 +1503,7 @@
     $("ckPrevMonth").onclick = () => shiftMonth(-1);
     $("ckNextMonth").onclick = () => shiftMonth(1);
     document.querySelectorAll("#ckCalSwitch button").forEach((b) => b.onclick = () => setCalMode(b.dataset.mode));
+    document.querySelectorAll("#ckCatSwitch button").forEach((b) => b.onclick = () => setCalCat(b.dataset.cat));
     $("uploadDrop").onclick = () => $("ckFile").click();
     $("ckFile").addEventListener("change", (e) => onFile(e.target.files[0]));
     // 彈窗關閉（X、背景、取消）
