@@ -65,6 +65,7 @@
   let predUnsubs = [], configUnsub = null, predMonthData = {}, predDays = {}, bufferFactor = 1.0;
   let stockUnsubs = [], stockDays = {};  // 員工端盤點庫存（poultry_stock_YYYY-MM）
   let orderUnsubs = [], orderMonthData = {}, orderDays = {}, orderForm = null;  // 叫貨單（poultry_order_YYYY-MM，以下單日為 key）
+  let reminderChecked = false;  // 每日提醒：本次載入是否已檢查過
   let partsHistory = [];  // 部位對照表版本紀錄 [{date:'YYYY-MM-DD', map:{...}}]（日期升冪，最後一筆＝目前）
 
   const $ = (id) => document.getElementById(id);
@@ -859,6 +860,68 @@
     }
   }
 
+  /* ---------- 主畫面每日提醒（叫貨＋上傳，一天最多 2 次） ---------- */
+  // 以「今天的下單日」預設邏輯算出要叫的量（與叫貨單開啟時的預設一致）
+  function reminderOrderCalc() {
+    const od = todayKey(), dOpts = deliveryOptions(od, defaultSupplier);
+    const del = dOpts[0] ? dOpts[0].key : addDays(od, 1);
+    const uses = candidateUseDays(od, del).slice(0, 2);
+    const sum = { leg: 0, fil: 0, wing: 0 };
+    uses.forEach((u) => { const p = predict(u); if (p.n && p.rec) { sum.leg += p.rec.leg; sum.fil += p.rec.fil; sum.wing += p.rec.wing; } });
+    const s = currentStock(), stock = s ? { leg: s.leg, fil: s.fil, wing: s.wing } : null;
+    const net = stock ? { leg: Math.max(0, sum.leg - stock.leg), fil: Math.max(0, sum.fil - stock.fil), wing: Math.max(0, sum.wing - stock.wing) } : { leg: sum.leg, fil: sum.fil, wing: sum.wing };
+    const kg = { leg: kgSuggest(net.leg, "leg"), fil: kgSuggest(net.fil, "fil"), wing: kgSuggest(net.wing, "wing") };
+    return { od, del, uses, sum, stock, net, kg };
+  }
+  function reminderState() {
+    const td = todayKey();
+    const ord = orderForDay(td);
+    const needOrder = coveredUseDays(td).length > 0 && !(ord && ord.status === "ordered");
+    const tgt = reportTarget();
+    const rec = days[tgt.key] || {};
+    const uploaded = !!(rec.sales && Object.keys(rec.sales).length);
+    return { needOrder, needUpload: !uploaded, tgt };
+  }
+  function renderReminder(st) {
+    let html = "";
+    if (st.needOrder) {
+      const c = reminderOrderCalc();
+      const stockRow = c.stock ? `<div class="rc-row stk"><span class="rc-k">扣目前庫存</span><span class="rc-v"><i>腿</i>−${c.stock.leg} <i>排</i>−${c.stock.fil} <i>翅</i>−${c.stock.wing}</span></div>` : "";
+      html += `<div class="rm-task order">
+        <div class="rm-th"><span class="rm-tt">今天要叫貨</span><span class="rm-pill wait">待叫貨</span></div>
+        <div class="rm-sub">${mdw(c.del)} 到貨 → 供 <b>${c.uses.map(mdw).join("・") || "—"}</b></div>
+        <div class="rm-calc">
+          <div class="rc-row"><span class="rc-k">估要用</span><span class="rc-v">${numsHTML(c.sum)}</span></div>
+          ${stockRow}
+          <div class="rc-row need"><span class="rc-k">要叫（隻）</span><span class="rc-v">${numsHTML(c.net)}</span></div>
+          <div class="rc-row kg"><span class="rc-k">≈ 公斤</span><span class="rc-v">D5 <b>${c.kg.leg}</b>　TS4 <b>${c.kg.fil}</b>　W6 <b>${c.kg.wing}</b></span></div>
+        </div>
+        <button type="button" class="rm-btn" id="remindOrderBtn">查看每天明細・確認叫貨 ›</button>
+      </div>`;
+    }
+    if (st.needUpload) {
+      html += `<div class="rm-task">
+        <div class="rm-th"><span class="rm-tt">上傳銷售報表</span><span class="rm-pill wait">待上傳</span></div>
+        <div class="rm-sub">${st.tgt.today ? "今天" : "昨天"} <b>${fmtReportDate(st.tgt.key)}</b> 的銷售還沒上傳，上傳後推估更準。</div>
+        <button type="button" class="rm-btn ghost" id="remindUploadBtn">＋ 上傳銷售報表</button>
+      </div>`;
+    }
+    $("remindBody").innerHTML = html;
+    $("remindDate").textContent = mdw(todayKey());
+    const ob = $("remindOrderBtn"); if (ob) ob.onclick = () => { hide("remindBackdrop"); openOrderForm(todayKey()); };
+    const ub = $("remindUploadBtn"); if (ub) ub.onclick = () => { hide("remindBackdrop"); openUpload(); };
+  }
+  function maybeShowReminder() {
+    if (!$("remindBackdrop")) return;
+    const st = reminderState();
+    if (!st.needOrder && !st.needUpload) return;
+    const key = "ckRemind_" + todayKey();
+    let cnt = 0; try { cnt = Number(localStorage.getItem(key)) || 0; } catch (e) {}
+    if (cnt >= 2) return;                       // 一天最多自動跳 2 次（叫貨、上傳多為不同人不同時段）
+    try { localStorage.setItem(key, String(cnt + 1)); } catch (e) {}
+    renderReminder(st); show("remindBackdrop");
+  }
+
   /* ---------- 匯出 CSV（選月份、每日彙總） ---------- */
   function csvEscape(v) { v = String(v == null ? "" : v); return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; }
   function triggerDownload(blob, name) { const a = document.createElement("a"), url = URL.createObjectURL(blob); a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0); }
@@ -1054,6 +1117,8 @@
       watchStockMonths();
       watchOrderMonths();
       watchConfig();
+      // 資料載入後跳一次每日提醒（若有待辦、且當天未達 2 次）
+      setTimeout(() => { if (!reminderChecked) { reminderChecked = true; maybeShowReminder(); } }, 1400);
     };
     if (firebase.auth) {
       firebase.auth().signInAnonymously().then(start).catch((e) => { console.warn("匿名登入失敗，仍嘗試連線：", e); start(); });

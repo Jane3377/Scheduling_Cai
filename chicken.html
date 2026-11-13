@@ -91,6 +91,23 @@
     .ps-k { font-size: 15px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
     .ps-sel { margin-left: auto; border: 1.5px solid #d9a689; border-radius: 10px; background: #fffdfb; padding: 8px 12px; font: inherit; font-size: 16px; font-weight: 800; color: var(--ink); min-width: 100px; text-align: center; }
     .ps-d { font-size: 12px; color: var(--muted); margin: 6px 0 0 2px; line-height: 1.5; }
+    /* 每日提醒彈窗 */
+    .rm-task { border: 1.5px solid var(--line); border-radius: 14px; padding: 13px; margin-bottom: 11px; }
+    .rm-task.order { border-color: #ead7c9; background: #fffdfb; }
+    .rm-th { display: flex; align-items: center; margin-bottom: 3px; }
+    .rm-th .rm-tt { font-size: 16px; font-weight: 900; color: #2a2420; }
+    .rm-pill { margin-left: auto; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 3px 10px; }
+    .rm-pill.wait { color: #9a4a1a; background: #fbe9db; }
+    .rm-sub { font-size: 12.5px; color: var(--muted); font-weight: 700; margin-bottom: 10px; line-height: 1.5; } .rm-sub b { color: var(--ink); }
+    .rm-calc { background: #faf7f4; border: 1px solid #efe6de; border-radius: 11px; padding: 3px 12px; margin-bottom: 10px; }
+    .rc-row { display: flex; align-items: center; font-size: 13px; padding: 7px 0; } .rc-row + .rc-row { border-top: 1px dashed #e8ddd4; }
+    .rc-row .rc-k { color: var(--muted); font-weight: 700; } .rc-row .rc-v { margin-left: auto; font-weight: 800; white-space: nowrap; }
+    .rc-row .rc-v i { font-style: normal; color: #b3a89f; font-size: 11px; margin-right: 1px; }
+    .rc-row.stk .rc-v { color: #2a5aa0; } .rc-row.need { border-top: 2px solid #e7cdbf; } .rc-row.need .rc-k { color: var(--brand-dark); font-weight: 900; } .rc-row.need .rc-v { font-size: 14.5px; }
+    .rc-row.kg .rc-k { color: var(--brand-dark); font-weight: 800; }
+    .rm-btn { display: block; width: 100%; text-align: center; background: var(--brand); color: #fff; border: 0; border-radius: 11px; padding: 12px; font-weight: 900; font-size: 15px; cursor: pointer; }
+    .rm-btn.ghost { background: #fff; border: 1.5px solid #d9cfc7; color: #5a524c; }
+    .rm-later { display: block; width: 100%; text-align: center; background: none; border: 0; color: var(--muted); font-weight: 800; font-size: 13.5px; padding: 10px; margin-top: 2px; cursor: pointer; }
     /* 月曆切換（使用月曆／叫貨月曆） */
     .ck-calswitch { display: flex; gap: 7px; background: #efeae4; border-radius: 12px; padding: 5px; margin: 0 0 8px; max-width: 360px; }
     .ck-calswitch button { flex: 1; border: 0; border-radius: 9px; padding: 9px 6px; font-size: 14px; font-weight: 800; color: var(--muted); background: transparent; cursor: pointer; }
@@ -547,6 +564,17 @@
       <div class="modal-body">
         <div id="detailBody"></div>
         <div class="modal-actions"><button class="ghost-btn" id="detailEditOrder">📝 記錄／修改這天叫貨</button><button class="primary-btn" data-close="detailBackdrop">關閉</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 每日提醒彈窗（叫貨＋上傳） -->
+  <div id="remindBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(440px,100%)">
+      <div class="modal-head"><div><h3>今天提醒 · <span id="remindDate"></span></h3></div><button class="icon-btn" data-close="remindBackdrop">✕</button></div>
+      <div class="modal-body">
+        <div id="remindBody"></div>
+        <button type="button" class="rm-later" data-close="remindBackdrop">稍後再說</button>
       </div>
     </div>
   </div>
