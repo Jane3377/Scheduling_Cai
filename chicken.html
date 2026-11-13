@@ -251,6 +251,27 @@
     .pm-ver .org { font-size: 11.5px; color: #fff; background: #6b7a90; border-radius: 999px; padding: 2px 8px; }
     .pm-ver-sub { font-size: 12.5px; font-weight: 800; color: var(--brand-dark); margin: 12px 2px 6px; }
     .pm-ver-sub:first-child { margin-top: 0; }
+    /* 餅皮推估提示按鈕（與雞肉推估並列） */
+    .ck-hint-dough { background: linear-gradient(135deg, #fff 0%, #fdf1e6 100%); border-color: #ecd0b4; color: #9a4a1a; margin-top: 8px; }
+    /* 餅皮推估檢視 */
+    .dg-sec-h { font-size: 13.5px; font-weight: 800; color: var(--brand-dark); margin: 2px 2px 9px; }
+    .dg-up-list { display: grid; gap: 10px; }
+    .dg-up { display: block; width: 100%; text-align: left; border: 1.5px solid #ecd9cb; border-radius: 13px; background: #fffdfb; padding: 11px 13px; cursor: pointer; }
+    .dg-up-h { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+    .dg-tag { font-size: 11px; font-weight: 800; color: #5a524c; background: #efeae4; border-radius: 999px; padding: 2px 9px; }
+    .dg-tag.wk { color: #9a4a1a; background: #fbe3d2; }
+    .dg-up-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+    .dg-up-nums span { background: #fff; border: 1px solid #ecd9cb; border-radius: 9px; padding: 7px 2px; text-align: center; }
+    .dg-up-nums i { display: block; font-style: normal; font-size: 11px; color: var(--muted); }
+    .dg-up-nums b { font-size: 20px; color: #9a4a1a; }
+    .dg-up-note { font-size: 11.5px; color: #8a6d1f; margin-top: 7px; font-weight: 700; }
+    .dg-recent { display: grid; gap: 7px; }
+    .dg-rrow { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 11px; background: #faf7f4; padding: 10px 12px; cursor: pointer; }
+    .dg-rd { font-size: 14px; font-weight: 800; color: var(--ink); flex: 0 0 auto; min-width: 86px; }
+    .dg-rm { font-size: 13px; color: #5a524c; } .dg-rm b { color: var(--ink); font-weight: 800; }
+    .dg-rdiff { margin-left: auto; font-size: 12.5px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+    .dg-rdiff.pos { color: #b7791f; } .dg-rdiff.neg { color: var(--danger); }
+    .dg-det-sub { font-size: 12.5px; font-weight: 700; color: var(--brand-dark); background: #faf6f2; border: 1px solid #efe1d6; border-radius: 10px; padding: 9px 11px; margin-bottom: 12px; line-height: 1.5; }
     /* 比薩餅皮參數 */
     .pz-autobtn { margin-bottom: 14px; }
     .pz-grp { border: 1px solid var(--line); border-radius: 13px; padding: 12px 13px 4px; margin-bottom: 13px; }
@@ -403,6 +424,7 @@
       <div class="ck-stock-top hidden" id="ckStockTop"></div>
 
       <button type="button" class="ck-hint" id="ckHint">🔮 推估建議：次營業日叫貨</button>
+      <button type="button" class="ck-hint ck-hint-dough" id="ckDoughBtn">🍕 餅皮推估：接下來幾天要備多少 ›</button>
 
       <section class="panel" style="margin-top:14px">
         <div class="ck-calswitch" id="ckCalSwitch">
@@ -681,6 +703,30 @@
           <div id="pmHistList"></div>
         </div>
         <div class="modal-actions"><button class="danger-btn" id="partsReset" style="margin-right:auto">恢復預設值</button><button class="ghost-btn" data-close="partsBackdrop">取消</button><button class="primary-btn" id="partsSave">儲存設定</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 餅皮推估檢視彈窗（管理者） -->
+  <div id="doughBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(560px,100%)">
+      <div class="modal-head"><div><h3>🍕 餅皮推估</h3><p>接下來幾天要備多少・近期推估 vs 實際</p></div><button class="icon-btn" data-close="doughBackdrop">✕</button></div>
+      <div class="modal-body" id="doughBody">
+        <div class="dg-sec-h">接下來要備（點看每天明細）</div>
+        <div id="doughUpcoming" class="dg-up-list"></div>
+        <div class="dg-sec-h" style="margin-top:16px">近期回顧（推估 vs 實際賣）</div>
+        <div id="doughRecent" class="dg-recent"></div>
+        <div class="modal-actions"><button class="primary-btn" data-close="doughBackdrop">關閉</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 餅皮某天明細（推估/製作/實際賣/剩餘/差額） -->
+  <div id="doughDetBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(460px,100%)">
+      <div class="modal-head"><div><h3 id="doughDetTitle"></h3><p>餅皮：推估／製作／實際賣／剩餘</p></div><button class="icon-btn" data-close="doughDetBackdrop">✕</button></div>
+      <div class="modal-body"><div id="doughDetBody"></div>
+        <div class="modal-actions"><button class="primary-btn" data-close="doughDetBackdrop">關閉</button></div>
       </div>
     </div>
   </div>
