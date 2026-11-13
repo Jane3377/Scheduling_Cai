@@ -383,6 +383,39 @@
       .cmp-h { font-size: 15px; } .ck-stat span { font-size: 14px; } .ck-stat strong { font-size: 34px; }
       .gd .gd-sec > h4 { font-size: 16.5px; } .gd-step .tx, .gd-leg-row, .gd-tool, .gd-tip { font-size: 15px; } .gd-tool { flex-direction: column; gap: 2px; } .gd-tool .k { min-width: 0; }
     }
+
+    /* =============================================================
+       UIUX 優化層（純外觀；不改內容與邏輯）
+       —— 以來源順序覆蓋前面同權重規則 ——
+       ============================================================= */
+    /* 主要操作按鈕：加互動回饋 */
+    .ck-btns .ghost-btn, .ck-btns .primary-btn { transition: transform .08s ease, box-shadow .15s ease, border-color .15s ease; }
+    .ck-btns .primary-btn:hover { box-shadow: 0 6px 16px rgba(146,53,33,.22); transform: translateY(-1px); }
+    .ck-btns .ghost-btn:hover { border-color: #d9a689; transform: translateY(-1px); }
+    /* 頂部資訊卡（庫存／雞肉推估／餅皮推估）：統一節奏＋點擊回饋 */
+    .ck-stock-top { margin: 14px 0 0; box-shadow: 0 1px 3px rgba(60,40,30,.05); }
+    .ck-hint { margin: 10px 0 0; transition: transform .08s ease, box-shadow .15s ease, border-color .15s ease; }
+    .ck-hint:hover { border-color: #d9a689; box-shadow: 0 4px 14px rgba(146,53,33,.09); transform: translateY(-1px); }
+    .ck-hint-dough { margin-top: 10px; }
+    /* 月曆面板：加一點層次；格子加上可點回饋 */
+    .chk-wrap section.panel { box-shadow: 0 2px 16px rgba(60,40,30,.05); border-radius: 18px; }
+    .employee-cal-day { transition: box-shadow .14s ease, border-color .14s ease, transform .08s ease; }
+    .employee-cal-day:not([disabled]):hover { border-color: #d9a689; box-shadow: 0 4px 12px rgba(146,53,33,.1); transform: translateY(-1px); z-index: 1; }
+    .employee-cal-day.ck-today { box-shadow: inset 0 0 0 2px var(--brand), 0 3px 10px rgba(146,53,33,.12); }
+    /* 圖例：改成膠囊 chip，更好掃視 */
+    .calendar-legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+    .calendar-legend span { display: inline-flex; align-items: center; gap: 6px; background: #faf7f4; border: 1px solid #ece2d9; border-radius: 999px; padding: 5px 11px; line-height: 1; }
+    /* 底部工具列：由鬆散藥丸 → 整齊的工具盤 */
+    .ck-foot { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 10px; margin-top: 18px; padding: 14px; background: #faf7f4; border: 1px solid #ece2d9; border-radius: 18px; }
+    .ck-foot button { display: flex; align-items: center; gap: 9px; justify-content: flex-start; text-align: left; background: #fff; border: 1px solid #e7ddd4; border-radius: 13px; padding: 13px 15px; font-weight: 700; color: var(--ink); font-size: 14px; cursor: pointer; box-shadow: 0 1px 2px rgba(60,40,30,.04); transition: transform .08s ease, box-shadow .15s ease, border-color .15s ease; }
+    .ck-foot button:hover { border-color: #d9a689; box-shadow: 0 5px 14px rgba(146,53,33,.1); transform: translateY(-1px); }
+    .ck-foot button:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(60,40,30,.06); }
+    #ckGuideBtn.ck-guide-btn { background: var(--brand-soft); border-color: #e7cdbf; color: var(--brand-dark); font-weight: 800; }
+    #ckGuideBtn.ck-guide-btn:hover { border-color: #d9a689; }
+    @media (max-width: 480px) {
+      .ck-foot { grid-template-columns: 1fr 1fr; gap: 9px; padding: 12px; }
+      .ck-foot button { font-size: 14px; padding: 13px 12px; }
+    }
   </style>
 </head>
 <body>
