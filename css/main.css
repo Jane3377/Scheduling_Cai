@@ -544,3 +544,14 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .stock-grid input{text-align:center;font-size:26px;font-weight:800;padding:14px 4px}
 .stock-existing{font-size:13px;color:#4a5668;background:#eef2f7;border:1px solid #d8e0ea;border-radius:10px;padding:10px 12px;margin:0 0 14px;line-height:1.6}
 .stock-existing b{color:var(--ink)}
+.stock-today{font-size:14px;font-weight:700;color:var(--muted);margin:0 0 14px}.stock-today b{color:var(--ink)}
+.stock-sec{font-size:15px;font-weight:800;color:var(--brand-dark);margin:6px 2px 9px}
+.stock-pz{margin:0 0 12px}
+.pz-head,.pz-row{display:flex;align-items:center;gap:10px}
+.pz-head{margin-bottom:6px}
+.pz-head .pz-lbl{flex:0 0 56px}
+.pz-head span:not(.pz-lbl){flex:1;text-align:center;font-size:14px;font-weight:800;color:#5a524c}
+.pz-row{margin-bottom:9px}
+.pz-row .pz-lbl{flex:0 0 56px;font-size:15px;font-weight:900;color:var(--brand-dark);white-space:nowrap}
+.pz-row input{flex:1;min-width:0;text-align:center;font-size:23px;font-weight:800;padding:11px 4px}
+.stock-note-auto{font-size:12.5px;color:#6f8a79;background:#f3faf5;border:1px solid #cfe6d7;border-radius:10px;padding:10px 12px;margin:0 0 14px;line-height:1.5}

@@ -91,6 +91,16 @@
     .ps-k { font-size: 15px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
     .ps-sel { margin-left: auto; border: 1.5px solid #d9a689; border-radius: 10px; background: #fffdfb; padding: 8px 12px; font: inherit; font-size: 16px; font-weight: 800; color: var(--ink); min-width: 100px; text-align: center; }
     .ps-d { font-size: 12px; color: var(--muted); margin: 6px 0 0 2px; line-height: 1.5; }
+    /* 盤點填寫紀錄表 */
+    .rec-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .rec-tbl { border-collapse: collapse; width: 100%; min-width: 560px; }
+    .rec-tbl th, .rec-tbl td { padding: 9px 7px; font-size: 13px; text-align: center; white-space: nowrap; border-bottom: 1px solid #f1ece6; }
+    .rec-tbl thead tr.grp th { background: #efeae4; color: #5a524c; font-weight: 900; font-size: 12.5px; }
+    .rec-tbl thead tr.sub th { background: #f7f2ec; color: var(--muted); font-weight: 800; font-size: 11.5px; padding: 5px 7px; }
+    .rec-tbl td.rd { text-align: left; font-weight: 800; color: var(--ink); } .rec-tbl td.rw { text-align: left; } .rec-tbl td.rw b { color: var(--ink); } .rec-tbl td.rt { color: var(--muted); font-size: 11.5px; }
+    .rec-tbl .sep { border-left: 2px solid var(--line); }
+    .rec-tbl .rl { color: #8f3521; font-weight: 800; } .rec-tbl .rf { color: #2f7d52; font-weight: 800; } .rec-tbl .rwg { color: #b7791f; font-weight: 800; } .rec-tbl .rp { color: #9a4a1a; font-weight: 800; }
+    .rec-empty { font-size: 13.5px; color: var(--muted); padding: 24px 2px; text-align: center; }
     /* 每日提醒彈窗 */
     .rm-task { border: 1.5px solid var(--line); border-radius: 14px; padding: 13px; margin-bottom: 11px; }
     .rm-task.order { border-color: #ead7c9; background: #fffdfb; }
@@ -394,6 +404,7 @@
         <button type="button" id="ckGuideBtn" class="ck-guide-btn">📖 使用說明</button>
         <button type="button" id="ckPredBtn">⚙ 推估設定</button>
         <button type="button" id="ckSupBtn">🚚 批發商休息</button>
+        <button type="button" id="ckRecordsBtn">📋 盤點紀錄</button>
         <button type="button" id="ckExportCsvBtn">⤓ 匯出 CSV</button>
         <button type="button" id="ckBackupBtn">💾 備份／還原</button>
         <button type="button" id="ckPartsBtn">⚙ 部位對照設定</button>
@@ -576,6 +587,17 @@
       <div class="modal-body">
         <div id="remindBody"></div>
         <button type="button" class="rm-later" data-close="remindBackdrop">稍後再說</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 盤點填寫紀錄 彈窗 -->
+  <div id="recordsBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(680px,100%)">
+      <div class="modal-head"><div><h3>📋 盤點填寫紀錄</h3><p>員工每天打烊填的剩餘量（誰、何時、填了什麼）</p></div><button class="icon-btn" data-close="recordsBackdrop">✕</button></div>
+      <div class="modal-body">
+        <div class="rec-wrap"><table class="rec-tbl" id="recordsTbl"></table></div>
+        <div class="modal-actions"><button class="ghost-btn" id="recordsExport">⤓ 匯出 CSV</button><button class="primary-btn" data-close="recordsBackdrop">關閉</button></div>
       </div>
     </div>
   </div>

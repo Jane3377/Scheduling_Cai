@@ -101,14 +101,21 @@
 
         <div class="staff-tab-panel" id="stockPanel">
           <div class="panel">
-            <div class="panel-head"><div><h3>今日打烊剩餘</h3><p>打烊前數一次剩下的總數，填進去送出就好。</p></div></div>
-            <label class="field"><span>盤點日期</span></label>
-            <div class="stock-dates" id="stockDateBtns"></div>
+            <div class="panel-head"><div><h3>今日打烊剩餘</h3><p>打烊前數一次剩下的，填進去送出就好。</p></div></div>
+            <div class="stock-today" id="stockToday"></div>
+            <div class="stock-sec">🍗 剩餘雞肉（隻）</div>
             <div class="stock-grid">
               <label class="field"><span>🍗 雞腿</span><input id="stockLeg" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
               <label class="field"><span>🥩 雞排</span><input id="stockFil" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
               <label class="field"><span>🪽 雞翅</span><input id="stockWing" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
             </div>
+            <div class="stock-sec">🍕 剩餘餅皮（片）</div>
+            <div class="stock-pz">
+              <div class="pz-head"><span class="pz-lbl"></span><span>厚片</span><span>薄片</span></div>
+              <div class="pz-row"><span class="pz-lbl">9 吋</span><input id="stockT9" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /><input id="stockS9" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /></div>
+              <div class="pz-row"><span class="pz-lbl">12 吋</span><input id="stockT12" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /><input id="stockS12" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /></div>
+            </div>
+            <div class="stock-note-auto">ℹ️ 只填「剩餘」就好 —— 製作量＝剩餘＋當天銷售，系統會自動算。</div>
             <div id="stockExisting" class="stock-existing hidden"></div>
             <button id="stockSaveBtn" class="primary-btn full">送出盤點</button>
             <div id="stockSaved" class="success-note"></div>

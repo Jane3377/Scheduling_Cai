@@ -970,6 +970,27 @@
   function csvEscape(v) { v = String(v == null ? "" : v); return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; }
   function triggerDownload(blob, name) { const a = document.createElement("a"), url = URL.createObjectURL(blob); a.href = url; a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0); }
   function downloadCSV(name, rows) { const csv = "﻿" + rows.map((r) => r.map(csvEscape).join(",")).join("\r\n"); triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8;" }), name); }
+  /* ---------- 盤點填寫紀錄（員工每天打烊填的剩餘） ---------- */
+  const fmtAt = (ms) => { if (!ms) return ""; const d = new Date(ms); return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  function openRecords() {
+    const keys = Object.keys(stockDays).sort((a, b) => (a < b ? 1 : -1)), tbl = $("recordsTbl");
+    if (!keys.length) { tbl.innerHTML = `<tbody><tr><td class="rec-empty">目前還沒有盤點紀錄。</td></tr></tbody>`; show("recordsBackdrop"); return; }
+    const head = `<thead><tr class="grp"><th rowspan="2">日期</th><th rowspan="2">填寫人</th><th rowspan="2">時間</th><th colspan="3" class="sep">🍗 剩餘雞肉</th><th colspan="4" class="sep">🍕 剩餘餅皮</th></tr><tr class="sub"><th class="sep">腿</th><th>排</th><th>翅</th><th class="sep">9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead>`;
+    const body = keys.map((k) => { const r = stockDays[k] || {}, d = parseKey(k);
+      return `<tr><td class="rd">${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}）</td><td class="rw"><b>${esc(r.byName || "？")}</b></td><td class="rt">${fmtAt(r.at)}</td><td class="sep rl">${r.leg || 0}</td><td class="rf">${r.fil || 0}</td><td class="rwg">${r.wing || 0}</td><td class="sep rp">${r.t9 || 0}</td><td class="rp">${r.s9 || 0}</td><td class="rp">${r.t12 || 0}</td><td class="rp">${r.s12 || 0}</td></tr>`;
+    }).join("");
+    tbl.innerHTML = head + `<tbody>${body}</tbody>`;
+    show("recordsBackdrop");
+  }
+  function doRecordsExport() {
+    const keys = Object.keys(stockDays).sort();
+    if (!keys.length) { alert("目前沒有盤點紀錄可匯出。"); return; }
+    const rows = [["日期", "星期", "填寫人", "填寫時間", "剩餘腿", "剩餘排", "剩餘翅", "餅皮9厚", "餅皮9薄", "餅皮12厚", "餅皮12薄"]];
+    keys.forEach((k) => { const r = stockDays[k] || {}, d = parseKey(k);
+      rows.push([k, DOW[d.getDay()], r.byName || "", r.at ? fmtAt(r.at) : "", r.leg || 0, r.fil || 0, r.wing || 0, r.t9 || 0, r.s9 || 0, r.t12 || 0, r.s12 || 0]);
+    });
+    downloadCSV(`盤點紀錄_${todayKey()}.csv`, rows);
+  }
   function openCsv() { $("csvMonth").value = viewYM; show("csvBackdrop"); }
   function doCsvExport() {
     const ym = $("csvMonth").value; if (!ym) { alert("請選擇月份"); return; }
@@ -1112,6 +1133,8 @@
     $("supAddSupplierBtn").onclick = addSupplier;
     $("supSave").onclick = saveSupSet;
     // 月曆下方工具：匯出 CSV／備份還原／部位對照
+    $("ckRecordsBtn").onclick = openRecords;
+    $("recordsExport").onclick = doRecordsExport;
     $("ckExportCsvBtn").onclick = openCsv;
     $("csvDownload").onclick = doCsvExport;
     $("ckBackupBtn").onclick = openBackup;

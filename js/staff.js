@@ -473,43 +473,42 @@ function saveSelectedDay(){
 /* ---------- 今日打烊剩餘（盤點庫存，寫入獨立文件 poultry_stock_YYYY-MM） ---------- */
 let stockSelDate=null, stockDays={}, stockSubbed=new Set();
 function stockCol(){try{if(window.firebase&&firebase.apps.length)return firebase.firestore().collection("scheduler");}catch(e){}return null;}
-function prevBizDay(key){const d=new Date(key+"T00:00:00");for(let i=0;i<60;i++){d.setDate(d.getDate()-1);const k=toDateKey(d);if(!isClosedDay(k))return k;}return toDateKey(d);}
-function stockDateOptions(){const t=toDateKey(new Date());const p1=prevBizDay(t),p2=prevBizDay(p1);return [{key:t,label:"今天",sub:formatDate(t)},{key:p1,label:"前1營業日",sub:formatDate(p1)},{key:p2,label:"前2營業日",sub:formatDate(p2)}];}
 function fmtStockTime(ms){if(!ms)return "";const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
-function renderStockDates(){
-  const box=byId("stockDateBtns");if(!box)return;
-  const opts=stockDateOptions();
-  if(!stockSelDate||!opts.some(o=>o.key===stockSelDate))stockSelDate=opts[0].key;
-  box.innerHTML=opts.map(o=>`<button type="button" data-k="${o.key}" class="${o.key===stockSelDate?"on":""}">${o.label}<small>${o.sub}</small></button>`).join("");
-  box.querySelectorAll("button[data-k]").forEach(b=>b.onclick=()=>{stockSelDate=b.dataset.k;renderStockDates();prefillStock();});
+// 盤點日期固定為「當日」（不再可選前幾天）
+function renderStockToday(){
+  stockSelDate=toDateKey(new Date());
+  const el=byId("stockToday");if(el)el.innerHTML=`📅 盤點日期：<b>${formatDate(stockSelDate)}</b>（當日）`;
 }
+const stockPz=id=>{const v=byId(id);return v&&v.value!==""?Math.max(0,Math.floor(Number(v.value)||0)):null;};
 function prefillStock(){
   const rec=stockDays[stockSelDate],ex=byId("stockExisting");if(!ex)return;
-  byId("stockLeg").value=rec?rec.leg:"";byId("stockFil").value=rec?rec.fil:"";byId("stockWing").value=rec?rec.wing:"";
-  if(rec){ex.classList.remove("hidden");ex.innerHTML=`目前紀錄：<b>腿${rec.leg} 排${rec.fil} 翅${rec.wing}</b>（${rec.byName||"？"}・${fmtStockTime(rec.at)} 填）。再送出會覆蓋更新。`;}
+  const set=(id,v)=>{const el=byId(id);if(el)el.value=(v!=null&&v!==undefined)?v:"";};
+  set("stockLeg",rec&&rec.leg);set("stockFil",rec&&rec.fil);set("stockWing",rec&&rec.wing);
+  set("stockT9",rec&&rec.t9);set("stockS9",rec&&rec.s9);set("stockT12",rec&&rec.t12);set("stockS12",rec&&rec.s12);
+  if(rec){ex.classList.remove("hidden");ex.innerHTML=`目前紀錄：<b>雞肉 腿${rec.leg||0} 排${rec.fil||0} 翅${rec.wing||0}</b>　餅皮 9厚${rec.t9||0}/9薄${rec.s9||0}・12厚${rec.t12||0}/12薄${rec.s12||0}（${rec.byName||"？"}・${fmtStockTime(rec.at)} 填）。再送出會覆蓋。`;}
   else{ex.classList.add("hidden");ex.innerHTML="";}
 }
 function subscribeStock(){
   const c=stockCol();if(!c)return;
-  const ym=k=>k.slice(0,7),t=toDateKey(new Date());
-  const months=new Set([ym(t),ym(prevBizDay(prevBizDay(t)))]);
-  months.forEach(m=>{
-    if(stockSubbed.has(m))return;stockSubbed.add(m);
-    c.doc("poultry_stock_"+m).onSnapshot(snap=>{
-      const days=(snap.data()&&snap.data().days)||{};
-      Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);
-      if(byId("stockPanel")&&byId("stockPanel").classList.contains("active"))prefillStock();
-    },err=>console.warn("stock snapshot",err));
-  });
+  const m=toDateKey(new Date()).slice(0,7);
+  if(stockSubbed.has(m))return;stockSubbed.add(m);
+  c.doc("poultry_stock_"+m).onSnapshot(snap=>{
+    const days=(snap.data()&&snap.data().days)||{};
+    Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);
+    if(byId("stockPanel")&&byId("stockPanel").classList.contains("active"))prefillStock();
+  },err=>console.warn("stock snapshot",err));
 }
-function initStock(){renderStockDates();subscribeStock();prefillStock();}
+function initStock(){renderStockToday();subscribeStock();prefillStock();}
 function saveStock(){
   const c=stockCol();if(!c){toast("尚未連線，請確認網路後再送出。","error");return;}
-  const e=staffEmployeeId&&employee(staffEmployeeId);if(!e||!stockSelDate)return;
+  const e=staffEmployeeId&&employee(staffEmployeeId);if(!e)return;
+  stockSelDate=toDateKey(new Date());
   const num=id=>Math.max(0,Math.floor(Number(byId(id).value)||0));
-  const rec={leg:num("stockLeg"),fil:num("stockFil"),wing:num("stockWing"),by:staffEmployeeId,byName:e.name,at:Date.now()};
+  const rec={leg:num("stockLeg"),fil:num("stockFil"),wing:num("stockWing"),
+    t9:num("stockT9"),s9:num("stockS9"),t12:num("stockT12"),s12:num("stockS12"),
+    by:staffEmployeeId,byName:e.name,at:Date.now()};
   c.doc("poultry_stock_"+stockSelDate.slice(0,7)).set({days:{[stockSelDate]:rec},updatedAt:Date.now()},{merge:true})
-    .then(()=>{const n=byId("stockSaved");if(n){n.textContent=`${formatDate(stockSelDate)} 已送出：腿${rec.leg} 排${rec.fil} 翅${rec.wing}`;setTimeout(()=>{n.textContent="";},2600);}})
+    .then(()=>{const n=byId("stockSaved");if(n){n.textContent=`${formatDate(stockSelDate)} 已送出：雞肉 腿${rec.leg}/排${rec.fil}/翅${rec.wing}・餅皮 9厚${rec.t9}/9薄${rec.s9}/12厚${rec.t12}/12薄${rec.s12}`;setTimeout(()=>{n.textContent="";},3400);}})
     .catch(err=>toast("送出失敗："+(err&&err.message||err),"error"));
 }
 document.addEventListener("DOMContentLoaded",()=>{
