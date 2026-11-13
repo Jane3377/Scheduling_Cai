@@ -268,6 +268,8 @@
     .ck-holi-line { background: #fff3c9; border: 1px solid #ecd98f; color: #8a6d1f; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; margin-bottom: 12px; }
     .ck-kgline { background: #fbeee7; border: 1px solid #e7cdbf; color: #7a2e1c; border-radius: 10px; padding: 9px 12px; font-size: 14px; font-weight: 700; margin: 0 0 12px; }
     .cmp-h { font-size: 13px; font-weight: 800; color: var(--brand-dark); margin: 4px 2px 6px; }
+    .ck-srcline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; color: #4a5668; background: #eef2f7; border: 1px solid #d8e0ea; border-radius: 10px; padding: 9px 12px; margin: 0 0 10px; } .ck-srcline b { color: #2a2420; }
+    .ck-srcbtn { margin-left: auto; background: #fff; border: 1px solid #d3dae4; border-radius: 8px; padding: 5px 11px; font-size: 12.5px; font-weight: 800; color: #4a5668; cursor: pointer; }
     .ck-form .field { margin: 12px 0; }
     .ck-num3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
@@ -541,7 +543,7 @@
   <!-- 點某天明細彈窗 -->
   <div id="detailBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(520px,100%)">
-      <div class="modal-head"><div><h3 id="detailTitle"></h3><p>當日叫貨與實際消耗對比</p></div><button class="icon-btn" data-close="detailBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3 id="detailTitle"></h3><p>預估／叫貨量／實際賣 對比</p></div><button class="icon-btn" data-close="detailBackdrop">✕</button></div>
       <div class="modal-body">
         <div id="detailBody"></div>
         <div class="modal-actions"><button class="ghost-btn" id="detailEditOrder">📝 記錄／修改這天叫貨</button><button class="primary-btn" data-close="detailBackdrop">關閉</button></div>

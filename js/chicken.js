@@ -608,28 +608,34 @@
   function openDetail(k) {
     const rec = days[k] || {};
     const hasSales = !!(rec.sales && Object.keys(rec.sales).length && rec.parts);
-    const hasOrder = !!rec.order;
+    const o = rec.order || null, u = hasSales ? rec.parts : null;
+    const p = predict(k), est = (p.n && p.rec) ? p.rec : null;
+    const isBiz = !isClosed(k);
     $("detailTitle").textContent = fmtFull(k);
     let html = "";
     const nat = natHoliday(k);
     if (nat) html += `<div class="ck-holi-line">📌 國定假日：${nat}</div>`;
-    if (hasSales || hasOrder) {
-      const o = rec.order || null, u = hasSales ? rec.parts : null;
-      html += `<div class="cmp-h">叫貨 vs 實際消耗</div>`;
+    if (isBiz && (est || o || u)) {
+      html += `<div class="cmp-h">預估 vs 叫貨 vs 實際賣</div>`;
       html += `<table class="ck-items" style="margin-bottom:6px"><thead><tr><th></th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>`;
-      html += `<tr><td>實際叫貨</td>${cell(o, "leg")}${cell(o, "fil")}${cell(o, "wing")}</tr>`;
-      html += `<tr><td>實際消耗</td>${cell(u, "leg")}${cell(u, "fil")}${cell(u, "wing")}</tr>`;
-      if (o && u) html += `<tr class="sum"><td>差額（叫−用）</td>${diffCell(o.leg - u.leg)}${diffCell(o.fil - u.fil)}${diffCell(o.wing - u.wing)}</tr>`;
+      html += `<tr><td>預估</td>${cell(est, "leg")}${cell(est, "fil")}${cell(est, "wing")}</tr>`;
+      html += `<tr><td>叫貨量</td>${cell(o, "leg")}${cell(o, "fil")}${cell(o, "wing")}</tr>`;
+      html += `<tr><td>實際賣</td>${cell(u, "leg")}${cell(u, "fil")}${cell(u, "wing")}</tr>`;
+      if (o && u) html += `<tr class="sum"><td>差額（叫−賣）</td>${diffCell(o.leg - u.leg)}${diffCell(o.fil - u.fil)}${diffCell(o.wing - u.wing)}</tr>`;
       html += `</tbody></table>`;
+      // 供應來源：這天的貨來自哪一張叫貨單
+      const sr = rec.supplyRef, so = sr ? orderForDay(sr.od) : null;
+      if (sr) { const st = so ? orderStatus(so) : null; html += `<div class="ck-srcline">📦 這天的貨來自 <b>${mdw(sr.od)} 叫貨</b>${st ? `（${STATUS_LABEL[st]}）` : ""}<button type="button" class="ck-srcbtn" id="detailGoOrder">看這批 ›</button></div>`; }
       const kg = rec.orderKg;
-      if (kg) html += `<div class="ck-kgline">📦 當天下單公斤：${PARTS3.map((p) => `${PART_EMO[p]} ${kg[p]}`).join("　")}（公斤）</div>`;
+      if (kg) html += `<div class="ck-kgline">📦 當天下單公斤：${PARTS3.map((pp) => `${PART_EMO[pp]} ${kg[pp]}`).join("　")}（公斤）</div>`;
       if (!o) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未記錄叫貨。</div>`;
-      else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對消耗。</div>`;
-      else html += `<div class="hint" style="margin:-2px 2px 12px">負數＝叫貨不夠用；正數＝有剩。供調整下次叫貨參考。</div>`;
+      else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對。</div>`;
+      else html += `<div class="hint" style="margin:-2px 2px 12px">差額＝叫貨量−實際賣：正＝有剩（可能浪費）、負＝不夠。</div>`;
     }
     if (hasSales) html += `<div class="cmp-h">當日銷售明細（換算消耗）</div>` + itemTable(rec.sales, rec.parts, rec.map);
-    else html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
+    else if (isBiz) html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
     $("detailBody").innerHTML = html;
+    const go = $("detailGoOrder"); if (go) go.onclick = () => { hide("detailBackdrop"); const sr = rec.supplyRef; openOrderForm(sr ? sr.od : (orderDayFor(k) || k)); };
     $("detailEditOrder").onclick = () => { hide("detailBackdrop"); const sr = rec.supplyRef; openOrderForm(sr ? sr.od : (orderDayFor(k) || k)); };
     show("detailBackdrop");
   }
