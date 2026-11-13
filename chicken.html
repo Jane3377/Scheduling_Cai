@@ -504,6 +504,23 @@
       .app-shell { grid-template-columns: 200px 1fr; }
       .app-main { padding: 22px 24px; }
     }
+    /* 盤點紀錄：每格填寫人（雞肉/餅皮分開）＋已更正標＋更正鈕 */
+    .rec-tbl .rw .rf-l { display: block; white-space: nowrap; }
+    .rec-tbl .rw .rf-t { color: var(--muted); font-size: 11.5px; font-weight: 600; margin-left: 3px; }
+    .rec-edited { display: inline-block; font-size: 10.5px; font-weight: 800; color: #9a4a1a; background: #fbe9db; border-radius: 6px; padding: 1px 6px; margin-left: 5px; }
+    .rec-edit { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; font-size: 14px; cursor: pointer; }
+    .rec-edit:hover { border-color: #d9a689; }
+    /* 更正盤點彈窗 */
+    .se-sec { font-size: 14px; font-weight: 800; color: var(--brand-dark); margin: 4px 2px 9px; }
+    #stockEditBackdrop .ord-cell { display: grid; gap: 6px; } #stockEditBackdrop .ord-cell > span { font-size: 14px; font-weight: 700; }
+    #stockEditBackdrop .ord-cell input { width: 100%; text-align: center; font-size: 26px; font-weight: 800; padding: 12px 6px; }
+    #stockEditBackdrop .stock-pz { margin: 0 0 6px; } #stockEditBackdrop .pz-head, #stockEditBackdrop .pz-row { display: flex; align-items: center; gap: 10px; }
+    #stockEditBackdrop .pz-head { margin-bottom: 6px; } #stockEditBackdrop .pz-head span:not(.pz-lbl) { flex: 1; text-align: center; font-size: 13.5px; font-weight: 800; color: #5a524c; }
+    #stockEditBackdrop .pz-lbl { flex: 0 0 52px; font-size: 15px; font-weight: 900; color: var(--brand-dark); }
+    #stockEditBackdrop .pz-row { margin-bottom: 9px; } #stockEditBackdrop .pz-row input { flex: 1; min-width: 0; text-align: center; font-size: 22px; font-weight: 800; padding: 11px 4px; }
+    .se-orig { font-size: 12.5px; color: var(--muted); background: #faf7f4; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 6px 0 4px; line-height: 1.6; }
+    .se-hist-h { font-size: 12.5px; font-weight: 800; color: var(--brand-dark); margin: 12px 2px 6px; }
+    .se-hist-row { font-size: 12.5px; color: #5a524c; padding: 7px 10px; background: #fcfaf8; border: 1px solid var(--line); border-radius: 9px; margin-bottom: 6px; line-height: 1.5; }
     /* 訂購雞肉彈窗：分區卡片＋底部固定操作＋已訂購鎖定 */
     #orderBackdrop .modal { display: flex; flex-direction: column; max-height: 92vh; }
     #orderBackdrop .modal-head { flex: 0 0 auto; }
@@ -929,6 +946,29 @@
       <div class="modal-head"><div><h3 id="doughDetTitle"></h3><p>餅皮：推估／製作／實際賣／剩餘</p></div><button class="icon-btn" data-close="doughDetBackdrop">✕</button></div>
       <div class="modal-body"><div id="doughDetBody"></div>
         <div class="modal-actions"><button class="primary-btn" data-close="doughDetBackdrop">關閉</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 管理者更正盤點彈窗（保留修改紀錄） -->
+  <div id="stockEditBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(440px,100%)">
+      <div class="modal-head"><div><h3 id="seTitle">更正盤點</h3><p>管理者更正；會保留修改紀錄</p></div><button class="icon-btn" data-close="stockEditBackdrop">✕</button></div>
+      <div class="modal-body">
+        <div class="se-sec">🍗 剩餘雞肉（隻）</div>
+        <div class="ck-num3">
+          <label class="ord-cell"><span>🍗 腿</span><input class="input" id="seLeg" type="number" inputmode="numeric" min="0" /></label>
+          <label class="ord-cell"><span>🥩 排</span><input class="input" id="seFil" type="number" inputmode="numeric" min="0" /></label>
+          <label class="ord-cell"><span>🪽 翅</span><input class="input" id="seWing" type="number" inputmode="numeric" min="0" /></label>
+        </div>
+        <div class="se-sec">🍕 剩餘餅皮（片）</div>
+        <div class="stock-pz">
+          <div class="pz-head"><span class="pz-lbl"></span><span>厚片</span><span>薄片</span></div>
+          <div class="pz-row"><span class="pz-lbl">9 吋</span><input class="input" id="seT9" type="number" inputmode="numeric" min="0" /><input class="input" id="seS9" type="number" inputmode="numeric" min="0" /></div>
+          <div class="pz-row"><span class="pz-lbl">12 吋</span><input class="input" id="seT12" type="number" inputmode="numeric" min="0" /><input class="input" id="seS12" type="number" inputmode="numeric" min="0" /></div>
+        </div>
+        <div class="se-hist" id="seHist"></div>
+        <div class="modal-actions"><button class="ghost-btn" data-close="stockEditBackdrop">取消</button><button class="primary-btn" id="seSave">儲存更正</button></div>
       </div>
     </div>
   </div>

@@ -1142,15 +1142,56 @@
   function downloadCSV(name, rows) { const csv = "﻿" + rows.map((r) => r.map(csvEscape).join(",")).join("\r\n"); triggerDownload(new Blob([csv], { type: "text/csv;charset=utf-8;" }), name); }
   /* ---------- 盤點填寫紀錄（員工每天打烊填的剩餘） ---------- */
   const fmtAt = (ms) => { if (!ms) return ""; const d = new Date(ms); return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  // 雞肉／餅皮各自提交中繼（相容舊合併紀錄）
+  function recChickenBy(r) { if (r && r.chicken && r.chicken.at) return r.chicken; if (r && r.at && (r.leg != null || r.fil != null || r.wing != null)) return { byName: r.byName, at: r.at }; return null; }
+  function recDoughBy(r) { if (r && r.dough && r.dough.at) return r.dough; if (r && r.at && (r.t9 != null || r.s9 != null || r.t12 != null || r.s12 != null)) return { byName: r.byName, at: r.at }; return null; }
   function openRecords() {
     const keys = Object.keys(stockDays).sort((a, b) => (a < b ? 1 : -1)), tbl = $("recordsTbl");
     if (!tbl) return;
     if (!keys.length) { tbl.innerHTML = `<tbody><tr><td class="rec-empty">目前還沒有盤點紀錄。</td></tr></tbody>`; return; }
-    const head = `<thead><tr class="grp"><th rowspan="2">日期</th><th rowspan="2">填寫人</th><th rowspan="2">時間</th><th colspan="3" class="sep">🍗 剩餘雞肉</th><th colspan="4" class="sep">🍕 剩餘餅皮</th></tr><tr class="sub"><th class="sep">腿</th><th>排</th><th>翅</th><th class="sep">9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead>`;
-    const body = keys.map((k) => { const r = stockDays[k] || {}, d = parseKey(k);
-      return `<tr><td class="rd">${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}）</td><td class="rw"><b>${esc(r.byName || "？")}</b></td><td class="rt">${fmtAt(r.at)}</td><td class="sep rl">${r.leg || 0}</td><td class="rf">${r.fil || 0}</td><td class="rwg">${r.wing || 0}</td><td class="sep rp">${r.t9 || 0}</td><td class="rp">${r.s9 || 0}</td><td class="rp">${r.t12 || 0}</td><td class="rp">${r.s12 || 0}</td></tr>`;
+    const head = `<thead><tr class="grp"><th rowspan="2">日期</th><th rowspan="2">填寫人・時間</th><th colspan="3" class="sep">🍗 剩餘雞肉</th><th colspan="4" class="sep">🍕 剩餘餅皮</th><th rowspan="2" class="sep">更正</th></tr><tr class="sub"><th class="sep">腿</th><th>排</th><th>翅</th><th class="sep">9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead>`;
+    const body = keys.map((k) => {
+      const r = stockDays[k] || {}, d = parseKey(k);
+      const cb = recChickenBy(r), dbm = recDoughBy(r);
+      const same = cb && dbm && cb.byName === dbm.byName && cb.at === dbm.at;
+      const who = same ? `<b>${esc(cb.byName || "？")}</b><span class="rf-t">${fmtAt(cb.at)}</span>`
+        : `${cb ? `<span class="rf-l">🍗 <b>${esc(cb.byName || "？")}</b> <span class="rf-t">${fmtAt(cb.at)}</span></span>` : ""}${dbm ? `<span class="rf-l">🍕 <b>${esc(dbm.byName || "？")}</b> <span class="rf-t">${fmtAt(dbm.at)}</span></span>` : ""}` || "—";
+      const edTag = (r.edits && r.edits.length) ? `<span class="rec-edited">已更正${r.edits.length}</span>` : "";
+      return `<tr><td class="rd">${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}）${edTag}</td><td class="rw">${who}</td><td class="sep rl">${r.leg || 0}</td><td class="rf">${r.fil || 0}</td><td class="rwg">${r.wing || 0}</td><td class="sep rp">${r.t9 || 0}</td><td class="rp">${r.s9 || 0}</td><td class="rp">${r.t12 || 0}</td><td class="rp">${r.s12 || 0}</td><td class="sep"><button type="button" class="rec-edit" data-edit="${k}">✏️</button></td></tr>`;
     }).join("");
     tbl.innerHTML = head + `<tbody>${body}</tbody>`;
+    tbl.querySelectorAll("button[data-edit]").forEach((b) => b.onclick = () => openStockEdit(b.dataset.edit));
+  }
+  /* ---------- 管理者更正盤點（PIN 閘門＝管理者權限；保留修改紀錄） ---------- */
+  let stockEditKey = null;
+  const SE_CHK = [["seLeg", "leg"], ["seFil", "fil"], ["seWing", "wing"]];
+  const SE_DGH = [["seT9", "t9"], ["seS9", "s9"], ["seT12", "t12"], ["seS12", "s12"]];
+  function openStockEdit(k) {
+    stockEditKey = k; const r = stockDays[k] || {};
+    $("seTitle").textContent = `更正盤點 · ${mdw(k)}`;
+    [...SE_CHK, ...SE_DGH].forEach(([id, key]) => { const el = $(id); if (el) el.value = (r[key] != null ? r[key] : 0); });
+    renderStockEditHist(r);
+    show("stockEditBackdrop");
+  }
+  function renderStockEditHist(r) {
+    const box = $("seHist"); if (!box) return;
+    const cb = recChickenBy(r), dbm = recDoughBy(r), ed = (r && r.edits) || [];
+    let html = `<div class="se-orig">原始填寫：${cb ? `🍗 ${esc(cb.byName || "？")} ${fmtAt(cb.at)}　` : ""}${dbm ? `🍕 ${esc(dbm.byName || "？")} ${fmtAt(dbm.at)}` : ""}${(!cb && !dbm) ? "—" : ""}</div>`;
+    if (ed.length) html += `<div class="se-hist-h">修改紀錄（${ed.length}）</div>` + ed.slice().reverse().map((e) => `<div class="se-hist-row">${fmtAt(e.at)}　<b>${esc(e.byName || "管理者")}</b>　🍗 ${e.after.leg}/${e.after.fil}/${e.after.wing}・🍕 ${e.after.t9}/${e.after.s9}/${e.after.t12}/${e.after.s12}</div>`).join("");
+    box.innerHTML = html;
+  }
+  function saveStockEdit() {
+    const k = stockEditKey; if (!k) { hide("stockEditBackdrop"); return; }
+    if (!db) { hide("stockEditBackdrop"); return; }
+    const num = (id) => { const el = $(id); return el ? Math.max(0, Math.floor(Number(el.value) || 0)) : 0; };
+    const after = {}; [...SE_CHK, ...SE_DGH].forEach(([id, key]) => after[key] = num(id));
+    const prev = stockDays[k] || {};
+    const before = {}; [...SE_CHK, ...SE_DGH].forEach(([, key]) => before[key] = Number(prev[key]) || 0);
+    const entry = { at: Date.now(), byName: "管理者", before, after: Object.assign({}, after) };
+    const edits = ((prev.edits) || []).concat(entry);
+    stockRefOf(ymOf(k)).set({ days: { [k]: Object.assign({}, after, { edits: edits }) }, updatedAt: Date.now() }, { merge: true })
+      .then(() => { hide("stockEditBackdrop"); openRecords(); })
+      .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
   }
   function doRecordsExport() {
     const keys = Object.keys(stockDays).sort();
@@ -1509,6 +1550,7 @@
     // 月曆下方工具：匯出 CSV／備份還原／部位對照
     document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => switchView(b.dataset.view));
     $("recordsExport").onclick = doRecordsExport;
+    $("seSave").onclick = saveStockEdit;
     $("ckExportCsvBtn").onclick = openCsv;
     $("csvDownload").onclick = doCsvExport;
     $("ckBackupBtn").onclick = openBackup;
