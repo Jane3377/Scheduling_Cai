@@ -567,3 +567,18 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .dgs-nums b{font-size:28px;color:#9a4a1a;font-weight:900}
 .dgs-note{font-size:12.5px;color:#8a6d1f;font-weight:700;margin-top:9px}
 .dough-staff-note{font-size:12.5px;color:var(--muted);line-height:1.6;background:#faf7f4;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+/* 打烊盤點：雞肉／餅皮獨立卡片＋提交鎖定 */
+.stock-card{margin-bottom:14px}
+.sc-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sc-head h3{margin:0;font-size:18px;flex:1;min-width:0}
+.sc-badge{font-size:12.5px;font-weight:800;border-radius:999px;padding:4px 12px;white-space:nowrap}
+.sc-badge.wait{color:#9a4a1a;background:#fbe9db}
+.sc-badge.done{color:#1f7a46;background:#e3f3ea}
+.sc-editor .primary-btn.full{margin-top:14px}
+.sc-locked .sc-done{font-size:21px;font-weight:900;color:var(--ink);margin-bottom:8px}
+.sc-locked .sc-done.pz{font-size:17px}
+.sc-locked .sc-done b{font-weight:900}
+.sc-locked .sc-done .ck-leg{color:#8f3521}.sc-locked .sc-done .ck-fil{color:#2f7d52}.sc-locked .sc-done .ck-wing{color:#b7791f}
+.sc-locked .sc-done.pz b{color:#9a4a1a;margin:0 2px}
+.sc-who{font-size:13.5px;color:#5a524c;font-weight:700}.sc-who b{color:var(--ink)}
+.sc-hint{font-size:12px;color:var(--muted);margin-top:7px;background:#f3f0ed;border-radius:9px;padding:8px 11px}

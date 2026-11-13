@@ -490,14 +490,49 @@ function renderStockToday(){
   stockSelDate=toDateKey(new Date());
   const el=byId("stockToday");if(el)el.innerHTML=`📅 盤點日期：<b>${formatDate(stockSelDate)}</b>（當日）`;
 }
-const stockPz=id=>{const v=byId(id);return v&&v.value!==""?Math.max(0,Math.floor(Number(v.value)||0)):null;};
-function prefillStock(){
-  const rec=stockDays[stockSelDate],ex=byId("stockExisting");if(!ex)return;
-  const set=(id,v)=>{const el=byId(id);if(el)el.value=(v!=null&&v!==undefined)?v:"";};
-  set("stockLeg",rec&&rec.leg);set("stockFil",rec&&rec.fil);set("stockWing",rec&&rec.wing);
-  set("stockT9",rec&&rec.t9);set("stockS9",rec&&rec.s9);set("stockT12",rec&&rec.t12);set("stockS12",rec&&rec.s12);
-  if(rec){ex.classList.remove("hidden");ex.innerHTML=`目前紀錄：<b>雞肉 腿${rec.leg||0} 排${rec.fil||0} 翅${rec.wing||0}</b>　餅皮 9厚${rec.t9||0}/9薄${rec.s9||0}・12厚${rec.t12||0}/12薄${rec.s12||0}（${rec.byName||"？"}・${fmtStockTime(rec.at)} 填）。再送出會覆蓋。`;}
-  else{ex.classList.add("hidden");ex.innerHTML="";}
+const stockNum=id=>{const el=byId(id);return el?Math.max(0,Math.floor(Number(el.value)||0)):0;};
+// 雞肉／餅皮各自是否已提交（回傳 {by,byName,at} 或 null）；相容舊版合併紀錄
+function chickenSub(rec){
+  if(!rec)return null;
+  if(rec.chicken&&rec.chicken.at)return rec.chicken;
+  if(rec.at&&(rec.leg!=null||rec.fil!=null||rec.wing!=null))return {by:rec.by,byName:rec.byName,at:rec.at};
+  return null;
+}
+function doughSub(rec){
+  if(!rec)return null;
+  if(rec.dough&&rec.dough.at)return rec.dough;
+  if(rec.at&&(rec.t9!=null||rec.s9!=null||rec.t12!=null||rec.s12!=null))return {by:rec.by,byName:rec.byName,at:rec.at};
+  return null;
+}
+// 雞肉與餅皮各一張卡：已提交→鎖定唯讀；未提交→可填＋送出鈕（互不影響）
+function renderStockCards(){
+  const rec=stockDays[stockSelDate]||null;
+  // 雞肉
+  const cSub=chickenSub(rec),cEd=byId("stockChickenEditor"),cLk=byId("stockChickenLocked"),cBd=byId("stockChickenBadge");
+  if(cEd&&cLk&&cBd){
+    if(cSub){
+      cEd.classList.add("hidden");cLk.classList.remove("hidden");
+      cLk.innerHTML=`<div class="sc-done"><b class="ck-leg">腿 ${rec.leg||0}</b>　<b class="ck-fil">排 ${rec.fil||0}</b>　<b class="ck-wing">翅 ${rec.wing||0}</b></div><div class="sc-who">填寫人：<b>${cSub.byName||"？"}</b>・${fmtStockTime(cSub.at)}</div><div class="sc-hint">已提交後不可重複填寫，如需更正請洽主管。</div>`;
+      cBd.textContent="已提交";cBd.className="sc-badge done";
+    }else{
+      cEd.classList.remove("hidden");cLk.classList.add("hidden");
+      ["stockLeg","stockFil","stockWing"].forEach(id=>{const el=byId(id);if(el)el.value="";});
+      cBd.textContent="尚未填寫";cBd.className="sc-badge wait";
+    }
+  }
+  // 餅皮
+  const dSub=doughSub(rec),dEd=byId("stockDoughEditor"),dLk=byId("stockDoughLocked"),dBd=byId("stockDoughBadge");
+  if(dEd&&dLk&&dBd){
+    if(dSub){
+      dEd.classList.add("hidden");dLk.classList.remove("hidden");
+      dLk.innerHTML=`<div class="sc-done pz">9吋 厚<b>${rec.t9||0}</b>／薄<b>${rec.s9||0}</b>　·　12吋 厚<b>${rec.t12||0}</b>／薄<b>${rec.s12||0}</b></div><div class="sc-who">填寫人：<b>${dSub.byName||"？"}</b>・${fmtStockTime(dSub.at)}</div><div class="sc-hint">已提交後不可重複填寫，如需更正請洽主管。</div>`;
+      dBd.textContent="已提交";dBd.className="sc-badge done";
+    }else{
+      dEd.classList.remove("hidden");dLk.classList.add("hidden");
+      ["stockT9","stockS9","stockT12","stockS12"].forEach(id=>{const el=byId(id);if(el)el.value="";});
+      dBd.textContent="尚未填寫";dBd.className="sc-badge wait";
+    }
+  }
 }
 function subscribeStock(){
   const c=stockCol();if(!c)return;
@@ -506,20 +541,24 @@ function subscribeStock(){
   c.doc("poultry_stock_"+m).onSnapshot(snap=>{
     const days=(snap.data()&&snap.data().days)||{};
     Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);
-    if(byId("stockPanel")&&byId("stockPanel").classList.contains("active"))prefillStock();
+    if(byId("stockPanel")&&byId("stockPanel").classList.contains("active"))renderStockCards();
   },err=>console.warn("stock snapshot",err));
 }
-function initStock(){renderStockToday();subscribeStock();prefillStock();}
-function saveStock(){
+function initStock(){renderStockToday();subscribeStock();renderStockCards();}
+// 雞肉／餅皮各自提交；只寫自己那部分＋填寫人時間，merge 不影響另一項
+function saveStockPart(part){
   const c=stockCol();if(!c){toast("尚未連線，請確認網路後再送出。","error");return;}
   const e=staffEmployeeId&&employee(staffEmployeeId);if(!e)return;
   stockSelDate=toDateKey(new Date());
-  const num=id=>Math.max(0,Math.floor(Number(byId(id).value)||0));
-  const rec={leg:num("stockLeg"),fil:num("stockFil"),wing:num("stockWing"),
-    t9:num("stockT9"),s9:num("stockS9"),t12:num("stockT12"),s12:num("stockS12"),
-    by:staffEmployeeId,byName:e.name,at:Date.now()};
-  c.doc("poultry_stock_"+stockSelDate.slice(0,7)).set({days:{[stockSelDate]:rec},updatedAt:Date.now()},{merge:true})
-    .then(()=>{const n=byId("stockSaved");if(n){n.textContent=`${formatDate(stockSelDate)} 已送出：雞肉 腿${rec.leg}/排${rec.fil}/翅${rec.wing}・餅皮 9厚${rec.t9}/9薄${rec.s9}/12厚${rec.t12}/12薄${rec.s12}`;setTimeout(()=>{n.textContent="";},3400);}})
+  const rec=stockDays[stockSelDate]||null;
+  if(part==="chicken"&&chickenSub(rec)){toast("雞肉剩餘今天已提交，不可重複填寫","error");return;}
+  if(part==="dough"&&doughSub(rec)){toast("餅皮剩餘今天已提交，不可重複填寫","error");return;}
+  const meta={by:staffEmployeeId,byName:e.name,at:Date.now()};
+  const patch=(part==="chicken")
+    ? {leg:stockNum("stockLeg"),fil:stockNum("stockFil"),wing:stockNum("stockWing"),chicken:meta,by:staffEmployeeId,byName:e.name,at:meta.at}
+    : {t9:stockNum("stockT9"),s9:stockNum("stockS9"),t12:stockNum("stockT12"),s12:stockNum("stockS12"),dough:meta,by:staffEmployeeId,byName:e.name,at:meta.at};
+  c.doc("poultry_stock_"+stockSelDate.slice(0,7)).set({days:{[stockSelDate]:patch},updatedAt:Date.now()},{merge:true})
+    .then(()=>{const n=byId("stockSaved");if(n){n.textContent=(part==="chicken"?"🍗 雞肉剩餘":"🍕 餅皮剩餘")+" 已送出";setTimeout(()=>{n.textContent="";},3000);}renderStockCards();})
     .catch(err=>toast("送出失敗："+(err&&err.message||err),"error"));
 }
 /* ---------- 餅皮推估（角色＝餅皮／管理者 才看得到） ---------- */
@@ -568,14 +607,15 @@ function subscribeDough(){
   }
 }
 function initDough(){subscribeDough();renderDoughStaff();}
+// 員工頁餅皮推估：只顯示「當日」（不顯示未來日期）
 function renderDoughStaff(){
   const box=byId("doughStaffList");if(!box)return;
-  const up=nextOpenDaysS(4);
-  box.innerHTML=up.map(k=>{const p=predictDoughS(k),anyFloor=p.src&&DOUGH_TYPES.some(t=>p.src[t]==="floor");
-    return `<div class="dgs-card"><div class="dgs-h">${formatDate(k)}<span class="dgs-tag${p.isWeekend?" wk":""}">${p.label}</span></div>
-      <div class="dgs-nums">${DOUGH_TYPES.map(t=>`<span><i>${DOUGH_LABEL[t]}</i><b>${p.rec?p.rec[t]:0}</b></span>`).join("")}</div>
-      ${!p.n?`<div class="dgs-note">同星期資料累積中${p.floor?"・暫用最低營業額反推":""}</div>`:(anyFloor?`<div class="dgs-note">已套「最低營業額」底線</div>`:"")}</div>`;
-  }).join("")||`<div class="empty-state">目前沒有可推估的營業日。</div>`;
+  const today=toDateKey(new Date());
+  if(isClosedDay(today)){box.innerHTML=`<div class="empty-state">今天公休，無當日餅皮推估。</div>`;return;}
+  const p=predictDoughS(today),anyFloor=p.src&&DOUGH_TYPES.some(t=>p.src[t]==="floor");
+  box.innerHTML=`<div class="dgs-card"><div class="dgs-h">${formatDate(today)}<span class="dgs-tag${p.isWeekend?" wk":""}">${p.label}</span></div>
+    <div class="dgs-nums">${DOUGH_TYPES.map(t=>`<span><i>${DOUGH_LABEL[t]}</i><b>${p.rec?p.rec[t]:0}</b></span>`).join("")}</div>
+    ${!p.n?`<div class="dgs-note">同星期資料累積中${p.floor?"・暫用最低營業額反推":""}</div>`:(anyFloor?`<div class="dgs-note">已套「最低營業額」底線</div>`:"")}</div>`;
 }
 document.addEventListener("DOMContentLoaded",()=>{
   applyStaffBranding();
@@ -585,7 +625,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("staffLogoutBtn").onclick=logout;
   byId("addAllCalBtn").onclick=addAllToCalendar;
   document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active");if(b.dataset.staffTab==="stock")initStock();if(b.dataset.staffTab==="dough")initDough();});
-  byId("stockSaveBtn")?.addEventListener("click",saveStock);
+  byId("stockChickenBtn")?.addEventListener("click",()=>saveStockPart("chicken"));
+  byId("stockDoughBtn")?.addEventListener("click",()=>saveStockPart("dough"));
   // 我的班表：列表／月曆切換、月份切換、當天明細小卡
   document.querySelectorAll("#myViewTabs .seg-btn").forEach(b=>b.onclick=()=>setMyView(b.dataset.myview));
   byId("myPrevMonthBtn")?.addEventListener("click",()=>{myCalendarDate.setMonth(myCalendarDate.getMonth()-1);renderMyCalendar()});

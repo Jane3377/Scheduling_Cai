@@ -101,31 +101,41 @@
         </div>
 
         <div class="staff-tab-panel" id="stockPanel">
-          <div class="panel">
-            <div class="panel-head"><div><h3>今日打烊剩餘</h3><p>打烊前數一次剩下的，填進去送出就好。</p></div></div>
-            <div class="stock-today" id="stockToday"></div>
-            <div class="stock-sec">🍗 剩餘雞肉（隻）</div>
-            <div class="stock-grid">
-              <label class="field"><span>🍗 雞腿</span><input id="stockLeg" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
-              <label class="field"><span>🥩 雞排</span><input id="stockFil" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
-              <label class="field"><span>🪽 雞翅</span><input id="stockWing" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
+          <div class="stock-today" id="stockToday"></div>
+
+          <div class="panel stock-card">
+            <div class="sc-head"><h3>🍗 剩餘雞肉（隻）</h3><span class="sc-badge wait" id="stockChickenBadge">尚未填寫</span></div>
+            <div class="sc-editor" id="stockChickenEditor">
+              <div class="stock-grid">
+                <label class="field"><span>🍗 雞腿</span><input id="stockLeg" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
+                <label class="field"><span>🥩 雞排</span><input id="stockFil" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
+                <label class="field"><span>🪽 雞翅</span><input id="stockWing" class="input big-input" type="number" inputmode="numeric" min="0" placeholder="0" /></label>
+              </div>
+              <button id="stockChickenBtn" class="primary-btn full">送出剩餘雞肉</button>
             </div>
-            <div class="stock-sec">🍕 剩餘餅皮（片）</div>
-            <div class="stock-pz">
-              <div class="pz-head"><span class="pz-lbl"></span><span>厚片</span><span>薄片</span></div>
-              <div class="pz-row"><span class="pz-lbl">9 吋</span><input id="stockT9" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /><input id="stockS9" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /></div>
-              <div class="pz-row"><span class="pz-lbl">12 吋</span><input id="stockT12" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /><input id="stockS12" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /></div>
-            </div>
-            <div class="stock-note-auto">ℹ️ 只填「剩餘」就好 —— 製作量＝剩餘＋當天銷售，系統會自動算。</div>
-            <div id="stockExisting" class="stock-existing hidden"></div>
-            <button id="stockSaveBtn" class="primary-btn full">送出盤點</button>
-            <div id="stockSaved" class="success-note"></div>
+            <div class="sc-locked hidden" id="stockChickenLocked"></div>
           </div>
+
+          <div class="panel stock-card">
+            <div class="sc-head"><h3>🍕 剩餘餅皮（片）</h3><span class="sc-badge wait" id="stockDoughBadge">尚未填寫</span></div>
+            <div class="sc-editor" id="stockDoughEditor">
+              <div class="stock-pz">
+                <div class="pz-head"><span class="pz-lbl"></span><span>厚片</span><span>薄片</span></div>
+                <div class="pz-row"><span class="pz-lbl">9 吋</span><input id="stockT9" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /><input id="stockS9" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /></div>
+                <div class="pz-row"><span class="pz-lbl">12 吋</span><input id="stockT12" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /><input id="stockS12" class="input" type="number" inputmode="numeric" min="0" placeholder="0" /></div>
+              </div>
+              <button id="stockDoughBtn" class="primary-btn full">送出剩餘餅皮</button>
+            </div>
+            <div class="sc-locked hidden" id="stockDoughLocked"></div>
+          </div>
+
+          <div class="stock-note-auto">ℹ️ 雞肉與餅皮<b>獨立提交、互不影響</b>；只填「剩餘」就好 —— 製作量＝剩餘＋當天銷售，系統自動算。</div>
+          <div id="stockSaved" class="success-note"></div>
         </div>
 
         <div class="staff-tab-panel" id="doughPanel">
           <div class="panel">
-            <div class="panel-head"><div><h3>🍕 餅皮推估</h3><p>接下來幾天建議各做多少片餅皮（9吋/12吋 × 厚片/薄片）。</p></div></div>
+            <div class="panel-head"><div><h3>🍕 餅皮推估</h3><p>今日建議各做多少片餅皮（9吋/12吋 × 厚片/薄片）。</p></div></div>
             <div id="doughStaffList" class="dough-staff-list"></div>
             <div class="dough-staff-note">依近期同星期實際製作量推估；六日／假日會以「最低營業額」反推底線。數字為建議「製作量」，實際仍可視現場調整。</div>
           </div>
