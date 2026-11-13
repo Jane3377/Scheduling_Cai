@@ -91,6 +91,50 @@
     .ps-k { font-size: 15px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
     .ps-sel { margin-left: auto; border: 1.5px solid #d9a689; border-radius: 10px; background: #fffdfb; padding: 8px 12px; font: inherit; font-size: 16px; font-weight: 800; color: var(--ink); min-width: 100px; text-align: center; }
     .ps-d { font-size: 12px; color: var(--muted); margin: 6px 0 0 2px; line-height: 1.5; }
+    /* 叫貨單（兩段式：批發商／到貨日／使用日＋逐日表＋狀態） */
+    .ord-status { margin-left: auto; margin-right: 8px; font-size: 11.5px; font-weight: 800; border-radius: 999px; padding: 3px 11px; white-space: nowrap; }
+    .ord-status.st-wait { color: #9a4a1a; background: #fbe9db; } .ord-status.st-sent { color: #2a5aa0; background: #e6eefa; } .ord-status.st-arr { color: #1f7a46; background: #e3f3ea; }
+    .ord-sel { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+    .ord-sel .ord-k { font-size: 14px; font-weight: 800; color: #5a524c; width: 52px; flex: 0 0 auto; }
+    .ord-selwrap { flex: 1; min-width: 0; } .ord-selwrap select { width: 100%; font-size: 15px; font-weight: 700; }
+    .ord-usebtn { flex: 1; min-width: 0; text-align: left; border: 1.5px solid var(--line); border-radius: 11px; background: #fff; padding: 11px 13px; font-size: 14.5px; font-weight: 700; color: var(--ink); cursor: pointer; }
+    .ord-usebtn .cnt { color: var(--muted); font-size: 12px; font-weight: 700; }
+    .ord-flow2 { font-size: 12.5px; color: #5a524c; background: #faf6f2; border: 1px solid #efe1d6; border-radius: 10px; padding: 9px 11px; margin: 4px 0 12px; line-height: 1.6; } .ord-flow2 b { color: var(--brand-dark); }
+    .od-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; color: var(--muted); padding: 2px 2px 7px; border-bottom: 2px solid #efe8e2; }
+    .od-head .od-hd { flex: 1; } .od-head > span:not(.od-hd) { width: 56px; text-align: center; flex: 0 0 auto; }
+    .od-row { border-bottom: 1px dashed #efe8e2; padding: 7px 0; }
+    .od-main { display: flex; align-items: center; gap: 8px; }
+    .od-rhd { flex: 1; min-width: 0; text-align: left; background: none; border: 0; font-size: 14px; font-weight: 800; color: var(--ink); cursor: pointer; padding: 4px 0; }
+    .od-rhd .od-ar { color: var(--brand); font-weight: 900; margin-right: 5px; }
+    .od-first { font-size: 10.5px; font-weight: 800; color: #9a4a1a; background: #fbe9db; border-radius: 6px; padding: 1px 6px; margin-left: 6px; }
+    .od-in { width: 56px; flex: 0 0 auto; text-align: center; font-size: 17px; font-weight: 800; padding: 8px 2px; }
+    .oref { background: #faf7f4; border: 1px solid #efe6de; border-radius: 10px; padding: 4px 11px; margin: 7px 0 2px; }
+    .oref-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 7px 0; } .oref-row + .oref-row { border-top: 1px dashed #e8ddd4; }
+    .oref-tag { font-weight: 800; color: var(--ink); white-space: nowrap; } .oref-pill { font-size: 10px; background: #e7f1ea; color: #2f7d52; border-radius: 6px; padding: 1px 6px; margin-left: 3px; font-weight: 800; }
+    .oref-n { margin-left: auto; font-weight: 800; white-space: nowrap; } .oref-n i { font-style: normal; color: var(--muted); font-size: 11px; margin-right: 1px; }
+    .oref-fill { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 5px 12px; font-weight: 800; color: var(--brand-dark); font-size: 12px; cursor: pointer; white-space: nowrap; }
+    .oref-empty { font-size: 12.5px; color: var(--muted); padding: 7px 2px; }
+    .ord-sum { margin-top: 10px; }
+    .os-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+    .os-row .os-k { flex: 1; min-width: 0; text-align: left; font-size: 13.5px; font-weight: 700; color: #5a524c; }
+    .os-row .os-c { width: 56px; flex: 0 0 auto; text-align: center; font-weight: 800; }
+    .os-row.os-sum { border-top: 2px solid #e7cdbf; padding-top: 10px; } .os-row.os-sum .os-k { font-weight: 900; color: var(--ink); }
+    .os-row.os-stk .os-k, .os-row.os-stk .os-c { color: #8a7f77; }
+    .os-ck { font-weight: 700; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; } .os-ck input { width: 17px; height: 17px; }
+    .os-row.os-net .os-k { color: var(--brand-dark); font-weight: 900; } .os-row.os-net .os-c { font-size: 17px; font-weight: 900; }
+    .ord-stocknote { font-size: 11.5px; color: var(--muted); text-align: right; margin-top: 3px; }
+    .ord-cell.kg > span { font-size: 13px; }
+    .ord-delbtn { display: block; width: 100%; margin-top: 11px; background: none; border: 0; color: var(--danger); font-weight: 800; font-size: 13.5px; padding: 8px; cursor: pointer; }
+    .kgsep { text-align: center; font-size: 12px; color: var(--muted); font-weight: 700; margin: 13px 0 9px; }
+    /* 使用日多選面板 */
+    .ud-list { display: grid; gap: 8px; margin-bottom: 4px; }
+    .ud-opt { display: flex; align-items: center; gap: 11px; padding: 11px 13px; border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; }
+    .ud-opt.on { border-color: #87b79a; background: #f3faf5; } .ud-opt.off { opacity: .5; }
+    .ud-opt input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .ud-box { width: 22px; height: 22px; border-radius: 7px; border: 1.8px solid #cdbfb3; flex: 0 0 auto; position: relative; }
+    .ud-opt.on .ud-box { background: #2f7d52; border-color: #2f7d52; } .ud-opt.on .ud-box::after { content: "✓"; color: #fff; font-weight: 900; font-size: 14px; position: absolute; left: 3px; top: -1px; }
+    .ud-d { font-size: 15px; font-weight: 800; color: var(--ink); }
+    .ud-cnt { font-size: 13.5px; font-weight: 800; color: #5a524c; } .ud-cnt b { color: var(--brand-dark); }
     /* 批發商設定（可多家） */
     .sup-card { border: 1.5px solid var(--line); border-radius: 14px; padding: 13px 13px 12px; margin-bottom: 13px; background: #fff; }
     .sup-card.def { border-color: #d9a689; background: #fffdfb; box-shadow: 0 0 0 3px rgba(217,166,137,.1); }
@@ -409,69 +453,42 @@
 
   <!-- 記錄叫貨彈窗 -->
   <div id="orderBackdrop" class="modal-backdrop hidden">
-    <div class="modal" style="width:min(460px,100%)">
-      <div class="modal-head"><div><h3>記錄實際叫貨</h3><p>記錄這批雞肉「要使用的日期」與叫貨量</p></div><button class="icon-btn" data-close="orderBackdrop">✕</button></div>
+    <div class="modal" style="width:min(470px,100%)">
+      <div class="modal-head"><div><h3>記錄叫貨</h3><p id="ordHeadSub">下單</p></div><span class="ord-status" id="ordStatus"></span><button class="icon-btn" data-close="orderBackdrop">✕</button></div>
       <div class="modal-body ck-form">
-        <label class="field"><span>使用日期</span>
-          <input class="input" type="date" id="orderDate" />
-          <span class="hint" id="orderHint"></span>
-        </label>
+        <div class="ord-sel"><span class="ord-k">批發商</span><div class="ord-selwrap"><select class="input" id="ordSupplier"></select></div></div>
+        <div class="ord-sel"><span class="ord-k">到貨日</span><div class="ord-selwrap"><select class="input" id="ordDelivery"></select></div></div>
+        <div class="ord-sel"><span class="ord-k">使用日</span><button type="button" class="ord-usebtn" id="ordUseBtn">請選使用日 ▾</button></div>
+        <div class="ord-flow2" id="ordFlow"></div>
 
         <div class="stock-line hidden" id="stockLine"></div>
 
-        <div class="batch-block hidden" id="batchBlock">
-          <div class="bb-head" id="bbHead">📦 本批合計</div>
-          <div id="bbRows"></div>
-          <div class="bb-row bb-sum"><span class="bb-d">合計</span><span class="bb-n" id="bbSum">—</span></div>
-          <div class="bb-row bb-deduct hidden" id="bbDeductRow"><span class="bb-d">扣庫存後要叫</span><span class="bb-n" id="bbDeduct">—</span></div>
-          <div class="bb-stock" id="bbStockLine"></div>
-          <div class="bb-note">這批跟批發商叫的總量，系統已幫你加總，不用自己算；各使用日仍各自記一筆。</div>
-        </div>
+        <div class="od-head"><span class="od-hd">使用日（可改）</span><span>🍗腿</span><span>🥩排</span><span>🪽翅</span></div>
+        <div id="ordRows"></div>
 
-        <span class="ord-lbl"><b class="ord-step">①</b> 叫貨量（隻）<small class="ord-mini">點下方「帶入」或自行輸入</small></span>
+        <div class="ord-sum" id="ordSumTbl"></div>
+        <div class="ord-stocknote" id="ordStockNote"></div>
+
+        <div class="kgsep">↓ 最後整批換算公斤（依系統克數・可微調）</div>
         <div class="ck-num3">
-          <label class="ord-cell"><span>🍗 雞腿</span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderLeg" /></label>
-          <label class="ord-cell"><span>🥩 雞排</span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderFil" /></label>
-          <label class="ord-cell"><span>🪽 雞翅</span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderWing" /></label>
+          <label class="ord-cell kg"><span>🍗 <b id="lblKgleg">D5</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgleg" /></label>
+          <label class="ord-cell kg"><span>🥩 <b id="lblKgfil">TS4</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgfil" /></label>
+          <label class="ord-cell kg"><span>🪽 <b id="lblKgwing">W6</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgwing" /></label>
         </div>
 
-        <!-- 參考區：系統建議（預設推估方式）＋上次同型日，各一顆「帶入」；推估參數在「⚙ 推估設定」 -->
-        <div class="sug hidden" id="sugBlock">
-          <div class="sug-title">🔮 推估建議（點「帶入」填到 ①）</div>
-          <div class="sug-empty" id="sugEmpty"></div>
-          <div class="sug-row2" id="sugRow">
-            <span class="sug-tag2">系統建議<span class="sug-pill" id="sugMethod">平均</span></span>
-            <span class="sug-nums2" id="sugNums">—</span>
-            <button type="button" class="sug-fill2" id="sugApply">帶入</button>
-          </div>
-          <div class="sug-row2 hidden" id="deductRow">
-            <span class="sug-tag2 deduct">扣庫存後</span>
-            <span class="sug-nums2" id="deductNums">—</span>
-            <button type="button" class="sug-fill2" id="deductApply">帶入</button>
-          </div>
-          <div class="sug-row2" id="lastRow">
-            <span class="sug-tag2" id="lastTag">🕑 上次同型日</span>
-            <span class="sug-nums2" id="lastNums">—</span>
-            <button type="button" class="sug-fill2" id="lastApply">帶入</button>
-          </div>
-          <button type="button" class="sug-setlink" id="openPredSet">⚙ 推估設定（<span id="predSummary">多備 0% · 回算 35 天 · 平均</span>）<span class="ar">›</span></button>
-        </div>
+        <div class="modal-actions"><button class="ghost-btn" id="ordDraftBtn">存草稿</button><button class="primary-btn" id="ordConfirmBtn">確認已叫貨</button></div>
+        <button type="button" class="ord-delbtn hidden" id="ordDeleteBtn">🗑 刪除這張叫貨單</button>
+      </div>
+    </div>
+  </div>
 
-        <div class="ord-flow">↓ 自動換算（四捨五入），下面可手動微調</div>
-
-        <span class="ord-lbl"><b class="ord-step">②</b> 實際下單（公斤）<small class="ord-edit">✏️ 可改</small></span>
-        <div class="ck-num3">
-          <label class="ord-cell kg"><span>🍗 雞腿 <b id="lblKgleg">D5</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgleg" /></label>
-          <label class="ord-cell kg"><span>🥩 雞排 <b id="lblKgfil">TS4</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgfil" /></label>
-          <label class="ord-cell kg"><span>🪽 雞翅 <b id="lblKgwing">W6</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgwing" /></label>
-        </div>
-
-        <div class="will-save hidden" id="willSave">
-          <div class="ws-line"><b>將記錄：</b><span id="wsText"></span></div>
-          <div class="ws-note">以「實際公斤」無條件捨去回算隻數 → 紀錄＝真正買到的量</div>
-        </div>
-
-        <div class="modal-actions"><button class="ghost-btn" data-close="orderBackdrop">取消</button><button class="primary-btn" id="orderSave">儲存叫貨紀錄</button></div>
+  <!-- 使用日多選面板 -->
+  <div id="useDayBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(420px,100%)">
+      <div class="modal-head"><div><h3>選擇使用日</h3><p>至多 4 天・自動排除公休</p></div><button class="icon-btn" data-close="useDayBackdrop">✕</button></div>
+      <div class="modal-body">
+        <div id="useDayList" class="ud-list"></div>
+        <div class="modal-actions"><span class="ud-cnt">已選 <b id="useDayCnt">0</b> 天</span><button class="primary-btn" id="useDaySave">確定</button></div>
       </div>
     </div>
   </div>

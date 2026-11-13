@@ -64,6 +64,7 @@
   }
   let predUnsubs = [], configUnsub = null, predMonthData = {}, predDays = {}, bufferFactor = 1.0;
   let stockUnsubs = [], stockDays = {};  // 員工端盤點庫存（poultry_stock_YYYY-MM）
+  let orderUnsubs = [], orderMonthData = {}, orderDays = {}, orderForm = null;  // 叫貨單（poultry_order_YYYY-MM，以下單日為 key）
   let partsHistory = [];  // 部位對照表版本紀錄 [{date:'YYYY-MM-DD', map:{...}}]（日期升冪，最後一筆＝目前）
 
   const $ = (id) => document.getElementById(id);
@@ -389,38 +390,61 @@
       .catch((err) => { console.error(err); $("uploadResult").innerHTML += `<div class="ck-err">⚠ 儲存失敗：${err.message || err}</div>`; });
   }
 
-  /* ---------- 記錄叫貨 ---------- */
-  // rec：該天的完整紀錄（含 order 隻數、orderKg 公斤）；可為 null（全新）
-  function openOrder(dateKey, rec) {
-    const k = dateKey || nextCoveredUse();
-    $("orderDate").value = k;
-    const o = rec && rec.order, kg = rec && rec.orderKg;
-    // ① 叫貨量（隻）：編輯沿用舊值；全新則留空（由使用者點「帶入」或自行輸入）
-    $("orderLeg").value = o ? o.leg : "";
-    $("orderFil").value = o ? o.fil : "";
-    $("orderWing").value = o ? o.wing : "";
-    // ② 實際下單（公斤）：有存就用；否則由①估；都沒有就留空
-    if (kg) { $("orderKgleg").value = kg.leg; $("orderKgfil").value = kg.fil; $("orderKgwing").value = kg.wing; }
-    else if (o) { $("orderKgleg").value = kgSuggest(o.leg, "leg"); $("orderKgfil").value = kgSuggest(o.fil, "fil"); $("orderKgwing").value = kgSuggest(o.wing, "wing"); }
-    else { $("orderKgleg").value = ""; $("orderKgfil").value = ""; $("orderKgwing").value = ""; }
-    renderKgLabels();
-    updateWillSave();
-    updateOrderHint();
-    renderStock();
-    renderSuggestion(k);
-    show("orderBackdrop");
+  /* ---------- 記錄叫貨（叫貨單：批發商＋到貨日＋使用日＋狀態流程） ---------- */
+  const numsHTML = (o) => `<i>腿</i><b class="ck-leg">${o.leg}</b> <i>排</i><b class="ck-fil">${o.fil}</b> <i>翅</i><b class="ck-wing">${o.wing}</b>`;
+  const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return toKey(d); };
+  const STATUS_LABEL = { draft: "待叫貨", ordered: "已叫貨", arrived: "已到貨" };
+  const STATUS_CLS = { draft: "st-wait", ordered: "st-sent", arrived: "st-arr" };
+  function orderStatus(o) { if (!o) return null; if (o.status === "ordered") return (o.deliveryDay && o.deliveryDay <= todayKey()) ? "arrived" : "ordered"; return "draft"; }
+  const orderRefOf = (ym) => db.collection(COLL).doc("poultry_order_" + ym);
+  const orderForDay = (od) => orderDays[od] || null;
+  function watchOrderMonths() {
+    orderUnsubs.forEach((u) => u && u()); orderUnsubs = []; orderMonthData = {};
+    if (!db) return;
+    const tm = ymOf(todayKey());
+    [addMonthYM(tm, 1), tm, addMonthYM(tm, -1), addMonthYM(tm, -2)].forEach((ym) => {
+      const u = orderRefOf(ym).onSnapshot((snap) => {
+        const d = snap.data(); orderMonthData[ym] = (d && d.orders) || {};
+        orderDays = {}; Object.values(orderMonthData).forEach((m) => Object.assign(orderDays, m));
+        render(); refreshHint(); if (orderOpen() && orderForm) renderOrderForm();
+      }, (err) => console.error("order snapshot", err));
+      orderUnsubs.push(u);
+    });
+  }
+  // 指定廠商的休息日（暫時套入推算引擎）
+  function supplierOffOf(supId) { const s = suppliers.find((x) => x.id === supId) || defSupplier(); return { weekdays: s.weekdays, dates: s.dates }; }
+  function withSupplierOff(off, fn) { const saved = supplierOff; supplierOff = off; try { return fn(); } finally { supplierOff = saved; } }
+  // 到貨日選項：下單 +1/+2，需店家營業且該廠商有送貨
+  function deliveryOptions(orderDay, supId) {
+    return withSupplierOff(supplierOffOf(supId), () => {
+      const out = [];
+      [[1, "隔天"], [2, "後天"]].forEach(([n, lab]) => { const k = addDays(orderDay, n); if (!isClosed(k) && supplierOpen(k)) out.push({ key: k, label: `${mdw(k)}・${lab}` }); });
+      return out;
+    });
+  }
+  // 可選使用日：到貨隔天起（醃 1 天）、店家營業、下單日起 2 週內
+  function candidateUseDays(orderDay, deliveryDay) {
+    const out = [], end = addDays(orderDay, 14); let k = addDays(deliveryDay, 1);
+    while (k <= end) { if (!isClosed(k)) out.push(k); k = addDays(k, 1); }
+    return out;
+  }
+  // 預設下單日：今天是下單日就用今天，否則抓最近的下單日
+  function defaultOrderDay() { const t = todayKey(); if (coveredUseDays(t).length) return t; const u = nextCoveredUse(); return orderDayFor(u) || t; }
+  function openOrderForm(orderDay, existing) {
+    const od = orderDay || defaultOrderDay();
+    if (!existing) existing = orderForDay(od);
+    if (existing) {
+      orderForm = { orderDay: od, supplier: existing.supplier || defaultSupplier, deliveryDay: existing.deliveryDay || addDays(od, 1), useDays: (existing.useDays || []).slice(), perDay: JSON.parse(JSON.stringify(existing.perDay || {})), deductStock: existing.deductStock != null && existing.deductStock !== false, kg: existing.orderKg ? Object.assign({}, existing.orderKg) : null, expanded: (existing.useDays || [])[0] || null, exists: true };
+    } else {
+      const sup = defaultSupplier, dOpts = deliveryOptions(od, sup);
+      const del = dOpts[0] ? dOpts[0].key : addDays(od, 1);
+      const uds = candidateUseDays(od, del).slice(0, 2);
+      const perDay = {}; uds.forEach((u) => { const p = predict(u); perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; });
+      orderForm = { orderDay: od, supplier: sup, deliveryDay: del, useDays: uds, perDay: perDay, deductStock: true, kg: null, expanded: uds[0] || null, exists: false };
+    }
+    renderOrderForm(); show("orderBackdrop");
   }
   function renderKgLabels() { PARTS3.forEach((p) => { const el = $(`lblKg${p}`); if (el) el.textContent = purCode(p); }); }
-  // ① 改變 → 自動帶入建議公斤（四捨五入）
-  function recalcKg() {
-    PARTS3.forEach((p) => {
-      const src = { leg: "orderLeg", fil: "orderFil", wing: "orderWing" }[p];
-      const v = $(src).value;
-      $(`orderKg${p}`).value = (v !== "" && Number(v) > 0) ? kgSuggest(v, p) : "";
-    });
-    updateWillSave();
-  }
-  // 目前庫存（員工端最近盤點）顯示在記錄叫貨
   function renderStock() {
     const el = $("stockLine"); if (!el) return;
     const s = currentStock();
@@ -428,44 +452,128 @@
     el.classList.remove("hidden");
     el.innerHTML = `📦 目前庫存（${mdw(s.date)}${s.byName ? " " + s.byName : ""} 盤點）：<b class="ck-leg">腿${s.leg}</b> <b class="ck-fil">排${s.fil}</b> <b class="ck-wing">翅${s.wing}</b>`;
   }
-  // ② 公斤 → 顯示「將記錄 ≈ 幾隻」
-  function updateWillSave() {
-    const read = (p) => Number($(`orderKg${p}`).value) || 0;
-    const data = { leg: read("leg"), fil: read("fil"), wing: read("wing") };
-    const box = $("willSave");
-    if (!(data.leg || data.fil || data.wing)) { box.classList.add("hidden"); return; }
-    $("wsText").innerHTML = PARTS3.map((p) => `${PART_EMO[p]} ${data[p]}公斤 ≈ <b class="ck-${p}">${kgToPieces(data[p], p)}</b> 隻`).join("　");
-    box.classList.remove("hidden");
+  function recomputeUseDays() {
+    const f = orderForm, cand = candidateUseDays(f.orderDay, f.deliveryDay);
+    f.useDays = f.useDays.filter((u) => cand.includes(u));
+    if (!f.useDays.length) f.useDays = cand.slice(0, 2);
+    f.useDays.forEach((u) => { if (!f.perDay[u]) { const p = predict(u); f.perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; } });
+    if (!f.useDays.includes(f.expanded)) f.expanded = f.useDays[0] || null;
   }
-  function updateOrderHint() {
-    const u = $("orderDate").value; if (!u) { $("orderHint").textContent = ""; return; }
-    const od = orderDayFor(u), del = deliveryDayFor(u);
-    let t = "";
-    if (od && del) t = `此使用日 ${mdw(u)}：${mdw(od)} 下單 → ${mdw(del)} 到貨。`;
-    else t = `使用日 ${mdw(u)}。`;
-    // 同一下單日若還要備別的使用日，提醒一下
-    if (od) {
-      const also = coveredUseDays(od).filter((x) => x !== u);
-      if (also.length) t += ` ⚠ 這天（${mdw(od)}）下單也要備：${also.map(mdw).join("、")}，記得另外再記一筆。`;
-    }
-    $("orderHint").textContent = t;
+  function orderTotals() {
+    const f = orderForm, sum = { leg: 0, fil: 0, wing: 0 };
+    f.useDays.forEach((u) => { const r = f.perDay[u] || {}; sum.leg += Number(r.leg) || 0; sum.fil += Number(r.fil) || 0; sum.wing += Number(r.wing) || 0; });
+    const s = f.deductStock ? currentStock() : null;
+    const stock = s ? { leg: s.leg, fil: s.fil, wing: s.wing } : null;
+    const net = stock ? { leg: Math.max(0, sum.leg - stock.leg), fil: Math.max(0, sum.fil - stock.fil), wing: Math.max(0, sum.wing - stock.wing) } : { leg: sum.leg, fil: sum.fil, wing: sum.wing };
+    return { sum, stock, net, stockRec: s };
   }
-  function saveOrder() {
-    const k = $("orderDate").value;
-    if (!k) { alert("請選擇使用日期"); return; }
-    const kg = { leg: Number($("orderKgleg").value) || 0, fil: Number($("orderKgfil").value) || 0, wing: Number($("orderKgwing").value) || 0 };
-    const order = { leg: kgToPieces(kg.leg, "leg"), fil: kgToPieces(kg.fil, "fil"), wing: kgToPieces(kg.wing, "wing") };
+  function renderOrderForm() {
+    const f = orderForm; if (!f) return;
+    const st = f.exists ? (orderStatus(orderForDay(f.orderDay)) || "draft") : "draft";
+    const chip = $("ordStatus"); if (chip) { chip.textContent = STATUS_LABEL[st]; chip.className = "ord-status " + STATUS_CLS[st]; }
+    $("ordHeadSub").textContent = `${mdw(f.orderDay)} 下單`;
+    $("ordSupplier").innerHTML = suppliers.map((s) => `<option value="${s.id}"${s.id === f.supplier ? " selected" : ""}>${esc(s.name)}</option>`).join("");
+    const dOpts = deliveryOptions(f.orderDay, f.supplier);
+    if (!dOpts.some((o) => o.key === f.deliveryDay)) { f.deliveryDay = dOpts[0] ? dOpts[0].key : addDays(f.orderDay, 1); recomputeUseDays(); }
+    $("ordDelivery").innerHTML = (dOpts.length ? dOpts : [{ key: f.deliveryDay, label: mdw(f.deliveryDay) }]).map((o) => `<option value="${o.key}"${o.key === f.deliveryDay ? " selected" : ""}>${o.label}</option>`).join("");
+    $("ordUseBtn").innerHTML = f.useDays.length ? `${f.useDays.map((u) => mdw(u)).join("、")}　<span class="cnt">${f.useDays.length} 天</span>` : "請選使用日 ▾";
+    $("ordFlow").innerHTML = `${mdw(f.orderDay)} 下單 → <b>${mdw(f.deliveryDay)} 到貨</b> → 供 ${f.useDays.map((u) => mdw(u)).join("・") || "—"}`;
+    const delBtn = $("ordDeleteBtn"); if (delBtn) delBtn.classList.toggle("hidden", !f.exists);
+    renderStock();
+    renderOrderRows();
+    renderOrderSum();
+    renderKgLabels();
+  }
+  function refLine(tag, pill, o, fillKey) {
+    return `<div class="oref-row"><span class="oref-tag">${tag}${pill ? `<span class="oref-pill">${pill}</span>` : ""}</span><span class="oref-n">${numsHTML(o)}</span><button type="button" class="oref-fill" data-fill="${fillKey}">帶入</button></div>`;
+  }
+  function renderOrderRows() {
+    const f = orderForm, box = $("ordRows"); if (!box) return;
+    box.innerHTML = f.useDays.map((u, idx) => {
+      const r = f.perDay[u] || { leg: 0, fil: 0, wing: 0 };
+      const open = f.expanded === u, p = predict(u), last = lastSameTypeOrder(u);
+      let exp = "";
+      if (open) {
+        let rows = "";
+        if (p.n && p.rec) rows += refLine("🔮 系統建議", METHOD_LABEL[estMethod] || "平均", p.rec, `sug:${u}`);
+        else rows += `<div class="oref-empty">系統建議：${p.group || ""}・資料累積中</div>`;
+        if (last) rows += refLine(`🕑 上次${p.group || ""}（${last.date.slice(5).replace("-", "/")}）`, "", last.order, `last:${u}`);
+        exp = `<div class="oref">${rows}</div>`;
+      }
+      return `<div class="od-row${open ? " open" : ""}">
+        <div class="od-main">
+          <button type="button" class="od-rhd" data-exp="${u}"><span class="od-ar">${open ? "⌃" : "⌄"}</span>${mdw(u)}${idx === 0 ? '<span class="od-first">第一天</span>' : ""}</button>
+          <input class="input od-in ck-leg" inputmode="numeric" data-pd="${u}" data-k="leg" value="${r.leg}">
+          <input class="input od-in ck-fil" inputmode="numeric" data-pd="${u}" data-k="fil" value="${r.fil}">
+          <input class="input od-in ck-wing" inputmode="numeric" data-pd="${u}" data-k="wing" value="${r.wing}">
+        </div>
+        ${exp}
+      </div>`;
+    }).join("");
+    box.querySelectorAll("button[data-exp]").forEach((b) => b.onclick = () => { f.expanded = (f.expanded === b.dataset.exp) ? null : b.dataset.exp; renderOrderRows(); });
+    box.querySelectorAll("input[data-pd]").forEach((inp) => inp.oninput = () => { const u = inp.dataset.pd; (f.perDay[u] = f.perDay[u] || { leg: 0, fil: 0, wing: 0 })[inp.dataset.k] = Number(inp.value) || 0; f.kg = null; renderOrderSum(); });
+    box.querySelectorAll("button[data-fill]").forEach((b) => b.onclick = () => { const [kind, u] = b.dataset.fill.split(":"); const p = predict(u), last = lastSameTypeOrder(u); const src = kind === "sug" ? (p.rec || {}) : (last ? last.order : {}); f.perDay[u] = { leg: src.leg || 0, fil: src.fil || 0, wing: src.wing || 0 }; f.kg = null; renderOrderRows(); renderOrderSum(); });
+  }
+  function renderOrderSum() {
+    const f = orderForm, { sum, net } = orderTotals(), s = currentStock();
+    let html = `<div class="os-row os-sum"><span class="os-k">合計（隻）</span><span class="os-c ck-leg">${sum.leg}</span><span class="os-c ck-fil">${sum.fil}</span><span class="os-c ck-wing">${sum.wing}</span></div>`;
+    if (s) html += `<div class="os-row os-stk"><span class="os-k"><label class="os-ck"><input type="checkbox" id="ordDeduct"${f.deductStock ? " checked" : ""}> 扣目前庫存</label></span>` + (f.deductStock ? `<span class="os-c">−${s.leg}</span><span class="os-c">−${s.fil}</span><span class="os-c">−${s.wing}</span>` : `<span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span>`) + `</div>`;
+    html += `<div class="os-row os-net"><span class="os-k">要叫（隻）</span><span class="os-c ck-leg">${net.leg}</span><span class="os-c ck-fil">${net.fil}</span><span class="os-c ck-wing">${net.wing}</span></div>`;
+    $("ordSumTbl").innerHTML = html;
+    const dc = $("ordDeduct"); if (dc) dc.onchange = () => { f.deductStock = dc.checked; f.kg = null; renderOrderSum(); };
+    $("ordStockNote").textContent = (s && f.deductStock) ? `庫存只在「第一個使用日」扣（${mdw(s.date)} 盤點）；可取消勾選` : "";
+    if (!f.kg) PARTS3.forEach((p) => { $(`orderKg${p}`).value = net[p] > 0 ? kgSuggest(net[p], p) : 0; });
+  }
+  function saveOrderForm(confirmed) {
+    const f = orderForm; if (!f) return;
+    if (!f.useDays.length) { alert("請選擇至少一個使用日"); return; }
     if (!db) { hide("orderBackdrop"); return; }
-    const ym = ymOf(k);
-    // 三個公斤都 0 → 視為「未叫貨」：清掉這天的叫貨紀錄（月曆不顯示 📝、明細顯示 —）
-    const allZero = kg.leg === 0 && kg.fil === 0 && kg.wing === 0;
+    const { net, stockRec } = orderTotals();
+    const kg = { leg: Number($("orderKgleg").value) || 0, fil: Number($("orderKgfil").value) || 0, wing: Number($("orderKgwing").value) || 0 };
+    const sup = suppliers.find((s) => s.id === f.supplier) || defSupplier();
+    const perDay = {}; f.useDays.forEach((u) => { const r = f.perDay[u] || {}; perDay[u] = { leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0 }; });
+    const ordYm = ymOf(f.orderDay), prev = orderForDay(f.orderDay);
+    const order = { supplier: f.supplier, supplierName: sup.name, orderDay: f.orderDay, deliveryDay: f.deliveryDay, useDays: f.useDays.slice(), perDay: perDay, deductStock: (f.deductStock && stockRec) ? { leg: stockRec.leg, fil: stockRec.fil, wing: stockRec.wing } : null, totalPieces: net, orderKg: kg, status: confirmed ? "ordered" : "draft", createdAt: (prev && prev.createdAt) || Date.now(), updatedAt: Date.now() };
+    if (confirmed) order.orderedAt = Date.now();
     const DEL = firebase.firestore.FieldValue.delete();
-    const payload = allZero
-      ? { days: { [k]: { order: DEL, orderAt: DEL, orderKg: DEL } }, updatedAt: Date.now() }
-      : { days: { [k]: { order: order, orderKg: kg, orderAt: Date.now() } }, updatedAt: Date.now() };
-    monthRefOf(ym).set(payload, { merge: true })
-      .then(() => { hide("orderBackdrop"); if (ym !== viewYM) watchMonth(ym); })
+    const writes = [{ ref: orderRefOf(ordYm), data: { orders: { [f.orderDay]: order }, updatedAt: Date.now() } }];
+    const dayPatch = {}, put = (ym, day, obj) => { (dayPatch[ym] = dayPatch[ym] || {})[day] = obj; };
+    f.useDays.forEach((u) => put(ymOf(u), u, { order: perDay[u], orderKg: kg, supplyRef: { ym: ordYm, od: f.orderDay } }));
+    if (prev && Array.isArray(prev.useDays)) prev.useDays.filter((u) => !f.useDays.includes(u)).forEach((u) => put(ymOf(u), u, { order: DEL, orderKg: DEL, supplyRef: DEL }));
+    Object.keys(dayPatch).forEach((ym) => writes.push({ ref: monthRefOf(ym), data: { days: dayPatch[ym], updatedAt: Date.now() } }));
+    Promise.all(writes.map((w) => w.ref.set(w.data, { merge: true })))
+      .then(() => { hide("orderBackdrop"); Object.keys(dayPatch).forEach((ym) => { if (ym !== viewYM) watchMonth(viewYM); }); })
       .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
+  }
+  function deleteOrderForm() {
+    const f = orderForm; if (!f || !db) { hide("orderBackdrop"); return; }
+    const prev = orderForDay(f.orderDay); if (!prev) { hide("orderBackdrop"); return; }
+    if (!window.confirm("確定刪除這張叫貨單？涵蓋的使用日叫貨紀錄也會一併清除。")) return;
+    const ordYm = ymOf(f.orderDay), DEL = firebase.firestore.FieldValue.delete();
+    const writes = [{ ref: orderRefOf(ordYm), data: { orders: { [f.orderDay]: DEL }, updatedAt: Date.now() } }];
+    const dayPatch = {};
+    (prev.useDays || []).forEach((u) => { (dayPatch[ymOf(u)] = dayPatch[ymOf(u)] || {})[u] = { order: DEL, orderKg: DEL, supplyRef: DEL }; });
+    Object.keys(dayPatch).forEach((ym) => writes.push({ ref: monthRefOf(ym), data: { days: dayPatch[ym], updatedAt: Date.now() } }));
+    Promise.all(writes.map((w) => w.ref.set(w.data, { merge: true }))).then(() => hide("orderBackdrop")).catch((e) => { console.error(e); alert("刪除失敗：" + (e.message || e)); });
+  }
+  /* 使用日多選面板 */
+  function openUsePicker() {
+    const f = orderForm, cand = candidateUseDays(f.orderDay, f.deliveryDay), box = $("useDayList");
+    box.innerHTML = cand.length ? cand.map((u) => { const on = f.useDays.includes(u); return `<label class="ud-opt${on ? " on" : ""}"><input type="checkbox" data-ud="${u}"${on ? " checked" : ""}><span class="ud-box"></span><span class="ud-d">${mdw(u)}</span></label>`; }).join("") : `<div class="sup-empty">沒有可選的使用日。</div>`;
+    const sync = () => {
+      const chosen = Array.from(box.querySelectorAll("input[data-ud]:checked")).map((i) => i.dataset.ud);
+      $("useDayCnt").textContent = chosen.length;
+      box.querySelectorAll("input[data-ud]").forEach((i) => { const over = chosen.length >= 4 && !i.checked; i.disabled = over; const lab = i.closest(".ud-opt"); lab.classList.toggle("off", over); lab.classList.toggle("on", i.checked); });
+    };
+    box.querySelectorAll("input[data-ud]").forEach((i) => i.onchange = sync);
+    sync(); show("useDayBackdrop");
+  }
+  function confirmUsePicker() {
+    const chosen = Array.from($("useDayList").querySelectorAll("input[data-ud]:checked")).map((i) => i.dataset.ud).sort();
+    const f = orderForm; f.useDays = chosen.slice(0, 4);
+    f.useDays.forEach((u) => { if (!f.perDay[u]) { const p = predict(u); f.perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; } });
+    if (!f.useDays.includes(f.expanded)) f.expanded = f.useDays[0] || null;
+    f.kg = null; hide("useDayBackdrop"); renderOrderForm();
   }
 
   /* ---------- 點某天：明細／對比 ---------- */
@@ -496,7 +604,7 @@
     if (hasSales) html += `<div class="cmp-h">當日銷售明細（換算消耗）</div>` + itemTable(rec.sales, rec.parts, rec.map);
     else html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
     $("detailBody").innerHTML = html;
-    $("detailEditOrder").onclick = () => { hide("detailBackdrop"); openOrder(k, rec); };
+    $("detailEditOrder").onclick = () => { hide("detailBackdrop"); const sr = rec.supplyRef; openOrderForm(sr ? sr.od : (orderDayFor(k) || k)); };
     show("detailBackdrop");
   }
 
@@ -525,7 +633,7 @@
       const u = monthRefOf(ym).onSnapshot((snap) => {
         const d = snap.data(); predMonthData[ym] = (d && d.days) || {};
         predDays = {}; Object.values(predMonthData).forEach((m) => Object.assign(predDays, m));
-        refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
+        refreshHint(); if (orderOpen()) renderOrderForm();
       }, (err) => console.error("pred snapshot", err));
       predUnsubs.push(u);
     });
@@ -541,7 +649,7 @@
         const d = snap.data(), days = (d && d.days) || {};
         Object.keys(days).forEach((k) => { stockDays[k] = days[k]; });
         renderStockTop();
-        if (orderOpen()) { renderStock(); renderSuggestion($("orderDate").value); }
+        if (orderOpen()) renderOrderForm();
       }, (err) => console.error("stock snapshot", err));
       stockUnsubs.push(u);
     });
@@ -589,7 +697,7 @@
     if (!db) return;
     configUnsub = configRef().onSnapshot((snap) => {
       applyConfig(snap.data());
-      render(); refreshHint(); if (orderOpen()) { renderKgLabels(); renderSuggestion($("orderDate").value); updateWillSave(); }
+      render(); refreshHint(); if (orderOpen()) renderOrderForm();
     }, (err) => console.error("config snapshot", err));
   }
   /* ---------- 推估設定（緩衝倍率／回算天數／推估方式） ---------- */
@@ -605,7 +713,7 @@
     const m = EST_METHODS.includes($("psMethod").value) ? $("psMethod").value : "avg";
     bufferFactor = buf; predWindow = win; estMethod = m;
     hide("predBackdrop");
-    render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
+    render(); refreshHint(); if (orderOpen()) renderOrderForm();
     if (db) configRef().set({ bufferFactor: buf, predWindow: win, estMethod: m, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
   }
   /* ---------- 批發商設定（可多家＋選預設） ---------- */
@@ -683,7 +791,7 @@
     const def = defSupplier();
     supplierOff = { weekdays: def.weekdays.slice(), dates: def.dates.map((x) => ({ date: x.date, note: x.note })) };
     hide("supBackdrop");
-    render(); refreshHint(); if (orderOpen()) { updateOrderHint(); renderSuggestion($("orderDate").value); }
+    render(); refreshHint(); if (orderOpen()) renderOrderForm();
     if (db) configRef().set({ suppliers: suppliers, defaultSupplier: defaultSupplier, supplierOff: supplierOff, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
   }
   // 找「上個同型日」已記錄的叫貨（目標日之前、同日型、最近一天）
@@ -697,72 +805,6 @@
       if (!best || k > best.date) best = { date: k, order: o };
     });
     return best;
-  }
-  function fillOrder(o) { $("orderLeg").value = o.leg; $("orderFil").value = o.fil; $("orderWing").value = o.wing; recalcKg(); }
-  const numsHTML = (o) => `<i>腿</i><b class="ck-leg">${o.leg}</b> <i>排</i><b class="ck-fil">${o.fil}</b> <i>翅</i><b class="ck-wing">${o.wing}</b>`;
-  function renderSuggestion(k) {
-    const box = $("sugBlock"); if (!box || !k) return;
-    const p = predict(k);
-    if (p.group === null) { box.classList.add("hidden"); $("batchBlock")?.classList.add("hidden"); return; }   // 公休不顯示建議
-    box.classList.remove("hidden");
-    $("sugMethod").textContent = METHOD_LABEL[estMethod] || "平均";
-    // 系統建議（依推估方式）
-    if (!p.n) {
-      $("sugRow").classList.add("hidden"); $("sugEmpty").classList.remove("hidden");
-      $("sugEmpty").textContent = `系統建議：${p.group}・資料累積中，多上傳幾天就會自動推估`;
-    } else {
-      $("sugRow").classList.remove("hidden"); $("sugEmpty").classList.add("hidden");
-      $("sugNums").innerHTML = numsHTML(p.rec);
-      $("sugApply").onclick = () => fillOrder(p.rec);
-    }
-    // 扣庫存後＝系統建議 − 目前庫存（不為負）；有庫存且有系統建議才顯示
-    const s = currentStock(), dr = $("deductRow");
-    if (p.n && s) {
-      const d = { leg: Math.max(0, p.rec.leg - s.leg), fil: Math.max(0, p.rec.fil - s.fil), wing: Math.max(0, p.rec.wing - s.wing) };
-      dr.classList.remove("hidden");
-      $("deductNums").innerHTML = numsHTML(d);
-      $("deductApply").onclick = () => fillOrder(d);
-    } else { dr.classList.add("hidden"); }
-    // 上次同型日叫貨
-    const last = lastSameTypeOrder(k), lr = $("lastRow");
-    if (last) {
-      lr.classList.remove("hidden");
-      $("lastTag").textContent = `🕑 上次${p.group}（${last.date.slice(5).replace("-", "/")}）`;
-      $("lastNums").innerHTML = numsHTML(last.order);
-      $("lastApply").onclick = () => fillOrder(last.order);
-    } else { lr.classList.add("hidden"); }
-    // 推估設定摘要（回算天數帶入當天日型）
-    $("predSummary").textContent = `多備 ${fmtPct(bufferFactor)}% · 回算 ${predWindow} 天${p.group} · ${METHOD_LABEL[estMethod] || "平均"}`;
-    // 多使用日：顯示本批合計要叫；此時隱藏「單日扣庫存後」避免重複扣庫存
-    if (renderBatch(k)) $("deductRow").classList.add("hidden");
-  }
-  // 本批合計：這個下單日若涵蓋多個使用日，算好「合計」與「扣庫存後要叫」，不用自己加總
-  function renderBatch(useKey) {
-    const box = $("batchBlock"); if (!box) return false;
-    const od = orderDayFor(useKey), uses = od ? coveredUseDays(od) : [];
-    if (!od || uses.length < 2) { box.classList.add("hidden"); return false; }
-    const sum = { leg: 0, fil: 0, wing: 0 };
-    let rows = "";
-    uses.forEach((u) => {
-      const p = predict(u), r = (p.n && p.rec) ? p.rec : null;
-      if (r) { sum.leg += r.leg; sum.fil += r.fil; sum.wing += r.wing; }
-      rows += `<div class="bb-row"><span class="bb-d">${mdw(u)}</span><span class="bb-n">${r ? numsHTML(r) : '<span class="ck-muted">資料累積中</span>'}</span></div>`;
-    });
-    $("bbHead").innerHTML = `📦 本批（${mdw(od)} 下單）供 ${uses.length} 個使用日・各自預估`;
-    $("bbRows").innerHTML = rows;
-    $("bbSum").innerHTML = numsHTML(sum);
-    const s = currentStock(), dr = $("bbDeductRow");
-    if (s) {
-      const ded = { leg: Math.max(0, sum.leg - s.leg), fil: Math.max(0, sum.fil - s.fil), wing: Math.max(0, sum.wing - s.wing) };
-      dr.classList.remove("hidden");
-      $("bbDeduct").innerHTML = numsHTML(ded);
-      $("bbStockLine").textContent = `（已扣目前庫存：腿${s.leg} 排${s.fil} 翅${s.wing}）`;
-    } else {
-      dr.classList.add("hidden");
-      $("bbStockLine").textContent = "";
-    }
-    box.classList.remove("hidden");
-    return true;
   }
   function refreshHint() {
     const el = $("ckHint"); if (!el) return;
@@ -911,15 +953,20 @@
     $("pinSubmit").onclick = tryUnlock;
     $("pinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
     $("ckUploadBtn").onclick = openUpload;
-    $("ckOrderBtn").onclick = () => openOrder(null, null);
+    $("ckOrderBtn").onclick = () => openOrderForm(null);
     $("ckOpenReport").onclick = openReport;
-    $("orderDate").addEventListener("change", () => { updateOrderHint(); renderSuggestion($("orderDate").value); });
-    // ① 叫貨量（隻）改變 → 自動換算公斤；② 公斤改變 → 更新「將記錄」
-    ["orderLeg", "orderFil", "orderWing"].forEach((id) => $(id).addEventListener("input", recalcKg));
-    ["orderKgleg", "orderKgfil", "orderKgwing"].forEach((id) => $(id).addEventListener("input", updateWillSave));
-    $("ckHint").onclick = () => { const k = nextCoveredUse(); openOrder(k, predDays[k] || null); };
-    // 推估設定（叫貨彈窗連結＋工具列按鈕）
-    $("openPredSet").onclick = openPredSet;
+    // 叫貨單：三個選擇器＋逐日表＋草稿/確認/刪除
+    $("ordSupplier").addEventListener("change", (e) => { orderForm.supplier = e.target.value; orderForm.kg = null; recomputeUseDays(); renderOrderForm(); });
+    $("ordDelivery").addEventListener("change", (e) => { orderForm.deliveryDay = e.target.value; orderForm.kg = null; recomputeUseDays(); renderOrderForm(); });
+    $("ordUseBtn").onclick = openUsePicker;
+    $("useDaySave").onclick = confirmUsePicker;
+    $("ordDraftBtn").onclick = () => saveOrderForm(false);
+    $("ordConfirmBtn").onclick = () => saveOrderForm(true);
+    $("ordDeleteBtn").onclick = deleteOrderForm;
+    // ② 公斤手動改 → 記為覆寫（不再自動蓋掉）
+    ["orderKgleg", "orderKgfil", "orderKgwing"].forEach((id) => $(id).addEventListener("input", () => { if (orderForm) orderForm.kg = { leg: Number($("orderKgleg").value) || 0, fil: Number($("orderKgfil").value) || 0, wing: Number($("orderKgwing").value) || 0 }; }));
+    $("ckHint").onclick = () => openOrderForm(null);
+    // 推估設定（工具列按鈕）
     $("ckPredBtn").onclick = openPredSet;
     $("psSave").onclick = savePredSet;
     $("ckSupBtn").onclick = openSupSet;
@@ -940,7 +987,6 @@
     $("ckNextMonth").onclick = () => shiftMonth(1);
     $("uploadDrop").onclick = () => $("ckFile").click();
     $("ckFile").addEventListener("change", (e) => onFile(e.target.files[0]));
-    $("orderSave").onclick = saveOrder;
     // 彈窗關閉（X、背景、取消）
     document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => hide(b.getAttribute("data-close"))));
     document.querySelectorAll(".modal-backdrop").forEach((bd) => bd.addEventListener("click", (e) => { if (e.target === bd) hide(bd.id); }));
@@ -968,11 +1014,12 @@
         settings.adminPin = s.adminPin || "1234";
         settings.storeName = s.storeName || settings.storeName;
         mainLoaded = true;
-        render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
+        render(); refreshHint(); if (orderOpen()) renderOrderForm();
       }, (err) => console.error("main snapshot", err));
       watchMonth(viewYM);
       watchPredMonths();
       watchStockMonths();
+      watchOrderMonths();
       watchConfig();
     };
     if (firebase.auth) {
