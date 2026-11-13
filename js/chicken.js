@@ -45,9 +45,23 @@
   const EST_METHODS = ["avg", "median", "weighted", "max"];
   const METHOD_LABEL = { avg: "平均", median: "中位數", weighted: "近期加權", max: "同型日最大" }; // 推估方式標籤
   let predWindow = 35, estMethod = "avg"; // 可在「推估設定」調整，存 poultry_config
-  // 批發商休息：每週固定休（0=日…6=六，預設週日）＋臨時休市日；存 poultry_config.supplierOff
-  const DEFAULT_SUPPLIER_OFF = { weekdays: [0], dates: [] };
-  let supplierOff = JSON.parse(JSON.stringify(DEFAULT_SUPPLIER_OFF));
+  // 批發商（可多家）：每家各自「每週固定休（0=日…6=六）＋臨時休市日」，並指定一家為預設
+  // 存 poultry_config.suppliers / defaultSupplier；舊版單一 supplierOff 會自動遷移成「A 廠商」
+  const DEFAULT_SUPPLIERS = [{ id: "a", name: "A 廠商", weekdays: [0], dates: [] }];
+  let suppliers = JSON.parse(JSON.stringify(DEFAULT_SUPPLIERS));
+  let defaultSupplier = "a";
+  // 推算引擎目前用「預設廠商」的休息日（Batch 1 沿用；之後每張叫貨單可自選廠商）
+  let supplierOff = { weekdays: [0], dates: [] };
+  const defSupplier = () => suppliers.find((s) => s.id === defaultSupplier) || suppliers[0];
+  const newSupId = () => "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  function cleanSupplier(s) {
+    return {
+      id: String((s && s.id) || newSupId()),
+      name: String((s && s.name) || "廠商"),
+      weekdays: (s && Array.isArray(s.weekdays)) ? s.weekdays.filter((n) => n >= 0 && n <= 6) : [],
+      dates: (s && Array.isArray(s.dates)) ? s.dates.filter((x) => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date)).map((x) => ({ date: x.date, note: (x.note || "").toString() })) : [],
+    };
+  }
   let predUnsubs = [], configUnsub = null, predMonthData = {}, predDays = {}, bufferFactor = 1.0;
   let stockUnsubs = [], stockDays = {};  // 員工端盤點庫存（poultry_stock_YYYY-MM）
   let partsHistory = [];  // 部位對照表版本紀錄 [{date:'YYYY-MM-DD', map:{...}}]（日期升冪，最後一筆＝目前）
@@ -545,11 +559,21 @@
     bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
     predWindow = (d && WINDOW_OPTIONS.includes(d.predWindow)) ? d.predWindow : 35;
     estMethod = (d && EST_METHODS.includes(d.estMethod)) ? d.estMethod : "avg";
-    supplierOff = JSON.parse(JSON.stringify(DEFAULT_SUPPLIER_OFF));
-    if (d && d.supplierOff && typeof d.supplierOff === "object") {
-      if (Array.isArray(d.supplierOff.weekdays)) supplierOff.weekdays = d.supplierOff.weekdays.filter((n) => n >= 0 && n <= 6);
-      if (Array.isArray(d.supplierOff.dates)) supplierOff.dates = d.supplierOff.dates.filter((x) => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date));
+    // 批發商清單：優先讀新版 suppliers；沒有就從舊版 supplierOff 遷移；再沒有就用預設
+    suppliers = [];
+    if (d && Array.isArray(d.suppliers) && d.suppliers.length) {
+      d.suppliers.forEach((s) => { if (s && typeof s === "object") suppliers.push(cleanSupplier(s)); });
     }
+    if (!suppliers.length) {
+      if (d && d.supplierOff && typeof d.supplierOff === "object") {
+        suppliers = [cleanSupplier({ id: "a", name: "A 廠商", weekdays: d.supplierOff.weekdays, dates: d.supplierOff.dates })];
+      } else {
+        suppliers = JSON.parse(JSON.stringify(DEFAULT_SUPPLIERS));
+      }
+    }
+    defaultSupplier = (d && d.defaultSupplier && suppliers.some((s) => s.id === d.defaultSupplier)) ? d.defaultSupplier : suppliers[0].id;
+    const def = defSupplier();
+    supplierOff = { weekdays: def.weekdays.slice(), dates: def.dates.map((x) => ({ date: x.date, note: x.note })) };
     partMap = JSON.parse(JSON.stringify(DEFAULT_MAP));
     if (d && d.parts && typeof d.parts === "object") {
       PIECES.forEach((pc) => { const v = d.parts[pc]; if (v && typeof v === "object") partMap[pc] = { leg: Number(v.leg) || 0, fil: Number(v.fil) || 0, wing: Number(v.wing) || 0 }; });
@@ -584,44 +608,83 @@
     render(); refreshHint(); if (orderOpen()) renderSuggestion($("orderDate").value);
     if (db) configRef().set({ bufferFactor: buf, predWindow: win, estMethod: m, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
   }
-  /* ---------- 批發商休息設定 ---------- */
-  let supDraft = null;
+  /* ---------- 批發商設定（可多家＋選預設） ---------- */
+  let supDraft = null;  // { suppliers:[{id,name,weekdays,dates}], defaultId }
+  const WD_NAMES = ["日", "一", "二", "三", "四", "五", "六"];
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   function openSupSet() {
-    supDraft = { weekdays: (supplierOff.weekdays || []).slice(), dates: (supplierOff.dates || []).map((x) => ({ date: x.date, note: x.note || "" })) };
-    $("supNewDate").value = ""; $("supNewNote").value = "";
-    renderSupWeek(); renderSupDates(); renderSupPrev();
+    supDraft = { suppliers: suppliers.map(cleanSupplier), defaultId: defaultSupplier };
+    if (!supDraft.suppliers.some((s) => s.id === supDraft.defaultId) && supDraft.suppliers[0]) supDraft.defaultId = supDraft.suppliers[0].id;
+    renderSupList(); renderSupPrev();
     show("supBackdrop");
   }
-  function renderSupWeek() {
-    const box = $("supWeek"), names = ["日", "一", "二", "三", "四", "五", "六"];
-    box.innerHTML = names.map((nm, i) => `<button type="button" class="wd${supDraft.weekdays.includes(i) ? " off" : ""}" data-w="${i}">${nm}${supDraft.weekdays.includes(i) ? "✓" : ""}</button>`).join("");
-    box.querySelectorAll("button[data-w]").forEach((b) => b.onclick = () => { const w = Number(b.dataset.w), i = supDraft.weekdays.indexOf(w); if (i >= 0) supDraft.weekdays.splice(i, 1); else supDraft.weekdays.push(w); renderSupWeek(); renderSupPrev(); });
+  function supCardHTML(s) {
+    const isDef = s.id === supDraft.defaultId, canDel = supDraft.suppliers.length > 1;
+    const week = WD_NAMES.map((nm, i) => `<button type="button" class="wd${s.weekdays.includes(i) ? " off" : ""}" data-sw="${s.id}" data-w="${i}">${nm}${s.weekdays.includes(i) ? "✓" : ""}</button>`).join("");
+    const ds = s.dates.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    const dates = ds.length
+      ? ds.map((x) => `<div class="sup-drow">${mdw(x.date)}${x.note ? " · " + esc(x.note) : ""}<button type="button" class="x" data-sd="${s.id}" data-d="${x.date}">✕</button></div>`).join("")
+      : `<div class="sup-empty">目前沒有臨時休市日。</div>`;
+    return `<div class="sup-card${isDef ? " def" : ""}" data-card="${s.id}">
+      <div class="sup-chd">
+        <input class="input sup-name" data-sn="${s.id}" value="${esc(s.name)}" placeholder="廠商名稱" autocomplete="off">
+        ${isDef ? `<span class="sup-defbadge">預設</span>` : `<button type="button" class="sup-setdef" data-setdef="${s.id}">設為預設</button>`}
+        ${canDel ? `<button type="button" class="sup-del" data-del="${s.id}" title="刪除廠商">🗑</button>` : ""}
+      </div>
+      <div class="sup-sub">每週固定休（點週幾切換休／送）</div>
+      <div class="sup-week">${week}</div>
+      <div class="sup-sub">臨時休市日（畜牧休市等）</div>
+      <div class="sup-dlist">${dates}</div>
+      <div class="sup-add">
+        <input class="input" type="date" data-nd="${s.id}">
+        <input class="input" data-nn="${s.id}" placeholder="原因（選填）" autocomplete="off">
+        <button type="button" class="secondary-btn" data-add="${s.id}">＋ 新增</button>
+      </div>
+    </div>`;
   }
-  function renderSupDates() {
-    const box = $("supDateList"), ds = supDraft.dates.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
-    if (!ds.length) { box.innerHTML = `<div class="sup-empty">目前沒有臨時休市日。</div>`; return; }
-    box.innerHTML = ds.map((x) => `<div class="sup-drow">${mdw(x.date)}${x.note ? " · " + x.note : ""}<button type="button" class="x" data-d="${x.date}">✕</button></div>`).join("");
-    box.querySelectorAll("button[data-d]").forEach((b) => b.onclick = () => { supDraft.dates = supDraft.dates.filter((x) => x.date !== b.dataset.d); renderSupDates(); renderSupPrev(); });
+  function renderSupList() {
+    const box = $("supList"); if (!box) return;
+    box.innerHTML = supDraft.suppliers.map(supCardHTML).join("");
+    const sup = (id) => supDraft.suppliers.find((x) => x.id === id);
+    box.querySelectorAll("input[data-sn]").forEach((inp) => inp.oninput = () => { const s = sup(inp.dataset.sn); if (s) s.name = inp.value; });
+    box.querySelectorAll("button[data-sw]").forEach((b) => b.onclick = () => { const s = sup(b.dataset.sw); if (!s) return; const w = Number(b.dataset.w), i = s.weekdays.indexOf(w); if (i >= 0) s.weekdays.splice(i, 1); else s.weekdays.push(w); renderSupList(); renderSupPrev(); });
+    box.querySelectorAll("button[data-setdef]").forEach((b) => b.onclick = () => { supDraft.defaultId = b.dataset.setdef; renderSupList(); renderSupPrev(); });
+    box.querySelectorAll("button[data-del]").forEach((b) => b.onclick = () => { if (supDraft.suppliers.length <= 1) return; supDraft.suppliers = supDraft.suppliers.filter((x) => x.id !== b.dataset.del); if (!sup(supDraft.defaultId)) supDraft.defaultId = supDraft.suppliers[0].id; renderSupList(); renderSupPrev(); });
+    box.querySelectorAll("button[data-sd]").forEach((b) => b.onclick = () => { const s = sup(b.dataset.sd); if (!s) return; s.dates = s.dates.filter((x) => x.date !== b.dataset.d); renderSupList(); renderSupPrev(); });
+    box.querySelectorAll("button[data-add]").forEach((b) => b.onclick = () => {
+      const id = b.dataset.add, s = sup(id); if (!s) return;
+      const card = box.querySelector(`[data-card="${id}"]`);
+      const dt = card.querySelector(`input[data-nd="${id}"]`).value; if (!dt) { alert("請選日期"); return; }
+      const nn = (card.querySelector(`input[data-nn="${id}"]`).value || "").trim();
+      if (!s.dates.some((x) => x.date === dt)) s.dates.push({ date: dt, note: nn });
+      renderSupList(); renderSupPrev();
+    });
   }
-  function addSupDate() {
-    const dt = $("supNewDate").value; if (!dt) { alert("請選日期"); return; }
-    if (!supDraft.dates.some((x) => x.date === dt)) supDraft.dates.push({ date: dt, note: ($("supNewNote").value || "").trim() });
-    $("supNewDate").value = ""; $("supNewNote").value = ""; renderSupDates(); renderSupPrev();
+  function addSupplier() {
+    const used = supDraft.suppliers.map((s) => s.name);
+    const name = ["A 廠商", "B 廠商", "C 廠商", "D 廠商"].find((n) => !used.includes(n)) || ("廠商" + (supDraft.suppliers.length + 1));
+    supDraft.suppliers.push({ id: newSupId(), name: name, weekdays: [], dates: [] });
+    renderSupList(); renderSupPrev();
   }
   function renderSupPrev() {
-    const saved = supplierOff; supplierOff = supDraft;  // 暫時套用草稿來推算
+    const def = supDraft.suppliers.find((s) => s.id === supDraft.defaultId) || supDraft.suppliers[0];
+    const saved = supplierOff; supplierOff = { weekdays: def.weekdays, dates: def.dates };  // 暫套「預設廠商」推算
     try {
       const t = parseKey(todayKey()), mon = new Date(t); mon.setDate(t.getDate() - ((t.getDay() + 6) % 7));
       const lines = [], d = new Date(mon);
       for (let i = 0; i < 7; i++) { const k = toKey(d), u = coveredUseDays(k); if (u.length) lines.push(`${DOW[d.getDay()]}<b>→</b><span class="u">${u.map((x) => DOW[parseKey(x).getDay()]).join("＋")}</span>`); d.setDate(d.getDate() + 1); }
-      $("supPrev").innerHTML = `<h4>📅 下單日 → 使用日（自動推算）</h4><div class="pl">${lines.length ? lines.join("　·　") : "（這週沒有可下單日）"}</div>`;
+      $("supPrev").innerHTML = `<h4>📅 以預設廠商「${esc(def.name)}」推算：下單日 → 使用日</h4><div class="pl">${lines.length ? lines.join("　·　") : "（這週沒有可下單日）"}</div>`;
     } finally { supplierOff = saved; }
   }
   function saveSupSet() {
-    supplierOff = { weekdays: supDraft.weekdays.slice().sort((a, b) => a - b), dates: supDraft.dates.slice() };
+    supDraft.suppliers.forEach((s, i) => { if (!s.name.trim()) s.name = "廠商" + (i + 1); s.weekdays = s.weekdays.slice().sort((a, b) => a - b); });
+    suppliers = supDraft.suppliers.map(cleanSupplier);
+    defaultSupplier = suppliers.some((s) => s.id === supDraft.defaultId) ? supDraft.defaultId : suppliers[0].id;
+    const def = defSupplier();
+    supplierOff = { weekdays: def.weekdays.slice(), dates: def.dates.map((x) => ({ date: x.date, note: x.note })) };
     hide("supBackdrop");
     render(); refreshHint(); if (orderOpen()) { updateOrderHint(); renderSuggestion($("orderDate").value); }
-    if (db) configRef().set({ supplierOff: supplierOff, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
+    if (db) configRef().set({ suppliers: suppliers, defaultSupplier: defaultSupplier, supplierOff: supplierOff, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
   }
   // 找「上個同型日」已記錄的叫貨（目標日之前、同日型、最近一天）
   function lastSameTypeOrder(targetKey) {
@@ -809,7 +872,7 @@
       const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {}, stock: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
-        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory };
+        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory };
         else if (id.indexOf("poultry_stock_") === 0) out.stock[id.slice("poultry_stock_".length)] = { days: data.days || {} };
         else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
@@ -834,7 +897,7 @@
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
     if (data.stock) Object.keys(data.stock).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: stockRefOf(ym), data: { days: data.stock[ym].days || {}, updatedAt: Date.now() } }); });
-    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; writes.push({ ref: configRef(), data: c }); }
+    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; writes.push({ ref: configRef(), data: c }); }
     let i = 0;
     (function next() {
       if (i >= writes.length) { hide("backupBackdrop"); alert("匯入完成。"); watchMonth(viewYM); return; }
@@ -860,7 +923,7 @@
     $("ckPredBtn").onclick = openPredSet;
     $("psSave").onclick = savePredSet;
     $("ckSupBtn").onclick = openSupSet;
-    $("supAddBtn").onclick = addSupDate;
+    $("supAddSupplierBtn").onclick = addSupplier;
     $("supSave").onclick = saveSupSet;
     // 月曆下方工具：匯出 CSV／備份還原／部位對照
     $("ckExportCsvBtn").onclick = openCsv;

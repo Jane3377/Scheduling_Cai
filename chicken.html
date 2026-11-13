@@ -91,6 +91,16 @@
     .ps-k { font-size: 15px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
     .ps-sel { margin-left: auto; border: 1.5px solid #d9a689; border-radius: 10px; background: #fffdfb; padding: 8px 12px; font: inherit; font-size: 16px; font-weight: 800; color: var(--ink); min-width: 100px; text-align: center; }
     .ps-d { font-size: 12px; color: var(--muted); margin: 6px 0 0 2px; line-height: 1.5; }
+    /* 批發商設定（可多家） */
+    .sup-card { border: 1.5px solid var(--line); border-radius: 14px; padding: 13px 13px 12px; margin-bottom: 13px; background: #fff; }
+    .sup-card.def { border-color: #d9a689; background: #fffdfb; box-shadow: 0 0 0 3px rgba(217,166,137,.1); }
+    .sup-chd { display: flex; align-items: center; gap: 8px; margin-bottom: 11px; }
+    .sup-name { flex: 1; min-width: 0; font-size: 16px; font-weight: 800; }
+    .sup-defbadge { font-size: 11.5px; font-weight: 800; color: #1f7a46; background: #e3f3ea; border-radius: 999px; padding: 4px 11px; white-space: nowrap; }
+    .sup-setdef { font-size: 12.5px; font-weight: 800; color: #4a5668; background: #fff; border: 1px solid #d9d2cb; border-radius: 9px; padding: 6px 11px; cursor: pointer; white-space: nowrap; }
+    .sup-del { background: none; border: 0; cursor: pointer; font-size: 17px; padding: 4px 6px; flex: 0 0 auto; }
+    .sup-sub { font-size: 12px; color: var(--muted); font-weight: 700; margin: 9px 2px 7px; }
+    .sup-addsup { width: 100%; justify-content: center; margin-bottom: 4px; }
     /* 批發商休息設定 */
     .fld-lbl { font-size: 14.5px; font-weight: 800; color: var(--ink); margin: 2px 2px 8px; }
     .sup-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
@@ -491,22 +501,11 @@
   <!-- 批發商休息設定彈窗 -->
   <div id="supBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(460px,100%)">
-      <div class="modal-head"><div><h3>🚚 批發商休息設定</h3><p>批發商沒上班就不能下單與到貨（通常週日休）</p></div><button class="icon-btn" data-close="supBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3>🚚 批發商設定</h3><p>可設多家，各自設公休／臨時休市；選一家為「預設」叫貨對象</p></div><button class="icon-btn" data-close="supBackdrop">✕</button></div>
       <div class="modal-body">
-        <div class="fld-lbl">每週固定休</div>
-        <div class="sup-week" id="supWeek"></div>
-        <div class="hint" style="margin:6px 2px 14px">點週幾可切換「休／送」。預設：週日休。</div>
-
-        <div class="fld-lbl">臨時休市日（畜牧休息等）</div>
-        <div id="supDateList"></div>
-        <div class="sup-add">
-          <input class="input" type="date" id="supNewDate" />
-          <input class="input" id="supNewNote" placeholder="原因（選填）" autocomplete="off" />
-          <button type="button" class="secondary-btn" id="supAddBtn">＋ 新增</button>
-        </div>
-
+        <div id="supList"></div>
+        <button type="button" class="secondary-btn sup-addsup" id="supAddSupplierBtn">＋ 新增批發商</button>
         <div class="sup-prev" id="supPrev"></div>
-
         <div class="modal-actions"><button class="ghost-btn" data-close="supBackdrop">取消</button><button class="primary-btn" id="supSave">儲存設定</button></div>
       </div>
     </div>
