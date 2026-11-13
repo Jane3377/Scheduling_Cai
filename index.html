@@ -57,6 +57,7 @@
           <button class="staff-tab active" data-staff-tab="mySchedule">我的班表</button>
           <button class="staff-tab" data-staff-tab="availability">填寫可上班時間</button>
           <button class="staff-tab" data-staff-tab="stock">今日打烊剩餘</button>
+          <button class="staff-tab" data-staff-tab="dough" id="doughTabBtn" hidden>🍕 餅皮推估</button>
         </div>
 
         <div class="staff-tab-panel active" id="mySchedulePanel">
@@ -119,6 +120,14 @@
             <div id="stockExisting" class="stock-existing hidden"></div>
             <button id="stockSaveBtn" class="primary-btn full">送出盤點</button>
             <div id="stockSaved" class="success-note"></div>
+          </div>
+        </div>
+
+        <div class="staff-tab-panel" id="doughPanel">
+          <div class="panel">
+            <div class="panel-head"><div><h3>🍕 餅皮推估</h3><p>接下來幾天建議各做多少片餅皮（9吋/12吋 × 厚片/薄片）。</p></div></div>
+            <div id="doughStaffList" class="dough-staff-list"></div>
+            <div class="dough-staff-note">依近期同星期實際製作量推估；六日／假日會以「最低營業額」反推底線。數字為建議「製作量」，實際仍可視現場調整。</div>
           </div>
         </div>
 

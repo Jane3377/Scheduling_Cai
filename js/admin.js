@@ -50,6 +50,7 @@ function migrate(d){
     e.note=e.note||""; // 員工備註（例如勞健保註記）
     e.hourlyWage=Number(e.hourlyWage)||0; // 時薪（用於人力成本試算）
     e.pin=(typeof e.pin==="string"&&/^\d{4}$/.test(e.pin))?e.pin:"0000"; // 員工登入 PIN（4 位數，預設 0000）
+    e.role=["一般","餅皮","管理者"].includes(e.role)?e.role:"一般"; // 備料角色：餅皮/管理者可看餅皮推估
     if(e.employmentType==="兼職")e.employmentType="工讀"; // 舊類型對應
   });
   (d.workTypes||[]).forEach(w=>{
@@ -317,8 +318,9 @@ function renderEmployees(){
     const typeBadge=e.employmentType==="外籍學生"?`<span class="badge warn">外籍學生</span>`:e.employmentType;
     const clsTag=(e.shiftClass&&e.shiftClass!=="一般")?`・${e.shiftClass}`:"";
     const noBreakTag=e.noBreak?` <span class="badge ok">免扣休息</span>`:"";
+    const roleTag=(e.role==="餅皮"||e.role==="管理者")?` <span class="badge warn">🍕${e.role}</span>`:"";
     const noteLine=(e.note||"").trim()?`<span class="cell-sub note-sub">📝 ${e.note.trim()}</span>`:"";
-    return `<tr><td class="employee-name"><strong>${e.name}</strong><span>${typeBadge}${clsTag}${noBreakTag}</span>${noteLine}</td><td>${e.employeeNo}<span class="cell-sub">PIN ${e.pin||"0000"}</span></td><td>${works}${primary}</td><td>${e.weeklyLimit?e.weeklyLimit+" 小時":"未設定"}</td><td><span class="badge ${e.active?"ok":"inactive"}">${e.active?"在職":"停用"}</span></td><td><div class="row-actions"><button class="text-btn" onclick="openEmployeeModal('${e.id}')">編輯</button></div></td></tr>`
+    return `<tr><td class="employee-name"><strong>${e.name}</strong><span>${typeBadge}${clsTag}${noBreakTag}${roleTag}</span>${noteLine}</td><td>${e.employeeNo}<span class="cell-sub">PIN ${e.pin||"0000"}</span></td><td>${works}${primary}</td><td>${e.weeklyLimit?e.weeklyLimit+" 小時":"未設定"}</td><td><span class="badge ${e.active?"ok":"inactive"}">${e.active?"在職":"停用"}</span></td><td><div class="row-actions"><button class="text-btn" onclick="openEmployeeModal('${e.id}')">編輯</button></div></td></tr>`
   }).join("")||`<tr><td colspan="6"><div class="empty-state">找不到員工</div></td></tr>`;
 }
 function renderWorktypes(){
@@ -1202,10 +1204,11 @@ function toast(msg,type="info",ms){
   return el;
 }
 function openEmployeeModal(id=null){
-  const e=id?employee(id):{id:uid("e"),employeeNo:"",name:"",phone:"",employmentType:"正職",shiftClass:"一般",noBreak:false,allowedWorkTypeIds:[],primaryWeekday:[],primaryWeekend:[],weeklyLimit:40,dailyLimit:8,active:true,note:"",pin:"0000",pinEnabled:false,pinHash:null};
-  e.primaryWeekday=e.primaryWeekday||[];e.primaryWeekend=e.primaryWeekend||[];e.shiftClass=e.shiftClass||"一般";e.note=e.note||"";
+  const e=id?employee(id):{id:uid("e"),employeeNo:"",name:"",phone:"",employmentType:"正職",shiftClass:"一般",noBreak:false,allowedWorkTypeIds:[],primaryWeekday:[],primaryWeekend:[],weeklyLimit:40,dailyLimit:8,active:true,note:"",pin:"0000",role:"一般",pinEnabled:false,pinHash:null};
+  e.primaryWeekday=e.primaryWeekday||[];e.primaryWeekend=e.primaryWeekend||[];e.shiftClass=e.shiftClass||"一般";e.note=e.note||"";e.role=["一般","餅皮","管理者"].includes(e.role)?e.role:"一般";
   const types=["正職","工讀","外籍學生","其他"];
   const shiftClasses=["一般","平日早班","平日晚班","假日班","其他"];
+  const roles=["一般","餅皮","管理者"];
   const foreignLimit=settings().foreignDefaultLimit;
   const workBoxes=(group,selected,filter)=>{
     const list=state.data.workTypes.filter(w=>w.active&&(!filter||filter(w)));
@@ -1222,6 +1225,7 @@ function openEmployeeModal(id=null){
       <label class="field"><span>登入 PIN 碼（4 位數）</span><input class="input" name="pin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" value="${e.pin||"0000"}"><small class="field-help">員工登入用，預設 0000。建議用生日 4 碼（MMDD），例如 7 月 15 日→0715。</small></label>
       <label class="field"><span>身分類型</span><select class="select" name="employmentType" id="empType">${types.map(x=>`<option ${x===e.employmentType?"selected":""}>${x}</option>`).join("")}</select></label>
       <label class="field"><span>班別</span><select class="select" name="shiftClass" id="empShiftClass">${shiftClasses.map(x=>`<option ${x===e.shiftClass?"selected":""}>${x}</option>`).join("")}</select></label>
+      <label class="field"><span>備料角色（餅皮推估權限）</span><select class="select" name="role" id="empRole">${roles.map(x=>`<option ${x===e.role?"selected":""}>${x}</option>`).join("")}</select><small class="field-help">「餅皮」「管理者」可在員工專區看到🍕餅皮推估；「一般」看不到。</small></label>
       <label class="field"><span>每週計薪工時上限</span><input class="input" name="weeklyLimit" id="empWeeklyLimit" type="number" min="0" step=".5" value="${e.weeklyLimit}"><small class="field-help" id="empLimitHint">外籍學生預設 ${foreignLimit} 小時／週。</small></label>
       <label class="field"><span>時薪（元）</span><input class="input" name="hourlyWage" type="number" min="0" step="1" value="${e.hourlyWage||0}"><small class="field-help">用於工時統計的人力成本試算，選填。</small></label>
       <label class="check-row span-2"><input type="checkbox" name="noBreak" id="empNoBreak" ${e.noBreak?"checked":""}> 固定早班／上班不扣休息時間（選「平日早班」會自動勾選，可自行調整）</label>
@@ -1246,7 +1250,7 @@ function openEmployeeModal(id=null){
     // 主要工作必須落在可做工作範圍內
     const primaryWeekday=fd.getAll("primaryWeekday").filter(w=>works.includes(w));
     const primaryWeekend=fd.getAll("primaryWeekend").filter(w=>works.includes(w));
-    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,pin:pin||"0000",employmentType:fd.get("employmentType"),shiftClass:fd.get("shiftClass"),noBreak:fd.get("noBreak")==="on",weeklyLimit:Number(fd.get("weeklyLimit")||0),hourlyWage:Number(fd.get("hourlyWage")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,note:(fd.get("note")||"").trim(),active:fd.get("active")==="on"});
+    Object.assign(e,{name:fd.get("name").trim(),employeeNo:no,pin:pin||"0000",employmentType:fd.get("employmentType"),shiftClass:fd.get("shiftClass"),role:(["一般","餅皮","管理者"].includes(fd.get("role"))?fd.get("role"):"一般"),noBreak:fd.get("noBreak")==="on",weeklyLimit:Number(fd.get("weeklyLimit")||0),hourlyWage:Number(fd.get("hourlyWage")||0),allowedWorkTypeIds:works,primaryWeekday,primaryWeekend,note:(fd.get("note")||"").trim(),active:fd.get("active")==="on"});
     if(!id)state.data.employees.push(e);save();closeModal()
   }
 }

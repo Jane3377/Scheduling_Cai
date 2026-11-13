@@ -196,6 +196,17 @@ function renderStaff(){
   byId("staffPortal").classList.remove("hidden");
   applyStaffBranding();
   byId("staffWelcome").textContent=`${e.name}，你好`;
+  // 餅皮推估分頁：僅「餅皮／管理者」角色可見
+  const dTab=byId("doughTabBtn");
+  if(dTab){
+    const show=canDough();
+    dTab.hidden=!show;
+    if(show)initDough();
+    else if(dTab.classList.contains("active")){ // 角色被改掉時退回我的班表
+      document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));
+      byId("mySchedulePanel").classList.add("active");document.querySelector('[data-staff-tab="mySchedule"]').classList.add("active");
+    }
+  }
 
   const today=toDateKey(new Date());
   // 顯示前後約三個月的班表
@@ -511,6 +522,56 @@ function saveStock(){
     .then(()=>{const n=byId("stockSaved");if(n){n.textContent=`${formatDate(stockSelDate)} 已送出：雞肉 腿${rec.leg}/排${rec.fil}/翅${rec.wing}・餅皮 9厚${rec.t9}/9薄${rec.s9}/12厚${rec.t12}/12薄${rec.s12}`;setTimeout(()=>{n.textContent="";},3400);}})
     .catch(err=>toast("送出失敗："+(err&&err.message||err),"error"));
 }
+/* ---------- 餅皮推估（角色＝餅皮／管理者 才看得到） ---------- */
+const DOUGH_TYPES=["t9","s9","t12","s12"], DOUGH_LABEL={t9:"9吋厚",s9:"9吋薄",t12:"12吋厚",s12:"12吋薄"};
+const DEFAULT_PIZZA={minRevenue:100000,pizzaShare:60,share9:50,avg9:448,avg9Auto:true,avg12:680,avg12Auto:true,thick9:60,thick12:60};
+let pizzaCfg=JSON.parse(JSON.stringify(DEFAULT_PIZZA)), doughReports={}, doughSubbed=new Set(), doughConfigSubbed=false;
+function myRole(){const e=staffEmployeeId&&employee(staffEmployeeId);return (e&&e.role)||"一般";}
+function canDough(){const r=myRole();return r==="餅皮"||r==="管理者";}
+function natHolidayS(key){return (data?.settings?.nationalHolidays||[]).find(h=>h.date===key)?.name||"";}
+function pizzaAvgPriceS(){let a9=0,q9=0,a12=0,q12=0;Object.values(doughReports).forEach(r=>{const s=r&&r.summary;if(s){a9+=s.pizza9amt||0;q9+=s.pizza9||0;a12+=s.pizza12amt||0;q12+=s.pizza12||0;}});return{p9:q9?Math.round(a9/q9):0,p12:q12?Math.round(a12/q12):0};}
+function pizzaFloorS(){const c=pizzaCfg;const a9=c.avg9Auto?(pizzaAvgPriceS().p9||c.avg9):c.avg9;const a12=c.avg12Auto?(pizzaAvgPriceS().p12||c.avg12):c.avg12;const rev=(Number(c.minRevenue)||0)*(Number(c.pizzaShare)||0)/100;const rev9=rev*(Number(c.share9)||0)/100,rev12=rev-rev9;const n9=a9>0?rev9/a9:0,n12=a12>0?rev12/a12:0;const th9=Number(c.thick9)||0,th12=Number(c.thick12)||0;return{t9:Math.round(n9*th9/100),s9:Math.round(n9*(100-th9)/100),t12:Math.round(n12*th12/100),s12:Math.round(n12*(100-th12)/100)};}
+function doughMadeS(k){const rep=doughReports[k],sold=rep&&rep.dough;if(!sold)return null;const left=stockDays[k]||null,out={};DOUGH_TYPES.forEach(t=>out[t]=(Number(sold[t])||0)+(left?(Number(left[t])||0):0));return out;}
+// 餅皮推估（與後台同邏輯）：平日=近4次同星期製作量平均；六日/假日=max(平均,最低營業額反推)；國定假日=比照週日
+function predictDoughS(targetKey){
+  if(isClosedDay(targetKey))return{group:null,rec:null};
+  const nat=natHolidayS(targetKey),dow=new Date(targetKey+"T00:00:00").getDay();
+  const isWeekend=(dow===0||dow===6||!!nat),sampleDow=nat?0:dow,todayK=toDateKey(new Date()),samples=[];
+  Object.keys(doughReports).forEach(k=>{if(k>todayK||k===targetKey)return;if(new Date(k+"T00:00:00").getDay()!==sampleDow)return;const m=doughMadeS(k);if(m)samples.push({date:k,made:m});});
+  samples.sort((a,b)=>a.date<b.date?1:-1);const recent=samples.slice(0,4);
+  const avg=recent.length?{}:null;if(recent.length)DOUGH_TYPES.forEach(t=>avg[t]=Math.round(recent.reduce((s,x)=>s+x.made[t],0)/recent.length));
+  const floor=isWeekend?pizzaFloorS():null,rec={},src={};
+  DOUGH_TYPES.forEach(t=>{const a=avg?avg[t]:0,fl=floor?floor[t]:0;if(isWeekend&&fl>a){rec[t]=fl;src[t]="floor";}else{rec[t]=a;src[t]=avg?"avg":"none";}});
+  const label=nat?("國定假日·"+nat):(dow===0?"週日":dow===6?"週六":"平日·週"+"日一二三四五六"[dow]);
+  return{group:isWeekend?"假日":"平日",label,isWeekend,n:recent.length,floor,rec,src};
+}
+function nextOpenDaysS(n){const out=[],d=new Date();for(let i=0;i<40&&out.length<n;i++){const k=toDateKey(d);if(!isClosedDay(k))out.push(k);d.setDate(d.getDate()+1);}return out;}
+function subscribeDough(){
+  const c=stockCol();if(!c)return;
+  if(!doughConfigSubbed){doughConfigSubbed=true;
+    c.doc("poultry_config").onSnapshot(snap=>{const d=snap.data();pizzaCfg=JSON.parse(JSON.stringify(DEFAULT_PIZZA));if(d&&d.pizza&&typeof d.pizza==="object"){const p=d.pizza;["minRevenue","pizzaShare","share9","avg9","avg12","thick9","thick12"].forEach(k=>{if(typeof p[k]==="number"&&isFinite(p[k]))pizzaCfg[k]=p[k];});if(typeof p.avg9Auto==="boolean")pizzaCfg.avg9Auto=p.avg9Auto;if(typeof p.avg12Auto==="boolean")pizzaCfg.avg12Auto=p.avg12Auto;}if(byId("doughPanel")&&byId("doughPanel").classList.contains("active"))renderDoughStaff();},err=>console.warn("pizza config",err));
+  }
+  const now=new Date();
+  for(let i=0;i<3;i++){const mk=ymKey(new Date(now.getFullYear(),now.getMonth()-i,1));
+    if(!doughSubbed.has(mk)){doughSubbed.add(mk);
+      c.doc("poultry_"+mk).onSnapshot(snap=>{const days=(snap.data()&&snap.data().days)||{};Object.keys(days).forEach(dk=>doughReports[dk]=days[dk]);if(byId("doughPanel")&&byId("doughPanel").classList.contains("active"))renderDoughStaff();},err=>console.warn("dough report",err));
+    }
+    // 過去月份的剩餘盤點也需要（算製作量用）；當月由 subscribeStock 處理
+    if(!stockSubbed.has(mk)){stockSubbed.add(mk);
+      c.doc("poultry_stock_"+mk).onSnapshot(snap=>{const days=(snap.data()&&snap.data().days)||{};Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);if(byId("doughPanel")&&byId("doughPanel").classList.contains("active"))renderDoughStaff();},err=>console.warn("stock month",err));
+    }
+  }
+}
+function initDough(){subscribeDough();renderDoughStaff();}
+function renderDoughStaff(){
+  const box=byId("doughStaffList");if(!box)return;
+  const up=nextOpenDaysS(4);
+  box.innerHTML=up.map(k=>{const p=predictDoughS(k),anyFloor=p.src&&DOUGH_TYPES.some(t=>p.src[t]==="floor");
+    return `<div class="dgs-card"><div class="dgs-h">${formatDate(k)}<span class="dgs-tag${p.isWeekend?" wk":""}">${p.label}</span></div>
+      <div class="dgs-nums">${DOUGH_TYPES.map(t=>`<span><i>${DOUGH_LABEL[t]}</i><b>${p.rec?p.rec[t]:0}</b></span>`).join("")}</div>
+      ${!p.n?`<div class="dgs-note">同星期資料累積中${p.floor?"・暫用最低營業額反推":""}</div>`:(anyFloor?`<div class="dgs-note">已套「最低營業額」底線</div>`:"")}</div>`;
+  }).join("")||`<div class="empty-state">目前沒有可推估的營業日。</div>`;
+}
 document.addEventListener("DOMContentLoaded",()=>{
   applyStaffBranding();
   byId("staffLoginBtn").onclick=login;
@@ -518,7 +579,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("staffPinInput")?.addEventListener("keydown",e=>{if(e.key==="Enter")login()});
   byId("staffLogoutBtn").onclick=logout;
   byId("addAllCalBtn").onclick=addAllToCalendar;
-  document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active");if(b.dataset.staffTab==="stock")initStock();});
+  document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active");if(b.dataset.staffTab==="stock")initStock();if(b.dataset.staffTab==="dough")initDough();});
   byId("stockSaveBtn")?.addEventListener("click",saveStock);
   // 我的班表：列表／月曆切換、月份切換、當天明細小卡
   document.querySelectorAll("#myViewTabs .seg-btn").forEach(b=>b.onclick=()=>setMyView(b.dataset.myview));
