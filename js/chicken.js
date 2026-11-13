@@ -350,7 +350,7 @@
       : `<span><i class="legend-dot available"></i>已上傳銷售</span><span><i class="legend-dot" style="background:#ecd98f"></i>已排訂購</span><span><i class="legend-dot closed"></i>公休</span><span>📝 已訂購</span>`;
     const t = $("ckCalTitle"); if (t) t.textContent =
       calMode === "order" ? "每天＝這天訂了什麼（點下單日開訂購單）"
-      : calMode === "dough" ? "每格＝9吋 厚/薄、12吋 厚/薄；有資料的日子顯示實際製作量，其餘為推估建議（點看明細）"
+      : calMode === "dough" ? "有銷售的日子顯示 9吋／12吋 製作合計；今天若還沒上傳則顯示預估（點看厚薄明細）"
       : "每天＝用多少；已上傳日顯示實際消耗，未來日顯示供應狀態";
     applyCalChrome();
   }
@@ -392,14 +392,22 @@
       `<span class="cd-line"><i>12</i><b>${o.t12}</b><s>/</s><b>${o.s12}</b></span></span>`;
   }
   const doughSum = (o) => o ? (Number(o.t9) || 0) + (Number(o.s9) || 0) + (Number(o.t12) || 0) + (Number(o.s12) || 0) : 0;
+  // 月曆格只顯示 9吋／12吋 合計（厚薄明細在點開的明細裡）
+  function doughTotals(o, est) {
+    const n9 = (Number(o.t9) || 0) + (Number(o.s9) || 0), n12 = (Number(o.t12) || 0) + (Number(o.s12) || 0);
+    return `<span class="ck-dough2${est ? " est" : ""}"><span class="cd2"><i>9吋</i><b>${n9}</b></span><span class="cd2"><i>12吋</i><b>${n12}</b></span></span>`;
+  }
   function doughCell(k, dd) {
     const dow = parseKey(k).getDay(), redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
     const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
     if (isClosed(k)) return `<div class="employee-cal-day ck-rest">${numHtml}<span class="ck-tag">${closedLabel(k)}</span></div>`;
-    const made = (k <= todayKey()) ? doughMade(k) : null;
+    const sold = doughSold(k);   // 已有銷售（報表已上傳）
     let cls = "employee-cal-day ck-dcell", inner = numHtml;
-    if (made) { cls += " available"; inner += doughLines(made, false); }
-    else { const p = predictDough(k); if (k === todayKey()) cls += " ck-today"; inner += (doughSum(p.rec) > 0 ? doughLines(p.rec, true) : `<span class="cd-empty">—</span>`); }
+    if (sold) { cls += " available"; inner += doughTotals(doughMade(k), false); }      // 顯示 9吋/12吋 製作合計
+    else if (k === todayKey()) {                                                        // 當天營業、尚無銷售 → 預估
+      const p = predictDough(k); cls += " ck-today";
+      inner += (doughSum(p.rec) > 0 ? doughTotals(p.rec, true) : `<span class="cd-empty">—</span>`);
+    }                                                                                   // 其餘營業日：只留日期
     return `<button type="button" class="${cls}" data-date="${k}">${inner}</button>`;
   }
   let lastChickenMode = "use";

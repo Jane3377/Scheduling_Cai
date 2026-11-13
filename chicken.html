@@ -504,6 +504,12 @@
       .app-shell { grid-template-columns: 200px 1fr; }
       .app-main { padding: 22px 24px; }
     }
+    /* 平板／桌機：日期明細改右側抽屜（手機維持置中彈窗） */
+    @media (min-width: 721px) {
+      #detailBackdrop, #doughDetBackdrop { place-items: stretch end; padding: 0; }
+      #detailBackdrop .modal, #doughDetBackdrop .modal { width: min(480px, 94vw); height: 100vh; max-height: 100vh; border-radius: 20px 0 0 20px; animation: dsDrawer .22s ease; }
+    }
+    @keyframes dsDrawer { from { transform: translateX(26px); opacity: .5; } to { transform: none; opacity: 1; } }
     /* 盤點紀錄：每格填寫人（雞肉/餅皮分開）＋已更正標＋更正鈕 */
     .rec-tbl .rw .rf-l { display: block; white-space: nowrap; }
     .rec-tbl .rw .rf-t { color: var(--muted); font-size: 11.5px; font-weight: 600; margin-left: 3px; }
@@ -546,18 +552,17 @@
     .ck-cat.on { border-color: var(--brand); background: var(--brand); box-shadow: 0 5px 14px rgba(146,53,33,.2); }
     .ck-cat.on .cat-tx b { color: #fff; }
     .ck-cat.on .cat-tx small { color: #f5ddd0; }
-    /* 餅皮月曆格：每格＝9吋 厚/薄、12吋 厚/薄 */
-    .ck-dcell .ck-dough { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; width: 100%; }
-    .ck-dcell .cd-line { display: flex; justify-content: center; align-items: baseline; gap: 1px; line-height: 1.2; white-space: nowrap; }
-    .ck-dcell .cd-line i { font-style: normal; color: var(--muted); font-size: 10.5px; margin-right: 3px; font-weight: 700; }
-    .ck-dcell .cd-line b { font-size: 14px; font-weight: 800; color: #9a4a1a; }
-    .ck-dcell .cd-line s { text-decoration: none; color: #cbb8a8; font-size: 11px; margin: 0 1px; }
-    .ck-dcell .ck-dough.est .cd-line b { color: #b07a4a; }
+    /* 餅皮月曆格：每格＝9吋／12吋 合計（點看厚薄明細） */
+    .ck-dcell .ck-dough2 { display: flex; flex-direction: column; gap: 4px; margin-top: 7px; width: 100%; }
+    .ck-dcell .cd2 { display: flex; justify-content: center; align-items: baseline; gap: 5px; line-height: 1.15; white-space: nowrap; }
+    .ck-dcell .cd2 i { font-style: normal; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .ck-dcell .cd2 b { font-size: 19px; font-weight: 900; color: #9a4a1a; }
+    .ck-dcell .ck-dough2.est .cd2 b { color: #b07a4a; }
     .ck-dcell .cd-empty { display: block; text-align: center; color: #cbbeb0; font-size: 17px; margin-top: 8px; }
     @media (max-width: 480px) {
       .ck-cat .cat-tx b { font-size: 15px; } .ck-cat .cat-tx small { font-size: 11px; }
       .ck-cat { padding: 11px; gap: 8px; } .ck-cat .cat-ic { font-size: 22px; }
-      .ck-dcell .cd-line b { font-size: 13.5px; } .ck-dcell .cd-line i { font-size: 10px; }
+      .ck-dcell .cd2 b { font-size: 18px; } .ck-dcell .cd2 i { font-size: 10.5px; }
     }
   </style>
 </head>
