@@ -504,6 +504,20 @@
       .app-shell { grid-template-columns: 200px 1fr; }
       .app-main { padding: 22px 24px; }
     }
+    /* 訂購雞肉彈窗：分區卡片＋底部固定操作＋已訂購鎖定 */
+    #orderBackdrop .modal { display: flex; flex-direction: column; max-height: 92vh; }
+    #orderBackdrop .modal-head { flex: 0 0 auto; }
+    #orderBackdrop .ord-body { overflow-y: auto; flex: 1 1 auto; -webkit-overflow-scrolling: touch; }
+    #orderBackdrop .ord-foot { flex: 0 0 auto; border-top: 1px solid var(--line); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: #fff; }
+    #orderBackdrop .ord-foot .modal-actions { margin: 0; }
+    .ord-sec { border: 1px solid #ece2d9; border-radius: 14px; padding: 12px 13px; margin-bottom: 13px; background: #fff; box-shadow: 0 1px 3px rgba(60,40,30,.04); }
+    .ord-sec-h { font-size: 14.5px; font-weight: 800; color: var(--brand-dark); margin: 0 0 11px; display: flex; align-items: center; gap: 3px; }
+    .ord-sec .ord-sel:last-child, .ord-sec .ord-flow2:last-child { margin-bottom: 0; }
+    .ord-sec .ord-flow2 { margin-bottom: 0; }
+    .ord-lock { background: #fbe9db; border: 1px solid #e7cdbf; color: #9a4a1a; border-radius: 12px; padding: 12px 13px; font-size: 14px; font-weight: 800; margin-bottom: 13px; line-height: 1.5; }
+    .od-dow { font-size: 11px; font-weight: 700; color: #7a6a5c; background: #efeae4; border-radius: 6px; padding: 1px 7px; margin-left: 7px; }
+    .od-in:disabled, .ord-selwrap select:disabled, .ord-cell.kg input:disabled { background: #f1efec; color: #8a7f77; -webkit-text-fill-color: #8a7f77; opacity: 1; }
+    .ord-usebtn:disabled { background: #f1efec; color: #8a7f77; cursor: default; }
     /* 月曆第一層分類（雞肉管理 / 餅皮管理） */
     .ck-catswitch { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin: 2px 0 13px; }
     .ck-cat { display: flex; align-items: center; gap: 11px; text-align: left; background: #fff; border: 1.5px solid #e7ddd4; border-radius: 15px; padding: 13px 14px; cursor: pointer; transition: background .12s ease, border-color .12s ease, box-shadow .12s ease; }
@@ -648,8 +662,8 @@
         <div class="gd-sec">
           <h4>🗓️ 每天這樣做</h4>
           <div class="gd-step"><span class="gd-num">1</span><span class="tx"><b>上傳銷售報表</b>：打烊後點右上〈＋ 上傳銷售報表〉，開大麥系統下載「餐點銷售狀況」Excel 回來上傳。系統自動換算當天用掉的 🍗腿／🥩排／🪽翅。</span></div>
-          <div class="gd-step"><span class="gd-num">2</span><span class="tx"><b>看推估建議</b>：首頁〈🔮 推估建議〉或〈📝 記錄叫貨〉會算出下次該叫多少（原理見下方）。</span></div>
-          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>記錄叫貨</b>：點「<b>帶入</b>」把推估填到 ①（隻），系統自動換成整數<b>公斤</b> ②（可微調）→ 存。全部 0 ＝ 當天沒叫貨；存好月曆出現 📝。</span></div>
+          <div class="gd-step"><span class="gd-num">2</span><span class="tx"><b>看推估建議</b>：首頁〈今日建議〉或月曆〈🔮 推估建議〉會算出下次該訂多少（原理見下方）。</span></div>
+          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>訂購雞肉</b>：點「<b>帶入</b>」把平均銷售填到各使用日，系統自動換成整數<b>公斤</b>（可微調）→ 存／確認。存好月曆出現 📝。</span></div>
         </div>
 
         <div class="gd-sec">
@@ -671,7 +685,7 @@
           <h4>📅 月曆怎麼看</h4>
           <div class="gd-legend">
             <div class="gd-leg-row"><span class="gd-sw" style="background:#f3faf5;border-color:#cfe6d7"></span>綠底：已上傳銷售，格子裡是當天用掉的腿／排／翅</div>
-            <div class="gd-leg-row"><span class="gd-sw" style="background:#fff3c9;border-color:#ecd98f"></span>黃底／📝：已記錄叫貨</div>
+            <div class="gd-leg-row"><span class="gd-sw" style="background:#fff3c9;border-color:#ecd98f"></span>黃底／📝：已訂購</div>
             <div class="gd-leg-row"><span class="gd-sw" style="background:#f3f0ed;border-color:#e4ddd7"></span>灰底：公休</div>
             <div class="gd-leg-row"><span class="gd-sw" style="background:#fff;border-color:#eee;color:#b3261e;display:grid;place-items:center;font-weight:800;font-size:12px">15</span>紅字：假日／國定假日</div>
             <div class="gd-leg-row">👉 <span>點月曆<b>任何一天</b>，可看那天「叫貨 vs 實際消耗」的對比。</span></div>
@@ -723,29 +737,43 @@
   <div id="orderBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(470px,100%)">
       <div class="modal-head"><div><h3>訂購雞肉</h3><p id="ordHeadSub">下單</p></div><span class="ord-status" id="ordStatus"></span><button class="icon-btn" data-close="orderBackdrop">✕</button></div>
-      <div class="modal-body ck-form">
-        <div class="ord-sel"><span class="ord-k">批發商</span><div class="ord-selwrap"><select class="input" id="ordSupplier"></select></div></div>
-        <div class="ord-sel"><span class="ord-k">到貨日</span><div class="ord-selwrap"><select class="input" id="ordDelivery"></select></div></div>
-        <div class="ord-sel"><span class="ord-k">使用日</span><button type="button" class="ord-usebtn" id="ordUseBtn">請選使用日 ▾</button></div>
-        <div class="ord-flow2" id="ordFlow"></div>
+      <div class="modal-body ck-form ord-body">
+        <div class="ord-lock hidden" id="ordLockBanner">🔒 這張訂單已確認訂購，僅供檢視、不可修改（保留原始紀錄）。</div>
 
-        <div class="stock-line hidden" id="stockLine"></div>
+        <section class="ord-sec">
+          <div class="ord-sec-h"><b class="ord-step">①</b> 訂購資訊</div>
+          <div class="ord-sel"><span class="ord-k">批發商</span><div class="ord-selwrap"><select class="input" id="ordSupplier"></select></div></div>
+          <div class="ord-sel"><span class="ord-k">到貨日</span><div class="ord-selwrap"><select class="input" id="ordDelivery"></select></div></div>
+          <div class="ord-sel"><span class="ord-k">使用日</span><button type="button" class="ord-usebtn" id="ordUseBtn">請選使用日 ▾</button></div>
+          <div class="ord-flow2" id="ordFlow"></div>
+        </section>
 
-        <div class="od-head"><span class="od-hd">使用日（可改）</span><span>🍗腿</span><span>🥩排</span><span>🪽翅</span></div>
-        <div id="ordRows"></div>
+        <section class="ord-sec">
+          <div class="ord-sec-h"><b class="ord-step">②</b> 各使用日需求</div>
+          <div class="od-head"><span class="od-hd">使用日（可改）</span><span>🍗腿</span><span>🥩排</span><span>🪽翅</span></div>
+          <div id="ordRows"></div>
+        </section>
 
-        <div class="ord-sum" id="ordSumTbl"></div>
-        <div class="ord-stocknote" id="ordStockNote"></div>
+        <section class="ord-sec">
+          <div class="ord-sec-h"><b class="ord-step">③</b> 訂購數量確認</div>
+          <div class="stock-line hidden" id="stockLine"></div>
+          <div class="ord-sum" id="ordSumTbl"></div>
+          <div class="ord-stocknote" id="ordStockNote"></div>
+        </section>
 
-        <div class="kgsep">↓ 最後整批換算公斤（依系統克數・可微調）</div>
-        <div class="ck-num3">
-          <label class="ord-cell kg"><span>🍗 <b id="lblKgleg">D5</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgleg" /></label>
-          <label class="ord-cell kg"><span>🥩 <b id="lblKgfil">TS4</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgfil" /></label>
-          <label class="ord-cell kg"><span>🪽 <b id="lblKgwing">W6</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgwing" /></label>
-        </div>
-
-        <div class="modal-actions"><button class="ghost-btn" id="ordDraftBtn">存草稿</button><button class="primary-btn" id="ordConfirmBtn">確認已叫貨</button></div>
+        <section class="ord-sec">
+          <div class="ord-sec-h"><b class="ord-step">④</b> 重量換算</div>
+          <div class="ck-num3">
+            <label class="ord-cell kg"><span>🍗 <b id="lblKgleg">D5</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgleg" /></label>
+            <label class="ord-cell kg"><span>🥩 <b id="lblKgfil">TS4</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgfil" /></label>
+            <label class="ord-cell kg"><span>🪽 <b id="lblKgwing">W6</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgwing" /></label>
+          </div>
+        </section>
+      </div>
+      <div class="ord-foot">
+        <div class="modal-actions" id="ordActions"><button class="ghost-btn" id="ordDraftBtn">存草稿</button><button class="primary-btn" id="ordConfirmBtn">確認已訂購</button></div>
         <button type="button" class="ord-delbtn hidden" id="ordDeleteBtn">🗑 刪除這張訂單</button>
+        <button type="button" class="primary-btn full hidden" id="ordCloseBtn" data-close="orderBackdrop">關閉</button>
       </div>
     </div>
   </div>
@@ -799,7 +827,7 @@
   <!-- 點某天明細彈窗 -->
   <div id="detailBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(520px,100%)">
-      <div class="modal-head"><div><h3 id="detailTitle"></h3><p>預估／叫貨量／實際賣 對比</p></div><button class="icon-btn" data-close="detailBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3 id="detailTitle"></h3><p>預估／訂購量／實際賣 對比</p></div><button class="icon-btn" data-close="detailBackdrop">✕</button></div>
       <div class="modal-body">
         <div id="detailBody"></div>
         <div class="modal-actions"><button class="ghost-btn" id="detailEditOrder">📝 訂購／修改這天雞肉</button><button class="primary-btn" data-close="detailBackdrop">關閉</button></div>

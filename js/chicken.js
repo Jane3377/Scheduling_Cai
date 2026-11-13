@@ -323,8 +323,8 @@
   function renderStockTop() {
     const el = $("ckStockTop"); if (!el) return;
     const s = currentStock();
-    if (!s) { el.classList.add("hidden"); el.innerHTML = ""; return; }
     el.classList.remove("hidden");
+    if (!s) { el.innerHTML = `📦 ⚠ ${STOCK_NONE_MSG}（不當作庫存 0）`; return; }
     el.innerHTML = `📦 目前庫存　<b class="ck-leg big">腿${s.leg}</b>　<b class="ck-fil big">排${s.fil}</b>　<b class="ck-wing big">翅${s.wing}</b>　<small>（${mdw(s.date)}${s.byName ? " " + s.byName : ""} 盤點）</small>`;
   }
   let calMode = "use";   // "use"＝使用月曆；"order"＝叫貨月曆
@@ -362,11 +362,11 @@
     const redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
     const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
     const sr = rec.supplyRef, srOrder = sr ? orderForDay(sr.od) : null, st = srOrder ? orderStatus(srOrder) : null;
-    const mark = hasOrder ? `<span class="ck-ord-mark" title="已記錄叫貨">📝</span>` : "";
+    const mark = hasOrder ? `<span class="ck-ord-mark" title="已訂購">📝</span>` : "";
     let cls = "employee-cal-day", inner = numHtml, disabled = "";
     if (isClosed(k)) { cls += " ck-rest"; disabled = "disabled"; inner += `<span class="ck-tag">${closedLabel(k)}</span>`; }
     else if (hasSales) { cls += " available"; inner = numHtml + mark + partLines(rec.parts); }
-    else if (hasOrder) { cls += " ck-order"; inner = numHtml + mark + `<span class="ck-tag ck-ord-tag">${st ? STATUS_LABEL[st] : "已排叫貨"}</span>` + partLines(rec.order); }
+    else if (hasOrder) { cls += " ck-order"; inner = numHtml + mark + `<span class="ck-tag ck-ord-tag">${st ? STATUS_LABEL[st] : "已排訂購"}</span>` + partLines(rec.order); }
     else { if (k === todayKey()) cls += " ck-today"; inner = numHtml; }
     return `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
   }
@@ -522,7 +522,7 @@
   /* ---------- 記錄叫貨（叫貨單：批發商＋到貨日＋使用日＋狀態流程） ---------- */
   const numsHTML = (o) => `<i>腿</i><b class="ck-leg">${o.leg}</b> <i>排</i><b class="ck-fil">${o.fil}</b> <i>翅</i><b class="ck-wing">${o.wing}</b>`;
   const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return toKey(d); };
-  const STATUS_LABEL = { draft: "待叫貨", ordered: "已叫貨", arrived: "已到貨" };
+  const STATUS_LABEL = { draft: "待訂購", ordered: "已訂購", arrived: "已到貨" };
   const STATUS_CLS = { draft: "st-wait", ordered: "st-sent", arrived: "st-arr" };
   function orderStatus(o) { if (!o) return null; if (o.status === "ordered") return (o.deliveryDay && o.deliveryDay <= todayKey()) ? "arrived" : "ordered"; return "draft"; }
   const orderRefOf = (ym) => db.collection(COLL).doc("poultry_order_" + ym);
@@ -577,8 +577,8 @@
   function renderStock() {
     const el = $("stockLine"); if (!el) return;
     const s = currentStock();
-    if (!s) { el.classList.add("hidden"); el.innerHTML = ""; return; }
     el.classList.remove("hidden");
+    if (!s) { el.innerHTML = `📦 ⚠ ${STOCK_NONE_MSG}（本單不扣庫存）`; return; }
     el.innerHTML = `📦 目前庫存（${mdw(s.date)}${s.byName ? " " + s.byName : ""} 盤點）：<b class="ck-leg">腿${s.leg}</b> <b class="ck-fil">排${s.fil}</b> <b class="ck-wing">翅${s.wing}</b>`;
   }
   function recomputeUseDays() {
@@ -599,19 +599,33 @@
   function renderOrderForm() {
     const f = orderForm; if (!f) return;
     const st = f.exists ? (orderStatus(orderForDay(f.orderDay)) || "draft") : "draft";
+    f.locked = f.exists && (st === "ordered" || st === "arrived");   // 已訂購/已到貨：僅供檢視
     const chip = $("ordStatus"); if (chip) { chip.textContent = STATUS_LABEL[st]; chip.className = "ord-status " + STATUS_CLS[st]; }
     $("ordHeadSub").textContent = `${mdw(f.orderDay)} 下單`;
     $("ordSupplier").innerHTML = suppliers.map((s) => `<option value="${s.id}"${s.id === f.supplier ? " selected" : ""}>${esc(s.name)}</option>`).join("");
     const dOpts = deliveryOptions(f.orderDay, f.supplier);
-    if (!dOpts.some((o) => o.key === f.deliveryDay)) { f.deliveryDay = dOpts[0] ? dOpts[0].key : addDays(f.orderDay, 1); recomputeUseDays(); }
+    if (!f.locked && !dOpts.some((o) => o.key === f.deliveryDay)) { f.deliveryDay = dOpts[0] ? dOpts[0].key : addDays(f.orderDay, 1); recomputeUseDays(); }
     $("ordDelivery").innerHTML = (dOpts.length ? dOpts : [{ key: f.deliveryDay, label: mdw(f.deliveryDay) }]).map((o) => `<option value="${o.key}"${o.key === f.deliveryDay ? " selected" : ""}>${o.label}</option>`).join("");
     $("ordUseBtn").innerHTML = f.useDays.length ? `${f.useDays.map((u) => mdw(u)).join("、")}　<span class="cnt">${f.useDays.length} 天</span>` : "請選使用日 ▾";
     $("ordFlow").innerHTML = `${mdw(f.orderDay)} 下單 → <b>${mdw(f.deliveryDay)} 到貨</b> → 供 ${f.useDays.map((u) => mdw(u)).join("・") || "—"}`;
-    const delBtn = $("ordDeleteBtn"); if (delBtn) delBtn.classList.toggle("hidden", !f.exists);
+    // 鎖定：停用所有輸入、換掉底部按鈕
+    $("ordSupplier").disabled = f.locked; $("ordDelivery").disabled = f.locked; $("ordUseBtn").disabled = f.locked;
+    PARTS3.forEach((p) => { const el = $(`orderKg${p}`); if (el) el.disabled = f.locked; });
+    const lb = $("ordLockBanner"); if (lb) lb.classList.toggle("hidden", !f.locked);
+    const acts = $("ordActions"); if (acts) acts.classList.toggle("hidden", f.locked);
+    const delBtn = $("ordDeleteBtn"); if (delBtn) delBtn.classList.toggle("hidden", !f.exists || f.locked);
+    const closeBtn = $("ordCloseBtn"); if (closeBtn) closeBtn.classList.toggle("hidden", !f.locked);
     renderStock();
     renderOrderRows();
     renderOrderSum();
     renderKgLabels();
+  }
+  // 日型標籤（顯示用）：平日／週五／週六／週日／國定假日／公休
+  function dayTypeLabel(k) {
+    if (isClosed(k)) return "公休";
+    if (natHoliday(k)) return "國定假日";
+    const d = parseKey(k).getDay();
+    return d === 0 ? "週日" : d === 6 ? "週六" : d === 5 ? "週五" : "平日";
   }
   function refLine(tag, pill, o, fillKey) {
     return `<div class="oref-row"><span class="oref-tag">${tag}${pill ? `<span class="oref-pill">${pill}</span>` : ""}</span><span class="oref-n">${numsHTML(o)}</span><button type="button" class="oref-fill" data-fill="${fillKey}">帶入</button></div>`;
@@ -624,38 +638,41 @@
       let exp = "";
       if (open) {
         let rows = "";
-        if (p.n && p.rec) rows += refLine("🔮 系統建議", METHOD_LABEL[estMethod] || "平均", p.rec, `sug:${u}`);
-        else rows += `<div class="oref-empty">系統建議：${p.group || ""}・資料累積中</div>`;
-        if (last) rows += refLine(`🕑 上次${p.group || ""}（${last.date.slice(5).replace("-", "/")}）`, "", last.order, `last:${u}`);
+        if (p.n && p.rec) rows += refLine("📊 平均銷售", dayTypeLabel(u), p.rec, `sug:${u}`);
+        else rows += `<div class="oref-empty">📊 平均銷售：${dayTypeLabel(u)}・資料累積中</div>`;
+        if (last) rows += refLine(`🕑 上次採購（${mdw(last.date)}）`, "", last.order, `last:${u}`);
         exp = `<div class="oref">${rows}</div>`;
       }
+      const dis = f.locked ? " disabled" : "";
       return `<div class="od-row${open ? " open" : ""}">
         <div class="od-main">
-          <button type="button" class="od-rhd" data-exp="${u}"><span class="od-ar">${open ? "⌃" : "⌄"}</span>${mdw(u)}${idx === 0 ? '<span class="od-first">第一天</span>' : ""}</button>
-          <input class="input od-in ck-leg" inputmode="numeric" data-pd="${u}" data-k="leg" value="${r.leg}">
-          <input class="input od-in ck-fil" inputmode="numeric" data-pd="${u}" data-k="fil" value="${r.fil}">
-          <input class="input od-in ck-wing" inputmode="numeric" data-pd="${u}" data-k="wing" value="${r.wing}">
+          <button type="button" class="od-rhd" data-exp="${u}"><span class="od-ar">${open ? "⌃" : "⌄"}</span>${mdw(u)}<span class="od-dow">${dayTypeLabel(u)}</span>${idx === 0 ? '<span class="od-first">第一天</span>' : ""}</button>
+          <input class="input od-in ck-leg" inputmode="numeric" data-pd="${u}" data-k="leg" value="${r.leg}"${dis}>
+          <input class="input od-in ck-fil" inputmode="numeric" data-pd="${u}" data-k="fil" value="${r.fil}"${dis}>
+          <input class="input od-in ck-wing" inputmode="numeric" data-pd="${u}" data-k="wing" value="${r.wing}"${dis}>
         </div>
         ${exp}
       </div>`;
     }).join("");
     box.querySelectorAll("button[data-exp]").forEach((b) => b.onclick = () => { f.expanded = (f.expanded === b.dataset.exp) ? null : b.dataset.exp; renderOrderRows(); });
+    if (f.locked) return;
     box.querySelectorAll("input[data-pd]").forEach((inp) => inp.oninput = () => { const u = inp.dataset.pd; (f.perDay[u] = f.perDay[u] || { leg: 0, fil: 0, wing: 0 })[inp.dataset.k] = Number(inp.value) || 0; f.kg = null; renderOrderSum(); });
     box.querySelectorAll("button[data-fill]").forEach((b) => b.onclick = () => { const [kind, u] = b.dataset.fill.split(":"); const p = predict(u), last = lastSameTypeOrder(u); const src = kind === "sug" ? (p.rec || {}) : (last ? last.order : {}); f.perDay[u] = { leg: src.leg || 0, fil: src.fil || 0, wing: src.wing || 0 }; f.kg = null; renderOrderRows(); renderOrderSum(); });
   }
   function renderOrderSum() {
     const f = orderForm, { sum, net } = orderTotals(), s = currentStock();
-    let html = `<div class="os-row os-sum"><span class="os-k">合計（隻）</span><span class="os-c ck-leg">${sum.leg}</span><span class="os-c ck-fil">${sum.fil}</span><span class="os-c ck-wing">${sum.wing}</span></div>`;
-    if (s) html += `<div class="os-row os-stk"><span class="os-k"><label class="os-ck"><input type="checkbox" id="ordDeduct"${f.deductStock ? " checked" : ""}> 扣目前庫存</label></span>` + (f.deductStock ? `<span class="os-c">−${s.leg}</span><span class="os-c">−${s.fil}</span><span class="os-c">−${s.wing}</span>` : `<span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span>`) + `</div>`;
-    html += `<div class="os-row os-net"><span class="os-k">要叫（隻）</span><span class="os-c ck-leg">${net.leg}</span><span class="os-c ck-fil">${net.fil}</span><span class="os-c ck-wing">${net.wing}</span></div>`;
+    let html = `<div class="os-row os-sum"><span class="os-k">合計需求（隻）</span><span class="os-c ck-leg">${sum.leg}</span><span class="os-c ck-fil">${sum.fil}</span><span class="os-c ck-wing">${sum.wing}</span></div>`;
+    if (s) html += `<div class="os-row os-stk"><span class="os-k"><label class="os-ck"><input type="checkbox" id="ordDeduct"${f.deductStock ? " checked" : ""}${f.locked ? " disabled" : ""}> 扣除目前庫存</label></span>` + (f.deductStock ? `<span class="os-c">−${s.leg}</span><span class="os-c">−${s.fil}</span><span class="os-c">−${s.wing}</span>` : `<span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span>`) + `</div>`;
+    else html += `<div class="os-row os-stk os-nostk"><span class="os-k">扣除目前庫存</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span></div>`;
+    html += `<div class="os-row os-net"><span class="os-k">最終訂購量（隻）</span><span class="os-c ck-leg">${net.leg}</span><span class="os-c ck-fil">${net.fil}</span><span class="os-c ck-wing">${net.wing}</span></div>`;
     $("ordSumTbl").innerHTML = html;
     const dc = $("ordDeduct"); if (dc) dc.onchange = () => { f.deductStock = dc.checked; f.kg = null; renderOrderSum(); };
-    $("ordStockNote").textContent = (s && f.deductStock) ? `庫存只在「第一個使用日」扣（${mdw(s.date)} 盤點）；可取消勾選` : "";
+    $("ordStockNote").textContent = s ? (f.deductStock ? `庫存只在「第一個使用日」扣（${mdw(s.date)} 盤點）；可取消勾選` : "") : `⚠ ${STOCK_NONE_MSG}，本單不扣庫存（不當作 0）。`;
     if (!f.kg) PARTS3.forEach((p) => { $(`orderKg${p}`).value = net[p] > 0 ? kgSuggest(net[p], p) : 0; });
     else PARTS3.forEach((p) => { $(`orderKg${p}`).value = f.kg[p] != null ? f.kg[p] : 0; });
   }
   function saveOrderForm(confirmed) {
-    const f = orderForm; if (!f) return;
+    const f = orderForm; if (!f || f.locked) return;
     if (!f.useDays.length) { alert("請選擇至少一個使用日"); return; }
     if (!db) { hide("orderBackdrop"); return; }
     const { net, stockRec } = orderTotals();
@@ -676,9 +693,9 @@
       .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
   }
   function deleteOrderForm() {
-    const f = orderForm; if (!f || !db) { hide("orderBackdrop"); return; }
+    const f = orderForm; if (!f || f.locked || !db) { hide("orderBackdrop"); return; }
     const prev = orderForDay(f.orderDay); if (!prev) { hide("orderBackdrop"); return; }
-    if (!window.confirm("確定刪除這張叫貨單？涵蓋的使用日叫貨紀錄也會一併清除。")) return;
+    if (!window.confirm("確定刪除這張訂單？涵蓋的使用日訂購紀錄也會一併清除。")) return;
     const ordYm = ymOf(f.orderDay), DEL = firebase.firestore.FieldValue.delete();
     const writes = [{ ref: orderRefOf(ordYm), data: { orders: { [f.orderDay]: DEL }, updatedAt: Date.now() } }];
     const dayPatch = {};
@@ -688,6 +705,7 @@
   }
   /* 使用日多選面板 */
   function openUsePicker() {
+    if (orderForm && orderForm.locked) return;
     const f = orderForm, cand = candidateUseDays(f.orderDay, f.deliveryDay), box = $("useDayList");
     box.innerHTML = cand.length ? cand.map((u) => { const on = f.useDays.includes(u); return `<label class="ud-opt${on ? " on" : ""}"><input type="checkbox" data-ud="${u}"${on ? " checked" : ""}><span class="ud-box"></span><span class="ud-d">${mdw(u)}</span></label>`; }).join("") : `<div class="sup-empty">沒有可選的使用日。</div>`;
     const sync = () => {
@@ -720,21 +738,21 @@
     const nat = natHoliday(k);
     if (nat) html += `<div class="ck-holi-line">📌 國定假日：${nat}</div>`;
     if (isBiz && (est || o || u)) {
-      html += `<div class="cmp-h">預估 vs 叫貨 vs 實際賣</div>`;
+      html += `<div class="cmp-h">預估 vs 訂購 vs 實際賣</div>`;
       html += `<table class="ck-items" style="margin-bottom:6px"><thead><tr><th></th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>`;
       html += `<tr><td>預估</td>${cell(est, "leg")}${cell(est, "fil")}${cell(est, "wing")}</tr>`;
-      html += `<tr><td>叫貨量</td>${cell(o, "leg")}${cell(o, "fil")}${cell(o, "wing")}</tr>`;
+      html += `<tr><td>訂購量</td>${cell(o, "leg")}${cell(o, "fil")}${cell(o, "wing")}</tr>`;
       html += `<tr><td>實際賣</td>${cell(u, "leg")}${cell(u, "fil")}${cell(u, "wing")}</tr>`;
       if (o && u) html += `<tr class="sum"><td>差額（叫−賣）</td>${diffCell(o.leg - u.leg)}${diffCell(o.fil - u.fil)}${diffCell(o.wing - u.wing)}</tr>`;
       html += `</tbody></table>`;
       // 供應來源：這天的貨來自哪一張叫貨單
       const sr = rec.supplyRef, so = sr ? orderForDay(sr.od) : null;
-      if (sr) { const st = so ? orderStatus(so) : null; html += `<div class="ck-srcline">📦 這天的貨來自 <b>${mdw(sr.od)} 叫貨</b>${st ? `（${STATUS_LABEL[st]}）` : ""}<button type="button" class="ck-srcbtn" id="detailGoOrder">看這批 ›</button></div>`; }
+      if (sr) { const st = so ? orderStatus(so) : null; html += `<div class="ck-srcline">📦 這天的貨來自 <b>${mdw(sr.od)} 訂購</b>${st ? `（${STATUS_LABEL[st]}）` : ""}<button type="button" class="ck-srcbtn" id="detailGoOrder">看這批 ›</button></div>`; }
       const kg = rec.orderKg;
-      if (kg) html += `<div class="ck-kgline">📦 當天下單公斤：${PARTS3.map((pp) => `${PART_EMO[pp]} ${kg[pp]}`).join("　")}（公斤）</div>`;
-      if (!o) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未記錄叫貨。</div>`;
+      if (kg) html += `<div class="ck-kgline">📦 當天訂購公斤：${PARTS3.map((pp) => `${PART_EMO[pp]} ${kg[pp]}`).join("　")}（公斤）</div>`;
+      if (!o) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未訂購。</div>`;
       else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對。</div>`;
-      else html += `<div class="hint" style="margin:-2px 2px 12px">差額＝叫貨量−實際賣：正＝有剩（可能浪費）、負＝不夠。</div>`;
+      else html += `<div class="hint" style="margin:-2px 2px 12px">差額＝訂購量−實際賣：正＝有剩（可能浪費）、負＝不夠。</div>`;
     }
     if (hasSales) html += `<div class="cmp-h">當日銷售明細（換算消耗）</div>` + itemTable(rec.sales, rec.parts, rec.map);
     else if (isBiz) html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
@@ -830,13 +848,22 @@
     });
   }
   // 目前庫存＝今天（含）以前、最近一筆盤點（往下一個營業日累積顯示）
+  // 最近 n 個營業日（含今天，若今天營業）：新→舊
+  function recentBizDays(n) {
+    const out = [], d = parseKey(todayKey());
+    for (let i = 0; i < 90 && out.length < n; i++) { const k = toKey(d); if (!isClosed(k)) out.push(k); d.setDate(d.getDate() - 1); }
+    return out;
+  }
+  // 目前庫存＝「近 2 個營業日內」最新的剩餘雞肉紀錄；超過 2 營業日的舊紀錄不採用（回傳 null，不當成 0）
   function currentStock() {
-    const t = todayKey();
-    const keys = Object.keys(stockDays).filter((k) => k <= t).sort();
+    const t = todayKey(), win = recentBizDays(2);
+    const cutoff = win.length ? win[win.length - 1] : t;   // 2 個營業日前（含）
+    const keys = Object.keys(stockDays).filter((k) => k <= t && k >= cutoff).sort();
     if (!keys.length) return null;
     const k = keys[keys.length - 1], r = stockDays[k];
     return { date: k, leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0, byName: r.byName || "" };
   }
+  const STOCK_NONE_MSG = "未紀錄近 2 個營業日剩餘雞肉";
   const configRef = () => db.collection(COLL).doc("poultry_config");
   function applyConfig(d) {
     bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
@@ -1029,7 +1056,7 @@
   function refreshHint() {
     const el = $("ckHint"); if (!el) return;
     const today = todayKey(), uses = coveredUseDays(today);
-    if (!uses.length) { el.innerHTML = `🛈 今天不是下單日（批發商休或不需叫貨）；點這裡仍可手動記錄 ›`; return; }
+    if (!uses.length) { el.innerHTML = `🛈 今天不是下單日（批發商休或不需訂購）；點這裡仍可手動訂購 ›`; return; }
     const k = uses[0], d = parseKey(k), p = predict(k);
     const more = uses.length > 1 ? `（另含 ${uses.slice(1).map((x) => mdw(x)).join("、")}）` : "";
     const head = `🔮 推估建議：今天下單 → 使用 ${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}${p.group ? "·" + p.group : ""}）${more}`;
@@ -1075,7 +1102,7 @@
       const c = reminderOrderCalc();
       const stockRow = c.stock ? `<div class="rc-row stk"><span class="rc-k">扣目前庫存</span><span class="rc-v"><i>腿</i>−${c.stock.leg} <i>排</i>−${c.stock.fil} <i>翅</i>−${c.stock.wing}</span></div>` : "";
       html += `<div class="rm-task order">
-        <div class="rm-th"><span class="rm-tt">今天要叫貨</span><span class="rm-pill wait">待叫貨</span></div>
+        <div class="rm-th"><span class="rm-tt">今天要訂購</span><span class="rm-pill wait">待訂購</span></div>
         <div class="rm-sub">${mdw(c.del)} 到貨 → 供 <b>${c.uses.map(mdw).join("・") || "—"}</b></div>
         <div class="rm-calc">
           <div class="rc-row"><span class="rc-k">估要用</span><span class="rc-v">${numsHTML(c.sum)}</span></div>
@@ -1083,7 +1110,7 @@
           <div class="rc-row need"><span class="rc-k">要叫（隻）</span><span class="rc-v">${numsHTML(c.net)}</span></div>
           <div class="rc-row kg"><span class="rc-k">≈ 公斤</span><span class="rc-v">D5 <b>${c.kg.leg}</b>　TS4 <b>${c.kg.fil}</b>　W6 <b>${c.kg.wing}</b></span></div>
         </div>
-        <button type="button" class="rm-btn" id="remindOrderBtn">查看每天明細・確認叫貨 ›</button>
+        <button type="button" class="rm-btn" id="remindOrderBtn">查看每天明細・確認訂購 ›</button>
       </div>`;
     }
     if (st.needUpload) {
