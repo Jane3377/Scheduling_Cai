@@ -861,16 +861,16 @@
     for (let i = 0; i < 90 && out.length < n; i++) { const k = toKey(d); if (!isClosed(k)) out.push(k); d.setDate(d.getDate() - 1); }
     return out;
   }
-  // 目前庫存＝「近 2 個營業日內」最新的剩餘雞肉紀錄；超過 2 營業日的舊紀錄不採用(回傳 null，不當成 0)
+  // 目前庫存＝「近 3 個營業日內」最新的剩餘雞肉紀錄；超過 3 營業日的舊紀錄不採用(回傳 null，不當成 0)
   function currentStock() {
-    const t = todayKey(), win = recentBizDays(2);
-    const cutoff = win.length ? win[win.length - 1] : t;   // 2 個營業日前(含)
+    const t = todayKey(), win = recentBizDays(3);
+    const cutoff = win.length ? win[win.length - 1] : t;   // 3 個營業日前(含)
     const keys = Object.keys(stockDays).filter((k) => k <= t && k >= cutoff).sort();
     if (!keys.length) return null;
     const k = keys[keys.length - 1], r = stockDays[k];
     return { date: k, leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0, byName: r.byName || "" };
   }
-  const STOCK_NONE_MSG = "未紀錄近 2 個營業日剩餘雞肉";
+  const STOCK_NONE_MSG = "未紀錄近 3 個營業日剩餘雞肉";
   const configRef = () => db.collection(COLL).doc("poultry_config");
   function applyConfig(d) {
     bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
