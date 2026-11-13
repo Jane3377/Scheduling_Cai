@@ -283,35 +283,60 @@
     el.classList.remove("hidden");
     el.innerHTML = `📦 目前庫存　<b class="ck-leg big">腿${s.leg}</b>　<b class="ck-fil big">排${s.fil}</b>　<b class="ck-wing big">翅${s.wing}</b>　<small>（${mdw(s.date)}${s.byName ? " " + s.byName : ""} 盤點）</small>`;
   }
+  let calMode = "use";   // "use"＝使用月曆；"order"＝叫貨月曆
   function render() {
     renderStockTop();
     if (!viewYM) return;
     const [y, m] = viewYM.split("-").map(Number);
     const lbl = $("ckMonthLabel"); if (lbl) lbl.textContent = `${y} 年 ${m} 月`;
+    const grid = $("ckGrid"); if (!grid) return;
     const first = new Date(y, m - 1, 1), dim = new Date(y, m, 0).getDate();
     const startDow = (first.getDay() + 6) % 7;      // 週一起始
-    const tk = todayKey();
     let html = "";
     for (let i = 0; i < startDow; i++) html += `<div class="employee-cal-day ck-out"></div>`;
-    for (let dd = 1; dd <= dim; dd++) {
-      const k = `${viewYM}-${pad(dd)}`;
-      const rec = days[k] || {};
-      const hasSales = !!(rec.sales && Object.keys(rec.sales).length && rec.parts);
-      const hasOrder = !!rec.order;
-      const dow = parseKey(k).getDay();
-      const redNum = (dow === 0 || dow === 6 || !!natHoliday(k));    // 假日／國定假日：日期數字深紅
-      const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
-      const mark = hasOrder ? `<span class="ck-ord-mark" title="已記錄叫貨">📝</span>` : "";
-      let cls = "employee-cal-day", inner = numHtml, disabled = "";
-      if (isClosed(k)) { cls += " ck-rest"; disabled = "disabled"; inner += `<span class="ck-tag">${closedLabel(k)}</span>`; }   // 公休／臨時公休：灰底＋標示
-      else if (hasSales) { cls += " available"; inner = numHtml + mark + partLines(rec.parts); }                               // 已上傳消耗：綠底
-      else if (hasOrder) { cls += " ck-order"; inner = numHtml + mark + `<span class="ck-tag ck-ord-tag">已排叫貨</span>` + partLines(rec.order); } // 已排叫貨：黃底
-      else { if (k === tk) cls += " ck-today"; inner = numHtml; }                                                              // 營業日／未上傳／今天：只有日期，無標記
-      html += `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
-    }
-    const grid = $("ckGrid"); if (!grid) return;
+    for (let dd = 1; dd <= dim; dd++) { const k = `${viewYM}-${pad(dd)}`; html += (calMode === "order" ? orderCell(k, dd) : useCell(k, dd)); }
     grid.innerHTML = html;
-    grid.querySelectorAll("button[data-date]:not([disabled])").forEach((b) => b.addEventListener("click", () => openDetail(b.dataset.date)));
+    grid.querySelectorAll("button[data-date]:not([disabled])").forEach((b) => b.addEventListener("click", () => (calMode === "order" ? openOrderForm(b.dataset.date) : openDetail(b.dataset.date))));
+    const lg = $("ckLegend"); if (lg) lg.innerHTML = calMode === "order"
+      ? `<span><i class="legend-dot" style="background:#2f7d52"></i>已到貨</span><span><i class="legend-dot" style="background:#2a5aa0"></i>已叫貨</span><span><i class="legend-dot" style="background:#e0a884"></i>建議下單</span><span><i class="legend-dot closed"></i>公休</span>`
+      : `<span><i class="legend-dot available"></i>已上傳銷售</span><span><i class="legend-dot" style="background:#ecd98f"></i>已排叫貨</span><span><i class="legend-dot closed"></i>公休</span><span>📝 已記錄叫貨</span>`;
+    const t = $("ckCalTitle"); if (t) t.textContent = calMode === "order" ? "每天＝這天叫了什麼（點下單日開叫貨單）" : "每天＝用多少；已上傳日顯示實際消耗，未來日顯示供應狀態";
+  }
+  function useCell(k, dd) {
+    const rec = days[k] || {};
+    const hasSales = !!(rec.sales && Object.keys(rec.sales).length && rec.parts);
+    const hasOrder = !!rec.order;
+    const dow = parseKey(k).getDay();
+    const redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
+    const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
+    const sr = rec.supplyRef, srOrder = sr ? orderForDay(sr.od) : null, st = srOrder ? orderStatus(srOrder) : null;
+    const mark = hasOrder ? `<span class="ck-ord-mark" title="已記錄叫貨">📝</span>` : "";
+    let cls = "employee-cal-day", inner = numHtml, disabled = "";
+    if (isClosed(k)) { cls += " ck-rest"; disabled = "disabled"; inner += `<span class="ck-tag">${closedLabel(k)}</span>`; }
+    else if (hasSales) { cls += " available"; inner = numHtml + mark + partLines(rec.parts); }
+    else if (hasOrder) { cls += " ck-order"; inner = numHtml + mark + `<span class="ck-tag ck-ord-tag">${st ? STATUS_LABEL[st] : "已排叫貨"}</span>` + partLines(rec.order); }
+    else { if (k === todayKey()) cls += " ck-today"; inner = numHtml; }
+    return `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
+  }
+  function orderCell(k, dd) {
+    const dow = parseKey(k).getDay();
+    const redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
+    const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
+    if (isClosed(k)) return `<div class="employee-cal-day ck-rest">${numHtml}<span class="ck-tag">${closedLabel(k)}</span></div>`;
+    const o = orderForDay(k);
+    let cls = "employee-cal-day ck-ordcell", inner = numHtml, disabled = "";
+    if (o) { const st = orderStatus(o); inner += `<span class="ck-po ${STATUS_CLS[st]}">${esc(o.supplierName || "廠商")}<i>${STATUS_LABEL[st]}</i></span>`; }
+    else if (coveredUseDays(k).length) {
+      if (k === todayKey()) { cls += " ck-today"; inner += `<span class="ck-po ck-posugg">建議下單</span>`; }
+      else if (k > todayKey()) inner += `<span class="ck-pocan">可下單</span>`;
+      else disabled = "disabled";   // 過去未下單的下單日：不可點
+    } else { if (k === todayKey()) cls += " ck-today"; disabled = "disabled"; }
+    return `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
+  }
+  function setCalMode(mode) {
+    calMode = mode;
+    document.querySelectorAll("#ckCalSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+    render();
   }
 
   /* ---------- 共用：部位三格、明細表 ---------- */
@@ -523,6 +548,7 @@
     const dc = $("ordDeduct"); if (dc) dc.onchange = () => { f.deductStock = dc.checked; f.kg = null; renderOrderSum(); };
     $("ordStockNote").textContent = (s && f.deductStock) ? `庫存只在「第一個使用日」扣（${mdw(s.date)} 盤點）；可取消勾選` : "";
     if (!f.kg) PARTS3.forEach((p) => { $(`orderKg${p}`).value = net[p] > 0 ? kgSuggest(net[p], p) : 0; });
+    else PARTS3.forEach((p) => { $(`orderKg${p}`).value = f.kg[p] != null ? f.kg[p] : 0; });
   }
   function saveOrderForm(confirmed) {
     const f = orderForm; if (!f) return;
@@ -985,6 +1011,7 @@
     $("partsSave").onclick = saveParts;
     $("ckPrevMonth").onclick = () => shiftMonth(-1);
     $("ckNextMonth").onclick = () => shiftMonth(1);
+    document.querySelectorAll("#ckCalSwitch button").forEach((b) => b.onclick = () => setCalMode(b.dataset.mode));
     $("uploadDrop").onclick = () => $("ckFile").click();
     $("ckFile").addEventListener("change", (e) => onFile(e.target.files[0]));
     // 彈窗關閉（X、背景、取消）

@@ -91,6 +91,17 @@
     .ps-k { font-size: 15px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
     .ps-sel { margin-left: auto; border: 1.5px solid #d9a689; border-radius: 10px; background: #fffdfb; padding: 8px 12px; font: inherit; font-size: 16px; font-weight: 800; color: var(--ink); min-width: 100px; text-align: center; }
     .ps-d { font-size: 12px; color: var(--muted); margin: 6px 0 0 2px; line-height: 1.5; }
+    /* 月曆切換（使用月曆／叫貨月曆） */
+    .ck-calswitch { display: flex; gap: 7px; background: #efeae4; border-radius: 12px; padding: 5px; margin: 0 0 8px; max-width: 360px; }
+    .ck-calswitch button { flex: 1; border: 0; border-radius: 9px; padding: 9px 6px; font-size: 14px; font-weight: 800; color: var(--muted); background: transparent; cursor: pointer; }
+    .ck-calswitch button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .ck-caltitle { font-size: 12.5px; color: var(--muted); margin: 0 2px 12px; }
+    /* 叫貨月曆：下單日狀態 */
+    .ck-ordcell .ck-po { display: block; font-size: 11px; font-weight: 800; border-radius: 7px; padding: 3px 4px; margin-top: 5px; line-height: 1.25; }
+    .ck-ordcell .ck-po i { display: block; font-style: normal; font-size: 10px; font-weight: 800; margin-top: 1px; }
+    .ck-po.st-arr { color: #1f7a46; background: #e3f3ea; } .ck-po.st-sent { color: #2a5aa0; background: #e6eefa; } .ck-po.st-wait { color: #9a4a1a; background: #fbe9db; }
+    .ck-po.ck-posugg { color: #9a4a1a; background: #fff; border: 1.5px dashed #e0a884; }
+    .ck-ordcell .ck-pocan { display: block; font-size: 10px; font-weight: 700; color: var(--muted); margin-top: 5px; }
     /* 叫貨單（兩段式：批發商／到貨日／使用日＋逐日表＋狀態） */
     .ord-status { margin-left: auto; margin-right: 8px; font-size: 11.5px; font-weight: 800; border-radius: 999px; padding: 3px 11px; white-space: nowrap; }
     .ord-status.st-wait { color: #9a4a1a; background: #fbe9db; } .ord-status.st-sent { color: #2a5aa0; background: #e6eefa; } .ord-status.st-arr { color: #1f7a46; background: #e3f3ea; }
@@ -344,6 +355,11 @@
       <button type="button" class="ck-hint" id="ckHint">🔮 推估建議：次營業日叫貨</button>
 
       <section class="panel" style="margin-top:14px">
+        <div class="ck-calswitch" id="ckCalSwitch">
+          <button type="button" class="on" data-mode="use">🗓 使用月曆</button>
+          <button type="button" data-mode="order">📦 叫貨月曆</button>
+        </div>
+        <p class="ck-caltitle" id="ckCalTitle"></p>
         <div class="employee-calendar-toolbar">
           <button class="icon-btn" id="ckPrevMonth">‹</button>
           <strong id="ckMonthLabel"></strong>
@@ -351,13 +367,7 @@
         </div>
         <div class="weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
         <div id="ckGrid" class="employee-calendar-grid"></div>
-        <div class="calendar-legend">
-          <span><i class="legend-dot available"></i>已上傳銷售</span>
-          <span><i class="legend-dot" style="background:#ecd98f"></i>已排叫貨</span>
-          <span><i class="legend-dot closed"></i>公休</span>
-          <span><i class="legend-dot" style="background:#b3261e"></i>假日／國定假日（紅字）</span>
-          <span>📝 已記錄叫貨</span>
-        </div>
+        <div class="calendar-legend" id="ckLegend"></div>
       </section>
 
       <div class="ck-foot">
