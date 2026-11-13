@@ -329,6 +329,7 @@
   }
   let calMode = "use";   // "use"＝使用月曆；"order"＝叫貨月曆
   function render() {
+    renderHome();
     renderStockTop();
     if (!viewYM) return;
     const [y, m] = viewYM.split("-").map(Number);
@@ -703,7 +704,46 @@
   }
 
   /* ---------- PIN 閘門（與排班後台同一組） ---------- */
-  function enterApp() { hide("pinGate"); show("app"); }
+  function enterApp() { hide("pinGate"); show("app"); switchView("home"); }
+  /* ---------- App Shell：四大頁切換 ---------- */
+  const VIEWS = ["home", "calendar", "records", "settings"];
+  function switchView(v) {
+    if (!VIEWS.includes(v)) v = "home";
+    VIEWS.forEach((k) => { const el = $("view" + k.charAt(0).toUpperCase() + k.slice(1)); if (el) el.classList.toggle("hidden", k !== v); });
+    document.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
+    if (v === "home") renderHome();
+    else if (v === "records") openRecords();
+    else if (v === "calendar") render();
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
+  /* ---------- 首頁：今日建議（訂購雞肉＋餅皮製作） ---------- */
+  function renderHome() {
+    const box = $("homeCards"); if (!box) return;
+    let html = "";
+    // 今天是否為下單日 → 訂購雞肉建議
+    if (coveredUseDays(todayKey()).length) {
+      const c = reminderOrderCalc();
+      html += `<button type="button" class="today-card" data-home="order">
+        <div class="tc-h"><span class="tc-ic">🍗</span><div class="tc-t"><b>訂購雞肉</b><small>${mdw(c.del)} 到貨 · 使用 ${c.uses.map(mdw).join("、") || "—"}</small></div><span class="tc-ar">›</span></div>
+        <div class="tc-nums"><span><i>腿</i><b class="ck-leg">${c.net.leg}</b></span><span><i>排</i><b class="ck-fil">${c.net.fil}</b></span><span><i>翅</i><b class="ck-wing">${c.net.wing}</b></span></div>
+      </button>`;
+    } else {
+      html += `<div class="today-card muted"><div class="tc-h"><span class="tc-ic">🍗</span><div class="tc-t"><b>訂購雞肉</b><small>今天不是下單日</small></div></div></div>`;
+    }
+    // 餅皮製作（今天）
+    const today = todayKey(), pd = predictDough(today);
+    if (pd.group) {
+      html += `<button type="button" class="today-card" data-home="dough">
+        <div class="tc-h"><span class="tc-ic">🍕</span><div class="tc-t"><b>餅皮製作</b><small>${mdw(today)}</small></div><span class="tc-ar">›</span></div>
+        <div class="tc-dough">9吋 厚<b>${pd.rec.t9}</b>／薄<b>${pd.rec.s9}</b> · 12吋 厚<b>${pd.rec.t12}</b>／薄<b>${pd.rec.s12}</b></div>
+      </button>`;
+    } else {
+      html += `<div class="today-card muted"><div class="tc-h"><span class="tc-ic">🍕</span><div class="tc-t"><b>餅皮製作</b><small>今天公休</small></div></div></div>`;
+    }
+    box.innerHTML = html;
+    const o = box.querySelector('[data-home="order"]'); if (o) o.onclick = () => openOrderForm(todayKey());
+    const d = box.querySelector('[data-home="dough"]'); if (d) d.onclick = () => openDough();
+  }
   function tryUnlock() {
     const ref = settings.adminPin || "1234";
     if (($("pinInput").value || "").trim() === ref) { try { sessionStorage.setItem("adminUnlocked", "1"); } catch (e) {} enterApp(); $("pinError").textContent = ""; }
@@ -1036,13 +1076,13 @@
   const fmtAt = (ms) => { if (!ms) return ""; const d = new Date(ms); return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   function openRecords() {
     const keys = Object.keys(stockDays).sort((a, b) => (a < b ? 1 : -1)), tbl = $("recordsTbl");
-    if (!keys.length) { tbl.innerHTML = `<tbody><tr><td class="rec-empty">目前還沒有盤點紀錄。</td></tr></tbody>`; show("recordsBackdrop"); return; }
+    if (!tbl) return;
+    if (!keys.length) { tbl.innerHTML = `<tbody><tr><td class="rec-empty">目前還沒有盤點紀錄。</td></tr></tbody>`; return; }
     const head = `<thead><tr class="grp"><th rowspan="2">日期</th><th rowspan="2">填寫人</th><th rowspan="2">時間</th><th colspan="3" class="sep">🍗 剩餘雞肉</th><th colspan="4" class="sep">🍕 剩餘餅皮</th></tr><tr class="sub"><th class="sep">腿</th><th>排</th><th>翅</th><th class="sep">9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead>`;
     const body = keys.map((k) => { const r = stockDays[k] || {}, d = parseKey(k);
       return `<tr><td class="rd">${d.getMonth() + 1}/${pad(d.getDate())}（${DOW[d.getDay()]}）</td><td class="rw"><b>${esc(r.byName || "？")}</b></td><td class="rt">${fmtAt(r.at)}</td><td class="sep rl">${r.leg || 0}</td><td class="rf">${r.fil || 0}</td><td class="rwg">${r.wing || 0}</td><td class="sep rp">${r.t9 || 0}</td><td class="rp">${r.s9 || 0}</td><td class="rp">${r.t12 || 0}</td><td class="rp">${r.s12 || 0}</td></tr>`;
     }).join("");
     tbl.innerHTML = head + `<tbody>${body}</tbody>`;
-    show("recordsBackdrop");
   }
   function doRecordsExport() {
     const keys = Object.keys(stockDays).sort();
@@ -1070,7 +1110,7 @@
         const df = (u && o) ? { leg: o.leg - u.leg, fil: o.fil - u.fil, wing: o.wing - u.wing } : null;
         rows.push([k, star, g, "營業", u ? u.leg : "", u ? u.fil : "", u ? u.wing : "", o ? o.leg : "", o ? o.fil : "", o ? o.wing : "", okg ? okg.leg : "", okg ? okg.fil : "", okg ? okg.wing : "", df ? df.leg : "", df ? df.fil : "", df ? df.wing : ""]);
       }
-      downloadCSV(`${settings.storeName || "採購雞肉"}_採購雞肉_${ym}.csv`, rows);
+      downloadCSV(`${settings.storeName || "備料預估"}_雞肉明細_${ym}.csv`, rows);
       hide("csvBackdrop");
     }).catch((err) => { console.error(err); alert("匯出失敗：" + (err.message || err)); });
   }
@@ -1343,7 +1383,7 @@
         else if (id.indexOf("poultry_stock_") === 0) out.stock[id.slice("poultry_stock_".length)] = { days: data.days || {} };
         else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
-      triggerDownload(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }), `${settings.storeName || "採購雞肉"}_雞肉備份_${todayKey()}.json`);
+      triggerDownload(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }), `${settings.storeName || "備料預估"}_備料備份_${todayKey()}.json`);
     }).catch((err) => { console.error(err); alert("備份失敗：" + (err.message || err)); });
   }
   function onBackupFile(file) {
@@ -1399,7 +1439,7 @@
     $("supAddSupplierBtn").onclick = addSupplier;
     $("supSave").onclick = saveSupSet;
     // 月曆下方工具：匯出 CSV／備份還原／部位對照
-    $("ckRecordsBtn").onclick = openRecords;
+    document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => switchView(b.dataset.view));
     $("recordsExport").onclick = doRecordsExport;
     $("ckExportCsvBtn").onclick = openCsv;
     $("csvDownload").onclick = doCsvExport;

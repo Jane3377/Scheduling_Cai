@@ -1,6 +1,6 @@
 {
-  "name": "蔡叔叔採購雞肉管理",
-  "short_name": "雞肉管理",
+  "name": "蔡叔叔備料預估管理",
+  "short_name": "備料預估",
   "start_url": "./chicken.html",
   "scope": "./",
   "display": "standalone",

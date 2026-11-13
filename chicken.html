@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="format-detection" content="telephone=no,date=no,address=no,email=no" />
   <meta name="theme-color" content="#241f1c" />
-  <title>蔡叔叔比薩屋｜採購雞肉管理</title>
-  <!-- 專屬 manifest：加入主畫面會開「採購雞肉管理」本頁，而非排班前台 -->
+  <title>蔡叔叔比薩屋｜備料預估管理</title>
+  <!-- 專屬 manifest：加入主畫面會開「備料預估管理」本頁，而非排班前台 -->
   <link rel="manifest" href="manifest-chicken.json" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-  <meta name="apple-mobile-web-app-title" content="雞肉管理" />
+  <meta name="apple-mobile-web-app-title" content="備料預估管理" />
   <link rel="apple-touch-icon" href="icons/icon_192_chicken.png" />
   <link rel="icon" href="icons/icon_192_chicken.png" />
   <link rel="stylesheet" href="css/main.css" />
@@ -426,6 +426,83 @@
       .ck-foot { grid-template-columns: 1fr 1fr; gap: 9px; padding: 12px; }
       .ck-foot button { font-size: 14px; padding: 13px 12px; }
     }
+
+    /* ================= App Shell（UI 2.0：響應式導覽＋四大頁） ================= */
+    :root { --forest: #4a5d4f; --forest-dark: #3c4d41; }
+    .app-sidebar { display: flex; align-items: center; gap: 12px; background: var(--forest); padding: 11px 16px; position: sticky; top: 0; z-index: 30; }
+    .app-brand { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+    .app-brand .brand-mark { width: 38px; height: 38px; border-radius: 11px; overflow: hidden; flex: 0 0 auto; background: #fff; }
+    .app-brand .brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+    .app-brand .ab-text { display: flex; flex-direction: column; line-height: 1.22; min-width: 0; }
+    .app-brand .ab-text strong { color: #fff; font-size: 16px; }
+    .app-brand .ab-text span { color: #d8e2d8; font-size: 12px; }
+    .nav-rail { display: none; }
+    .app-sidebar .sync-badge { flex: 0 0 auto; }
+    .app-main { max-width: 760px; margin: 0 auto; padding: 16px 16px 92px; }
+    .app-view { display: block; }
+    .app-view.hidden { display: none; }
+    .view-head { margin: 4px 2px 13px; }
+    .view-head h2 { margin: 0; font-size: 21px; }
+    .view-head p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+    .app-main .panel { box-shadow: 0 2px 16px rgba(60,40,30,.05); border-radius: 18px; }
+    /* 底部導覽（手機） */
+    .nav-bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; background: #fff; border-top: 1px solid #e7ddd4; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -2px 12px rgba(0,0,0,.05); }
+    .nav-bottom button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; padding: 6px 2px; font-size: 11.5px; font-weight: 700; color: var(--muted); cursor: pointer; }
+    .nav-bottom button .ni { font-size: 21px; filter: grayscale(.4) opacity(.72); }
+    .nav-bottom button.active { color: var(--brand-dark); }
+    .nav-bottom button.active .ni { filter: none; }
+    /* 首頁 */
+    .home-cards { display: grid; gap: 12px; }
+    .today-card { display: block; width: 100%; text-align: left; background: #fff; border: 1.5px solid #ecdfd4; border-radius: 16px; padding: 15px 16px; cursor: pointer; box-shadow: 0 2px 10px rgba(60,40,30,.05); transition: transform .08s ease, box-shadow .15s ease, border-color .15s ease; }
+    .today-card:hover { border-color: #d9a689; box-shadow: 0 5px 16px rgba(146,53,33,.1); transform: translateY(-1px); }
+    .today-card.muted { opacity: .72; cursor: default; box-shadow: none; }
+    .tc-h { display: flex; align-items: center; gap: 11px; }
+    .tc-ic { font-size: 26px; flex: 0 0 auto; }
+    .tc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .tc-t b { font-size: 17px; color: var(--ink); } .tc-t small { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+    .tc-ar { color: #c9a187; font-size: 22px; font-weight: 800; }
+    .tc-nums { display: flex; gap: 10px; margin-top: 12px; }
+    .tc-nums span { flex: 1; background: #faf6f2; border: 1px solid #efe1d6; border-radius: 11px; padding: 9px 4px; text-align: center; }
+    .tc-nums i { font-style: normal; color: var(--muted); font-size: 12px; margin-right: 3px; }
+    .tc-nums b { font-size: 23px; font-weight: 900; }
+    .tc-dough { margin-top: 12px; background: #faf6f2; border: 1px solid #efe1d6; border-radius: 11px; padding: 11px 13px; font-size: 15px; font-weight: 700; color: #5a524c; }
+    .tc-dough b { color: #9a4a1a; font-size: 18px; font-weight: 900; margin: 0 2px; }
+    .home-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+    .home-actions button { padding: 16px; font-size: 16px; font-weight: 800; border-radius: 14px; }
+    .forest-btn { background: var(--forest); color: #fff; border: 0; cursor: pointer; transition: background .15s ease, transform .08s ease; }
+    .forest-btn:hover { background: var(--forest-dark); transform: translateY(-1px); }
+    /* 設定頁分組 */
+    .set-group { background: #fff; border: 1px solid #ece2d9; border-radius: 16px; padding: 4px 6px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(60,40,30,.04); }
+    .set-gh { font-size: 12.5px; font-weight: 800; color: var(--brand-dark); padding: 11px 12px 6px; }
+    .set-item { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: none; border: 0; border-radius: 12px; padding: 13px 12px; cursor: pointer; }
+    .set-item + .set-item { border-top: 1px solid #f2ebe4; }
+    .set-item:hover { background: #faf7f4; }
+    .set-item .si-ic { font-size: 21px; flex: 0 0 auto; width: 30px; text-align: center; }
+    .set-item .si-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .set-item .si-tx b { font-size: 15.5px; color: var(--ink); } .set-item .si-tx small { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .set-item .si-ar { color: var(--muted); font-size: 19px; }
+    .view-actions { margin-top: 14px; display: flex; justify-content: flex-end; }
+    /* 平板 / 桌機：左側導覽列 */
+    @media (min-width: 721px) {
+      .app-shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+      .app-sidebar { flex-direction: column; align-items: stretch; gap: 0; height: 100vh; padding: 20px 16px; }
+      .app-brand { flex: 0 0 auto; margin-bottom: 22px; }
+      .nav-rail { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+      .nav-link { display: flex; align-items: center; gap: 11px; background: none; border: 0; border-radius: 12px; padding: 13px 14px; font-size: 15.5px; font-weight: 700; color: #e4ebe3; cursor: pointer; text-align: left; }
+      .nav-link .ni { font-size: 19px; }
+      .nav-link:hover { background: rgba(255,255,255,.08); }
+      .nav-link.active { background: #fff; color: var(--brand-dark); font-weight: 800; }
+      .app-sidebar .sync-badge { margin-top: auto; align-self: flex-start; }
+      .app-main { max-width: 1040px; margin: 0; padding: 24px 32px; }
+      .nav-bottom { display: none; }
+      .view-head h2 { font-size: 24px; }
+      .home-cards { grid-template-columns: 1fr 1fr; align-items: start; }
+      .home-actions { max-width: 520px; }
+    }
+    @media (min-width: 721px) and (max-width: 980px) {
+      .app-shell { grid-template-columns: 200px 1fr; }
+      .app-main { padding: 22px 24px; }
+    }
   </style>
 </head>
 <body>
@@ -433,7 +510,7 @@
   <div id="pinGate" class="pin-gate">
     <div class="pin-card">
       <div class="brand-mark large-mark"><img src="icons/icon-192.svg" alt="蔡叔叔比薩屋" /></div>
-      <h1>採購雞肉管理</h1>
+      <h1>備料預估管理</h1>
       <p>請輸入 PIN 碼進入</p>
       <input id="pinInput" class="input big-input" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN 碼" />
       <button id="pinSubmit" class="primary-btn full">進入</button>
@@ -441,61 +518,96 @@
     </div>
   </div>
 
-  <div id="app" class="hidden">
-    <header class="chk-brandbar">
-      <div class="chk-brandbar-inner">
-        <div class="brand">
-          <div class="brand-mark"><img src="icons/icon-192.svg" alt="蔡叔叔比薩屋" /></div>
-          <div><strong>蔡叔叔比薩屋｜採購雞肉管理</strong></div>
-        </div>
-        <span id="ckSync" class="sync-badge init">◌ 初始化</span>
+  <div id="app" class="hidden app-shell">
+    <div class="app-sidebar">
+      <div class="app-brand">
+        <div class="brand-mark"><img src="icons/icon-192.svg" alt="蔡叔叔比薩屋" /></div>
+        <div class="ab-text"><strong>蔡叔叔比薩屋</strong><span>備料預估管理</span></div>
       </div>
-    </header>
+      <nav class="nav-rail">
+        <button type="button" data-view="home" class="nav-link active"><span class="ni">🏠</span>首頁</button>
+        <button type="button" data-view="calendar" class="nav-link"><span class="ni">📅</span>月曆</button>
+        <button type="button" data-view="records" class="nav-link"><span class="ni">📋</span>紀錄</button>
+        <button type="button" data-view="settings" class="nav-link"><span class="ni">⚙️</span>設定</button>
+      </nav>
+      <span id="ckSync" class="sync-badge init">◌ 初始化</span>
+    </div>
 
-    <div class="chk-wrap">
-      <div class="ck-toolbar">
-        <div>
-          <h2>採購雞肉管理月曆</h2>
-          <p>已上傳日顯示實際消耗腿／排／翅；📝 為已記錄叫貨。公休與國定假日沿用排班日曆。</p>
+    <main class="app-main">
+      <!-- 首頁 -->
+      <section class="app-view" id="viewHome">
+        <div class="view-head"><h2>今日建議</h2></div>
+        <div id="homeCards" class="home-cards"></div>
+        <div class="home-actions">
+          <button class="primary-btn" id="ckOrderBtn">🛒 訂購雞肉</button>
+          <button class="forest-btn" id="ckUploadBtn">⬆ 上傳報表</button>
         </div>
-        <div class="ck-btns">
-          <button class="ghost-btn" id="ckOrderBtn">📝 記錄叫貨</button>
-          <button class="primary-btn" id="ckUploadBtn">＋ 上傳銷售報表</button>
-        </div>
-      </div>
-
-      <div class="ck-stock-top hidden" id="ckStockTop"></div>
-
-      <button type="button" class="ck-hint" id="ckHint">🔮 推估建議：次營業日叫貨</button>
-      <button type="button" class="ck-hint ck-hint-dough" id="ckDoughBtn">🍕 餅皮推估：接下來幾天要備多少 ›</button>
-
-      <section class="panel" style="margin-top:14px">
-        <div class="ck-calswitch" id="ckCalSwitch">
-          <button type="button" class="on" data-mode="use">🗓 使用月曆</button>
-          <button type="button" data-mode="order">📦 叫貨月曆</button>
-        </div>
-        <p class="ck-caltitle" id="ckCalTitle"></p>
-        <div class="employee-calendar-toolbar">
-          <button class="icon-btn" id="ckPrevMonth">‹</button>
-          <strong id="ckMonthLabel"></strong>
-          <button class="icon-btn" id="ckNextMonth">›</button>
-        </div>
-        <div class="weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
-        <div id="ckGrid" class="employee-calendar-grid"></div>
-        <div class="calendar-legend" id="ckLegend"></div>
       </section>
 
-      <div class="ck-foot">
-        <button type="button" id="ckGuideBtn" class="ck-guide-btn">📖 使用說明</button>
-        <button type="button" id="ckPredBtn">⚙ 推估設定</button>
-        <button type="button" id="ckSupBtn">🚚 批發商休息</button>
-        <button type="button" id="ckRecordsBtn">📋 盤點紀錄</button>
-        <button type="button" id="ckExportCsvBtn">⤓ 匯出 CSV</button>
-        <button type="button" id="ckBackupBtn">💾 備份／還原</button>
-        <button type="button" id="ckPartsBtn">⚙ 部位對照設定</button>
-        <button type="button" id="ckPizzaBtn">🍕 比薩餅皮參數</button>
-      </div>
-    </div>
+      <!-- 月曆 -->
+      <section class="app-view hidden" id="viewCalendar">
+        <div class="view-head"><h2>月曆管理</h2></div>
+        <button type="button" class="ck-hint" id="ckHint">🔮 推估建議：次營業日叫貨</button>
+        <button type="button" class="ck-hint ck-hint-dough" id="ckDoughBtn">🍕 餅皮推估：接下來幾天要備多少 ›</button>
+        <div class="ck-stock-top hidden" id="ckStockTop"></div>
+        <section class="panel" style="margin-top:14px">
+          <div class="ck-calswitch" id="ckCalSwitch">
+            <button type="button" class="on" data-mode="use">🗓 使用月曆</button>
+            <button type="button" data-mode="order">📦 訂購月曆</button>
+          </div>
+          <p class="ck-caltitle" id="ckCalTitle"></p>
+          <div class="employee-calendar-toolbar">
+            <button class="icon-btn" id="ckPrevMonth">‹</button>
+            <strong id="ckMonthLabel"></strong>
+            <button class="icon-btn" id="ckNextMonth">›</button>
+          </div>
+          <div class="weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+          <div id="ckGrid" class="employee-calendar-grid"></div>
+          <div class="calendar-legend" id="ckLegend"></div>
+        </section>
+      </section>
+
+      <!-- 紀錄 -->
+      <section class="app-view hidden" id="viewRecords">
+        <div class="view-head"><h2>盤點填寫紀錄</h2><p>員工每天打烊填的剩餘量（誰、何時、填了什麼）</p></div>
+        <div class="rec-wrap"><table class="rec-tbl" id="recordsTbl"></table></div>
+        <div class="view-actions"><button class="ghost-btn" id="recordsExport">⤓ 匯出 CSV</button></div>
+      </section>
+
+      <!-- 設定 -->
+      <section class="app-view hidden" id="viewSettings">
+        <div class="view-head"><h2>設定</h2></div>
+        <div class="set-group">
+          <div class="set-gh">推估與參數設定</div>
+          <button type="button" class="set-item" id="ckPredBtn"><span class="si-ic">🔮</span><span class="si-tx"><b>雞肉推估參數</b><small>多備比例、回算天數、推估方式</small></span><span class="si-ar">›</span></button>
+          <button type="button" class="set-item" id="ckPartsBtn"><span class="si-ic">⚖️</span><span class="si-tx"><b>雞肉單位轉換</b><small>份數對照部位、每支克數、批發代號</small></span><span class="si-ar">›</span></button>
+          <button type="button" class="set-item" id="ckPizzaBtn"><span class="si-ic">🍕</span><span class="si-tx"><b>餅皮推估參數</b><small>最低營業額、比例自動算</small></span><span class="si-ar">›</span></button>
+        </div>
+        <div class="set-group">
+          <div class="set-gh">供應商管理</div>
+          <button type="button" class="set-item" id="ckSupBtn"><span class="si-ic">🚚</span><span class="si-tx"><b>雞肉批發商</b><small>公休與臨時休市設定</small></span><span class="si-ar">›</span></button>
+        </div>
+        <div class="set-group">
+          <div class="set-gh">盤點紀錄</div>
+          <button type="button" class="set-item" data-view="records"><span class="si-ic">📋</span><span class="si-tx"><b>盤點紀錄</b><small>員工打烊填寫紀錄</small></span><span class="si-ar">›</span></button>
+        </div>
+        <div class="set-group">
+          <div class="set-gh">CSV、備份與還原</div>
+          <button type="button" class="set-item" id="ckExportCsvBtn"><span class="si-ic">⤓</span><span class="si-tx"><b>匯出 CSV</b><small>每日消耗／訂購明細</small></span><span class="si-ar">›</span></button>
+          <button type="button" class="set-item" id="ckBackupBtn"><span class="si-ic">💾</span><span class="si-tx"><b>備份／還原</b><small>整包匯出匯入</small></span><span class="si-ar">›</span></button>
+        </div>
+        <div class="set-group">
+          <button type="button" class="set-item" id="ckGuideBtn"><span class="si-ic">📖</span><span class="si-tx"><b>使用說明</b></span><span class="si-ar">›</span></button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="nav-bottom">
+      <button type="button" data-view="home" class="active"><span class="ni">🏠</span><span>首頁</span></button>
+      <button type="button" data-view="calendar"><span class="ni">📅</span><span>月曆</span></button>
+      <button type="button" data-view="records"><span class="ni">📋</span><span>紀錄</span></button>
+      <button type="button" data-view="settings"><span class="ni">⚙️</span><span>設定</span></button>
+    </nav>
   </div>
 
   <!-- 使用說明彈窗 -->
@@ -578,10 +690,10 @@
     </div>
   </div>
 
-  <!-- 記錄叫貨彈窗 -->
+  <!-- 訂購雞肉彈窗 -->
   <div id="orderBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(470px,100%)">
-      <div class="modal-head"><div><h3>記錄叫貨</h3><p id="ordHeadSub">下單</p></div><span class="ord-status" id="ordStatus"></span><button class="icon-btn" data-close="orderBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3>訂購雞肉</h3><p id="ordHeadSub">下單</p></div><span class="ord-status" id="ordStatus"></span><button class="icon-btn" data-close="orderBackdrop">✕</button></div>
       <div class="modal-body ck-form">
         <div class="ord-sel"><span class="ord-k">批發商</span><div class="ord-selwrap"><select class="input" id="ordSupplier"></select></div></div>
         <div class="ord-sel"><span class="ord-k">到貨日</span><div class="ord-selwrap"><select class="input" id="ordDelivery"></select></div></div>
@@ -604,7 +716,7 @@
         </div>
 
         <div class="modal-actions"><button class="ghost-btn" id="ordDraftBtn">存草稿</button><button class="primary-btn" id="ordConfirmBtn">確認已叫貨</button></div>
-        <button type="button" class="ord-delbtn hidden" id="ordDeleteBtn">🗑 刪除這張叫貨單</button>
+        <button type="button" class="ord-delbtn hidden" id="ordDeleteBtn">🗑 刪除這張訂單</button>
       </div>
     </div>
   </div>
@@ -661,7 +773,7 @@
       <div class="modal-head"><div><h3 id="detailTitle"></h3><p>預估／叫貨量／實際賣 對比</p></div><button class="icon-btn" data-close="detailBackdrop">✕</button></div>
       <div class="modal-body">
         <div id="detailBody"></div>
-        <div class="modal-actions"><button class="ghost-btn" id="detailEditOrder">📝 記錄／修改這天叫貨</button><button class="primary-btn" data-close="detailBackdrop">關閉</button></div>
+        <div class="modal-actions"><button class="ghost-btn" id="detailEditOrder">📝 訂購／修改這天雞肉</button><button class="primary-btn" data-close="detailBackdrop">關閉</button></div>
       </div>
     </div>
   </div>
@@ -677,16 +789,6 @@
     </div>
   </div>
 
-  <!-- 盤點填寫紀錄 彈窗 -->
-  <div id="recordsBackdrop" class="modal-backdrop hidden">
-    <div class="modal" style="width:min(680px,100%)">
-      <div class="modal-head"><div><h3>📋 盤點填寫紀錄</h3><p>員工每天打烊填的剩餘量（誰、何時、填了什麼）</p></div><button class="icon-btn" data-close="recordsBackdrop">✕</button></div>
-      <div class="modal-body">
-        <div class="rec-wrap"><table class="rec-tbl" id="recordsTbl"></table></div>
-        <div class="modal-actions"><button class="ghost-btn" id="recordsExport">⤓ 匯出 CSV</button><button class="primary-btn" data-close="recordsBackdrop">關閉</button></div>
-      </div>
-    </div>
-  </div>
 
   <!-- 匯出 CSV 彈窗 -->
   <div id="csvBackdrop" class="modal-backdrop hidden">
