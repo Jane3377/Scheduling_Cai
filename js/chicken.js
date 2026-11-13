@@ -217,6 +217,14 @@
     const n = Number(m[1]); if (![2, 3, 5, 9].includes(n)) return null;
     return { piece: String(n), label: `${n}塊${kind}雞` };
   }
+  // 餅皮分類 → 四類 key（t=厚/鬆厚、s=薄/薄脆；鬆厚＝厚片、薄脆＝薄片）
+  function doughKey(cat, name) {
+    if (String(cat).trim() !== "餅皮") return null;
+    const n = String(name);
+    const size = n.includes("12吋") ? "12" : (n.includes("9吋") ? "9" : null);
+    const thick = n.includes("鬆厚") ? "t" : (n.includes("薄脆") ? "s" : null);
+    return (size && thick) ? thick + size : null;
+  }
   function parseWorkbook(buf) {
     let wb;
     try { wb = XLSX.read(buf, { type: "array" }); } catch (e) { return { error: "無法讀取這個檔案，請確認是 Excel 檔。" }; }
@@ -230,25 +238,43 @@
       if (m) { date = `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`; break; }
     }
     // 表頭列：同時有「餐點名稱」與「銷售數量」（合計欄，非單售／套餐）
-    let hr = -1, nameCol = -1, qtyCol = -1;
+    let hr = -1, nameCol = -1, qtyCol = -1, catCol = -1, amtCol = -1;
     for (let i = 0; i < Math.min(rows.length, 15); i++) {
       const r = rows[i] || [];
       const nc = r.findIndex((c) => String(c).trim() === "餐點名稱");
       const qc = r.findIndex((c) => String(c).trim() === "銷售數量");
-      if (nc >= 0 && qc >= 0) { hr = i; nameCol = nc; qtyCol = qc; break; }
+      if (nc >= 0 && qc >= 0) {
+        hr = i; nameCol = nc; qtyCol = qc;
+        catCol = r.findIndex((c) => String(c).trim() === "分類名稱");
+        amtCol = r.findIndex((c) => String(c).trim() === "銷售總額");
+        break;
+      }
     }
     if (!date) return { error: "讀不到統計日期，請確認是門市『餐點銷售』Excel。" };
     if (hr < 0) return { error: "找不到『餐點名稱／銷售數量』欄位，請確認是門市『餐點銷售』Excel。" };
     const sales = {};
+    const summary = { total: 0, pizza9: 0, pizza12: 0, pizza9amt: 0, pizza12amt: 0 };
+    const dough = { t9: 0, s9: 0, t12: 0, s12: 0 };
     for (let i = hr + 1; i < rows.length; i++) {
       const r = rows[i] || [];
       const name = r[nameCol]; if (!name) continue;
-      const cl = classify(name); if (!cl) continue;
-      const qty = Number(r[qtyCol]) || 0; if (qty <= 0) continue;
-      sales[cl.label] = (sales[cl.label] || 0) + qty;
+      const cat = catCol >= 0 ? String(r[catCol]).trim() : "";
+      const qty = Number(r[qtyCol]) || 0;
+      const amt = amtCol >= 0 ? (Number(r[amtCol]) || 0) : 0;
+      // 全店營業額（加總各列銷售總額）
+      summary.total += amt;
+      // 9吋／12吋比薩數量與金額（算均價用）
+      if (cat === "9吋比薩") { summary.pizza9 += qty; summary.pizza9amt += amt; }
+      else if (cat === "12吋比薩") { summary.pizza12 += qty; summary.pizza12amt += amt; }
+      // 餅皮四類（實際賣出）
+      const dk = doughKey(cat, name); if (dk) dough[dk] += qty;
+      // 雞肉品項
+      const cl = classify(name); if (cl && qty > 0) sales[cl.label] = (sales[cl.label] || 0) + qty;
     }
     if (!Object.keys(sales).length) return { error: "這份檔案找不到雞肉品項（薄皮炸雞／鮮嫩烤雞）。", date };
-    return { date, sales, parts: partsFromSales(sales) };
+    summary.total = Math.round(summary.total);
+    summary.pizza9amt = Math.round(summary.pizza9amt); summary.pizza12amt = Math.round(summary.pizza12amt);
+    return { date, sales, parts: partsFromSales(sales), summary, dough };
   }
 
   /* ---------- 同步狀態燈 ---------- */
@@ -362,6 +388,21 @@
     return `<table class="ck-items"><thead><tr><th>品項</th><th>數量</th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
+  // 上傳後顯示的全店摘要（營業額＋比薩數量＋餅皮四類）
+  function summaryLine(s, d) {
+    if (!s) return "";
+    const p9 = s.pizza9 || 0, p12 = s.pizza12 || 0;
+    const avg9 = p9 ? Math.round((s.pizza9amt || 0) / p9) : 0, avg12 = p12 ? Math.round((s.pizza12amt || 0) / p12) : 0;
+    const dough = d ? `　🍕 餅皮 9吋 厚${d.t9 || 0}/薄${d.s9 || 0}・12吋 厚${d.t12 || 0}/薄${d.s12 || 0}` : "";
+    return `<div class="ck-sumline">💰 全店營業額 <b>$${(s.total || 0).toLocaleString()}</b>　🍕 9吋 <b>${p9}</b>（均價 $${avg9}）・12吋 <b>${p12}</b>（均價 $${avg12}）${dough}</div>`;
+  }
+  // 比薩均價（自動算：近期報表 總額÷數量）；回傳 {p9, p12}
+  function pizzaAvgPrice() {
+    let a9 = 0, q9 = 0, a12 = 0, q12 = 0;
+    Object.values(predDays).forEach((r) => { const s = r && r.summary; if (s) { a9 += s.pizza9amt || 0; q9 += s.pizza9 || 0; a12 += s.pizza12amt || 0; q12 += s.pizza12 || 0; } });
+    return { p9: q9 ? Math.round(a9 / q9) : 0, p12: q12 ? Math.round(a12 / q12) : 0 };
+  }
+
   /* ---------- 彈窗：顯示／隱藏 ---------- */
   function show(id) { $(id).classList.remove("hidden"); }
   function hide(id) { $(id).classList.add("hidden"); }
@@ -394,6 +435,7 @@
         $("uploadResult").innerHTML =
           `<div class="ck-datehead">已解析並儲存：<b>${res.date.replace(/-/g, " / ")}</b></div>` +
           statTiles(res.parts) +
+          summaryLine(res.summary, res.dough) +
           itemTable(res.sales, res.parts, partMap) +
           `<div class="ck-saved">✓ 已儲存到雲端（${res.date} 覆蓋更新）・共 ${Object.keys(res.sales).length} 個雞肉品項</div>` +
           `<div class="modal-actions"><button class="ghost-btn" id="uploadAgain">再上傳別天</button><button class="primary-btn" id="uploadDone">完成</button></div>`;
@@ -411,6 +453,8 @@
     // 只有自訂對照表才存當天 map；用預設時不存（並清掉可能殘留的舊 map）
     const dayRec = { sales: res.sales, parts: res.parts, uploadedAt: Date.now() };
     dayRec.map = mapIsCustom() ? JSON.parse(JSON.stringify(partMap)) : firebase.firestore.FieldValue.delete();
+    if (res.summary) dayRec.summary = res.summary;   // 全店營業額＋9吋/12吋比薩數量・金額
+    if (res.dough) dayRec.dough = res.dough;         // 餅皮四類實際賣出（9厚/9薄/12厚/12薄）
     monthRefOf(ym).set({ days: { [res.date]: dayRec }, updatedAt: Date.now() }, { merge: true })
       .then(() => { if (ym !== viewYM) watchMonth(ym); done && done(); })
       .catch((err) => { console.error(err); $("uploadResult").innerHTML += `<div class="ck-err">⚠ 儲存失敗：${err.message || err}</div>`; });
