@@ -251,6 +251,26 @@
     .pm-ver .org { font-size: 11.5px; color: #fff; background: #6b7a90; border-radius: 999px; padding: 2px 8px; }
     .pm-ver-sub { font-size: 12.5px; font-weight: 800; color: var(--brand-dark); margin: 12px 2px 6px; }
     .pm-ver-sub:first-child { margin-top: 0; }
+    /* 比薩餅皮參數 */
+    .pz-autobtn { margin-bottom: 14px; }
+    .pz-grp { border: 1px solid var(--line); border-radius: 13px; padding: 12px 13px 4px; margin-bottom: 13px; }
+    .pz-grp-h { font-size: 13.5px; font-weight: 800; color: var(--brand-dark); margin: 0 0 8px; }
+    .pz-field { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+    .pz-field > label { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .pz-ck { width: 18px; height: 18px; margin-left: 4px; }
+    .pz-cklbl { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .pz-inwrap { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
+    .pz-in { width: 108px; text-align: right; font-size: 17px; font-weight: 800; padding: 10px 10px; }
+    .pz-in.pz-auto { background: #f1f0ee; color: var(--muted); }
+    .pz-pre, .pz-suf { font-size: 14px; font-weight: 800; color: var(--muted); }
+    .pz-note { font-size: 11.5px; color: var(--muted); line-height: 1.6; margin: 0 2px 10px; }
+    .pz-hint { font-size: 11.5px; color: #2f7d52; font-weight: 700; margin: -6px 2px 11px; text-align: right; }
+    .pz-prev { border: 1px dashed #d9ccc3; border-radius: 12px; padding: 12px 13px; background: #fcfaf8; margin-bottom: 4px; }
+    .pz-prev h4 { margin: 0 0 8px; font-size: 13px; color: var(--brand-dark); }
+    .pz-prev .pzp-line { font-size: 12.5px; color: #5a524c; line-height: 1.9; } .pz-prev .pzp-line b { color: var(--ink); font-weight: 900; }
+    .pz-prev .pzp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+    .pzp-cell { background: #fff; border: 1px solid #ecd9cb; border-radius: 10px; padding: 9px 4px; text-align: center; }
+    .pzp-cell span { display: block; font-size: 11.5px; color: var(--muted); } .pzp-cell b { font-size: 21px; color: #9a4a1a; }
     /* 月曆格 */
     .employee-cal-day { min-height: 90px; justify-content: flex-start; position: relative; color: var(--ink); }
     .employee-cal-day .day-number { color: var(--ink); }           /* 明確設定，避免 iOS 把按鈕文字變藍 */
@@ -408,6 +428,7 @@
         <button type="button" id="ckExportCsvBtn">⤓ 匯出 CSV</button>
         <button type="button" id="ckBackupBtn">💾 備份／還原</button>
         <button type="button" id="ckPartsBtn">⚙ 部位對照設定</button>
+        <button type="button" id="ckPizzaBtn">🍕 比薩餅皮參數</button>
       </div>
     </div>
   </div>
@@ -660,6 +681,42 @@
           <div id="pmHistList"></div>
         </div>
         <div class="modal-actions"><button class="danger-btn" id="partsReset" style="margin-right:auto">恢復預設值</button><button class="ghost-btn" data-close="partsBackdrop">取消</button><button class="primary-btn" id="partsSave">儲存設定</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 比薩餅皮參數設定彈窗 -->
+  <div id="pizzaBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(480px,100%)">
+      <div class="modal-head"><div><h3>🍕 比薩餅皮參數</h3><p>六日／假日推估的底線與拆分；餅皮推估會用到</p></div><button class="icon-btn" data-close="pizzaBackdrop">✕</button></div>
+      <div class="modal-body">
+        <button type="button" class="secondary-btn full pz-autobtn" id="pizzaAutoBtn">✨ 從歷史報表自動估算比例</button>
+        <div class="pz-grp">
+          <div class="pz-grp-h">六日／假日 的底線</div>
+          <div class="pz-field"><label>目標最低營業額</label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_minRev" inputmode="numeric"></div></div>
+          <div class="pz-field"><label>比薩佔全店營業額</label><div class="pz-inwrap"><input class="input pz-in" id="pz_pizzaShare" inputmode="numeric"><span class="pz-suf">%</span></div></div>
+          <p class="pz-note">六日／假日會以「不低於這個營業額」反推最少要備多少餅皮；平日仍以近期同星期實際用量為準。</p>
+        </div>
+        <div class="pz-grp">
+          <div class="pz-grp-h">9吋 vs 12吋 分配</div>
+          <div class="pz-field"><label>9吋佔比薩營業額</label><div class="pz-inwrap"><input class="input pz-in" id="pz_share9" inputmode="numeric"><span class="pz-suf">%</span></div></div>
+          <div class="pz-field"><label>9吋均價<input type="checkbox" id="pz_avg9Auto" class="pz-ck"><span class="pz-cklbl">自動算</span></label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_avg9" inputmode="numeric"></div></div>
+          <p class="pz-hint" id="pz_avg9_hint"></p>
+          <div class="pz-field"><label>12吋均價<input type="checkbox" id="pz_avg12Auto" class="pz-ck"><span class="pz-cklbl">自動算</span></label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_avg12" inputmode="numeric"></div></div>
+          <p class="pz-hint" id="pz_avg12_hint"></p>
+        </div>
+        <div class="pz-grp">
+          <div class="pz-grp-h">厚片 vs 薄片 拆分</div>
+          <div class="pz-field"><label>9吋 厚片比例</label><div class="pz-inwrap"><input class="input pz-in" id="pz_thick9" inputmode="numeric"><span class="pz-suf">%</span></div></div>
+          <div class="pz-field"><label>12吋 厚片比例</label><div class="pz-inwrap"><input class="input pz-in" id="pz_thick12" inputmode="numeric"><span class="pz-suf">%</span></div></div>
+          <p class="pz-note">鬆厚＝厚片、薄脆＝薄片；薄片比例＝100%−厚片。</p>
+        </div>
+        <div class="pz-prev" id="pzPrev"></div>
+        <div class="pm-hist">
+          <div class="pm-hist-title">版本紀錄（點可唯讀查看該版參數）</div>
+          <div id="pzHistList"></div>
+        </div>
+        <div class="modal-actions"><button class="ghost-btn" data-close="pizzaBackdrop">取消</button><button class="primary-btn" id="pizzaSave">儲存設定</button></div>
       </div>
     </div>
   </div>

@@ -67,6 +67,19 @@
   let orderUnsubs = [], orderMonthData = {}, orderDays = {}, orderForm = null;  // 叫貨單（poultry_order_YYYY-MM，以下單日為 key）
   let reminderChecked = false;  // 每日提醒：本次載入是否已檢查過
   let partsHistory = [];  // 部位對照表版本紀錄 [{date:'YYYY-MM-DD', map:{...}}]（日期升冪，最後一筆＝目前）
+  // 比薩餅皮：四類（t=厚片/鬆厚、s=薄片/薄脆）；推估與參數後台用
+  const DOUGH_TYPES = ["t9", "s9", "t12", "s12"];
+  const DOUGH_LABEL = { t9: "9吋厚", s9: "9吋薄", t12: "12吋厚", s12: "12吋薄" };
+  // 比薩參數（後台可改、有版本紀錄）：
+  //   minRevenue  六日／假日「目標最低營業額」（反推餅皮最少要備多少）
+  //   pizzaShare  比薩佔全店營業額 %（反推用）
+  //   share9      9吋佔比薩營業額 %（把比薩營業額分成 9吋／12吋）
+  //   avg9/avg12  均價（Auto=true 時用近期報表自動算，否則用手填值）
+  //   thick9/12   該吋「厚片」佔比 %（薄片＝其餘）
+  const DEFAULT_PIZZA = { minRevenue: 100000, pizzaShare: 60, share9: 50, avg9: 448, avg9Auto: true, avg12: 680, avg12Auto: true, thick9: 60, thick12: 60 };
+  const PIZZA_NUM_KEYS = ["minRevenue", "pizzaShare", "share9", "avg9", "avg12", "thick9", "thick12"];
+  let pizzaCfg = JSON.parse(JSON.stringify(DEFAULT_PIZZA));
+  let pizzaHistory = [];  // 比薩參數版本紀錄 [{date, pizza:{...}}]（升冪，最後一筆＝目前）
 
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2, "0");
@@ -768,6 +781,49 @@
       PARTS3.forEach((p) => { const v = d.purchase[p]; if (v && typeof v === "object") purchase[p] = { code: String(v.code || DEFAULT_PURCHASE[p].code), g: Number(v.g) || DEFAULT_PURCHASE[p].g }; });
     }
     partsHistory = (d && Array.isArray(d.partsHistory)) ? d.partsHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
+    pizzaCfg = JSON.parse(JSON.stringify(DEFAULT_PIZZA));
+    if (d && d.pizza && typeof d.pizza === "object") {
+      const p = d.pizza;
+      PIZZA_NUM_KEYS.forEach((k) => { if (typeof p[k] === "number" && isFinite(p[k])) pizzaCfg[k] = p[k]; });
+      if (typeof p.avg9Auto === "boolean") pizzaCfg.avg9Auto = p.avg9Auto;
+      if (typeof p.avg12Auto === "boolean") pizzaCfg.avg12Auto = p.avg12Auto;
+    }
+    pizzaHistory = (d && Array.isArray(d.pizzaHistory)) ? d.pizzaHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
+  }
+  // 生效均價：Auto＝近期報表自動算（算不出時退回手填值）；否則用手填值
+  function effAvg(part) {
+    const auto = part === 9 ? pizzaCfg.avg9Auto : pizzaCfg.avg12Auto;
+    const manual = part === 9 ? pizzaCfg.avg9 : pizzaCfg.avg12;
+    if (!auto) return Number(manual) || 0;
+    const a = pizzaAvgPrice();
+    return (part === 9 ? a.p9 : a.p12) || Number(manual) || 0;
+  }
+  // 由「最低營業額」反推四類餅皮最少要備（floor）：營業額 → 比薩額 → 分 9/12 → ÷均價 → ×厚薄比
+  function pizzaFloor(cfg) {
+    cfg = cfg || pizzaCfg;
+    const a9 = cfg.avg9Auto ? (pizzaAvgPrice().p9 || cfg.avg9) : cfg.avg9;
+    const a12 = cfg.avg12Auto ? (pizzaAvgPrice().p12 || cfg.avg12) : cfg.avg12;
+    const rev = (Number(cfg.minRevenue) || 0) * (Number(cfg.pizzaShare) || 0) / 100;
+    const rev9 = rev * (Number(cfg.share9) || 0) / 100, rev12 = rev - rev9;
+    const n9 = a9 > 0 ? rev9 / a9 : 0, n12 = a12 > 0 ? rev12 / a12 : 0;
+    const th9 = Number(cfg.thick9) || 0, th12 = Number(cfg.thick12) || 0;
+    return { t9: Math.round(n9 * th9 / 100), s9: Math.round(n9 * (100 - th9) / 100), t12: Math.round(n12 * th12 / 100), s12: Math.round(n12 * (100 - th12) / 100), n9: Math.round(n9), n12: Math.round(n12), rev: Math.round(rev), a9: Math.round(a9), a12: Math.round(a12) };
+  }
+  // 由歷史報表自動估算比例（9/12 分配、厚薄佔比、比薩佔全店）供「自動帶入」
+  function pizzaAutoRatios() {
+    let r9 = 0, r12 = 0, t9 = 0, s9 = 0, t12 = 0, s12 = 0, totalRev = 0;
+    Object.values(predDays).forEach((r) => {
+      const s = r && r.summary, d = r && r.dough;
+      if (s) { r9 += s.pizza9amt || 0; r12 += s.pizza12amt || 0; totalRev += s.total || 0; }
+      if (d) { t9 += d.t9 || 0; s9 += d.s9 || 0; t12 += d.t12 || 0; s12 += d.s12 || 0; }
+    });
+    const pizzaRev = r9 + r12;
+    return {
+      share9: pizzaRev > 0 ? Math.round(r9 / pizzaRev * 100) : null,
+      thick9: (t9 + s9) > 0 ? Math.round(t9 / (t9 + s9) * 100) : null,
+      thick12: (t12 + s12) > 0 ? Math.round(t12 / (t12 + s12) * 100) : null,
+      pizzaShare: totalRev > 0 ? Math.round(pizzaRev / totalRev * 100) : null,
+    };
   }
   const mapEq = (a, b) => PIECES.every((pc) => ["leg", "fil", "wing"].every((k) => ((a[pc] || {})[k] || 0) === ((b[pc] || {})[k] || 0)));
   function watchConfig() {
@@ -1065,6 +1121,107 @@
     show("pmVerBackdrop");
   }
 
+  /* ---------- 比薩參數設定（最低營業額／比薩佔比／均價／厚薄拆分；有版本紀錄） ---------- */
+  const pizzaEq = (a, b) => PIZZA_NUM_KEYS.every((k) => Number(a[k]) === Number(b[k])) && !!a.avg9Auto === !!b.avg9Auto && !!a.avg12Auto === !!b.avg12Auto;
+  function fillPizzaInputs(c) {
+    $("pz_minRev").value = c.minRevenue; $("pz_pizzaShare").value = c.pizzaShare; $("pz_share9").value = c.share9;
+    $("pz_avg9").value = c.avg9; $("pz_avg12").value = c.avg12; $("pz_thick9").value = c.thick9; $("pz_thick12").value = c.thick12;
+    $("pz_avg9Auto").checked = !!c.avg9Auto; $("pz_avg12Auto").checked = !!c.avg12Auto;
+    syncPizzaAuto();
+  }
+  function readPizzaInputs() {
+    return {
+      minRevenue: Math.max(0, Number($("pz_minRev").value) || 0),
+      pizzaShare: clampPct($("pz_pizzaShare").value, DEFAULT_PIZZA.pizzaShare),
+      share9: clampPct($("pz_share9").value, DEFAULT_PIZZA.share9),
+      avg9: Math.max(0, Number($("pz_avg9").value) || 0), avg9Auto: $("pz_avg9Auto").checked,
+      avg12: Math.max(0, Number($("pz_avg12").value) || 0), avg12Auto: $("pz_avg12Auto").checked,
+      thick9: clampPct($("pz_thick9").value, DEFAULT_PIZZA.thick9), thick12: clampPct($("pz_thick12").value, DEFAULT_PIZZA.thick12),
+    };
+  }
+  const clampPct = (v, dflt) => { let n = Number(v); if (!isFinite(n)) n = dflt; return Math.min(100, Math.max(0, Math.round(n))); };
+  // 均價 Auto 勾選時：手填格變灰、顯示自動算出的值；並刷新預覽
+  function syncPizzaAuto() {
+    const a = pizzaAvgPrice();
+    [[9, "pz_avg9", "pz_avg9Auto"], [12, "pz_avg12", "pz_avg12Auto"]].forEach(([n, inId, ckId]) => {
+      const auto = $(ckId).checked, inp = $(inId);
+      inp.disabled = auto;
+      inp.classList.toggle("pz-auto", auto);
+      if (auto) { const v = n === 9 ? a.p9 : a.p12; if (v) inp.value = v; }
+      const hint = $(inId + "_hint");
+      if (hint) hint.textContent = auto ? (((n === 9 ? a.p9 : a.p12)) ? `自動：近期報表均價 $${n === 9 ? a.p9 : a.p12}` : "自動：尚無報表，暫用此值") : "手動指定";
+    });
+    renderPizzaPrev();
+  }
+  function renderPizzaPrev() {
+    const el = $("pzPrev"); if (!el) return;
+    const c = readPizzaInputs(), f = pizzaFloor(c);
+    el.innerHTML = `<h4>🍕 以此參數反推「六日／假日最少要備」</h4>
+      <div class="pzp-line">目標營業額 <b>$${(c.minRevenue).toLocaleString()}</b> × 比薩 ${c.pizzaShare}% ＝ 比薩 <b>$${f.rev.toLocaleString()}</b></div>
+      <div class="pzp-line">9吋 ${c.share9}%÷$${f.a9} ≈ <b>${f.n9}</b> 個　·　12吋 ${100 - c.share9}%÷$${f.a12} ≈ <b>${f.n12}</b> 個</div>
+      <div class="pzp-grid">${DOUGH_TYPES.map((t) => `<div class="pzp-cell"><span>${DOUGH_LABEL[t]}</span><b>${f[t]}</b></div>`).join("")}</div>`;
+  }
+  function openPizza() { fillPizzaInputs(pizzaCfg); renderPzHist(); show("pizzaBackdrop"); }
+  function pizzaAutoFill() {
+    const r = pizzaAutoRatios(), miss = [];
+    if (r.pizzaShare != null) $("pz_pizzaShare").value = r.pizzaShare; else miss.push("比薩佔比");
+    if (r.share9 != null) $("pz_share9").value = r.share9; else miss.push("9/12 分配");
+    if (r.thick9 != null) $("pz_thick9").value = r.thick9; else miss.push("9吋厚薄");
+    if (r.thick12 != null) $("pz_thick12").value = r.thick12; else miss.push("12吋厚薄");
+    renderPizzaPrev();
+    if (miss.length) alert("以下比例因報表資料還不足，維持原值：\n" + miss.join("、") + "\n（多上傳幾天報表後會更準）");
+  }
+  function savePizza() {
+    const c = readPizzaInputs();
+    if (pizzaEq(c, pizzaCfg)) { hide("pizzaBackdrop"); return; }
+    if (!confirm("確定要修改比薩參數嗎？\n\n之後餅皮推估會改用新參數；\n已存的歷史數字不受影響。")) return;
+    if (!db) { pizzaCfg = c; hide("pizzaBackdrop"); return; }
+    const today = todayKey();
+    const hist = pizzaHistory.filter((v) => v.date !== today);
+    hist.push({ date: today, pizza: c });
+    hist.sort((a, b) => (a.date < b.date ? -1 : 1));
+    configRef().set({ pizza: c, pizzaHistory: hist, updatedAt: Date.now() }, { merge: true })
+      .then(() => hide("pizzaBackdrop"))
+      .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
+  }
+  // 比薩參數版本紀錄（唯讀查看）；最底下永遠保留「系統預設值（最初）」
+  function renderPzHist() {
+    const box = $("pzHistList"); if (!box) return;
+    const asc = pizzaHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    let html = "";
+    for (let i = asc.length - 1; i >= 0; i--) {
+      const v = asc[i], latest = (i === asc.length - 1);
+      html += `<button type="button" class="pm-ver" data-idx="${i}"><span class="d">${v.date.replace(/-/g, "/")} 起版本</span>${latest ? `<span class="now">目前版本</span>` : ""}<span class="arrow">›</span></button>`;
+    }
+    html += `<button type="button" class="pm-ver pm-ver-base" data-idx="-1"><span class="d">📦 系統預設值</span>${asc.length === 0 ? `<span class="now">目前使用中</span>` : `<span class="org">最初</span>`}<span class="arrow">›</span></button>`;
+    box.innerHTML = html;
+    box.querySelectorAll("button[data-idx]").forEach((b) => b.addEventListener("click", () => openPzVer(asc, Number(b.dataset.idx))));
+  }
+  function openPzVer(asc, i) {
+    const base = (i < 0), ds = (x) => x.replace(/-/g, "/");
+    const v = base ? { date: null, pizza: DEFAULT_PIZZA } : asc[i];
+    const next = base ? null : asc[i + 1];
+    const c = v.pizza, f = pizzaFloor(c);
+    $("pmVerTitle").textContent = base ? "比薩參數 · 系統預設值（最初）" : `比薩參數 · ${ds(v.date)} 起`;
+    $("pmVerRange").textContent = base
+      ? (asc.length ? `系統最初的預設值，沿用到 ${ds(asc[0].date)} 第一次修改` : "系統預設值（目前使用中）")
+      : (next ? `此版自 ${ds(v.date)} 起套用，到 ${ds(next.date)} 改版` : `此版自 ${ds(v.date)} 起套用（目前仍在使用）`);
+    const row = (k, val) => `<tr><td>${k}</td><td>${val}</td></tr>`;
+    $("pmVerBody").innerHTML =
+      `<table class="pm"><tbody>` +
+      row("六日／假日 最低營業額", `$${(Number(c.minRevenue) || 0).toLocaleString()}`) +
+      row("比薩佔全店營業額", `${c.pizzaShare}%`) +
+      row("9吋佔比薩營業額", `${c.share9}%（12吋 ${100 - c.share9}%）`) +
+      row("9吋均價", `${c.avg9Auto ? "自動" : "手動"} $${c.avg9}`) +
+      row("12吋均價", `${c.avg12Auto ? "自動" : "手動"} $${c.avg12}`) +
+      row("9吋 厚片比例", `${c.thick9}%（薄 ${100 - c.thick9}%）`) +
+      row("12吋 厚片比例", `${c.thick12}%（薄 ${100 - c.thick12}%）`) +
+      `</tbody></table>` +
+      `<div class="pm-ver-sub">此版反推「六日／假日最少要備」</div>` +
+      `<table class="pm"><thead><tr><th>9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead><tbody><tr><td>${f.t9}</td><td>${f.s9}</td><td>${f.t12}</td><td>${f.s12}</td></tr></tbody></table>`;
+    show("pmVerBackdrop");
+  }
+
   /* ---------- 備份／還原（整包 JSON 匯出匯入） ---------- */
   function openBackup() { show("backupBackdrop"); }
   function doBackupExport() {
@@ -1074,7 +1231,7 @@
       const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {}, stock: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
-        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory };
+        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory, pizza: data.pizza, pizzaHistory: data.pizzaHistory };
         else if (id.indexOf("poultry_stock_") === 0) out.stock[id.slice("poultry_stock_".length)] = { days: data.days || {} };
         else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
@@ -1099,7 +1256,7 @@
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
     if (data.stock) Object.keys(data.stock).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: stockRefOf(ym), data: { days: data.stock[ym].days || {}, updatedAt: Date.now() } }); });
-    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; writes.push({ ref: configRef(), data: c }); }
+    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; if (data.config.pizza && typeof data.config.pizza === "object") c.pizza = data.config.pizza; if (Array.isArray(data.config.pizzaHistory)) c.pizzaHistory = data.config.pizzaHistory; writes.push({ ref: configRef(), data: c }); }
     let i = 0;
     (function next() {
       if (i >= writes.length) { hide("backupBackdrop"); alert("匯入完成。"); watchMonth(viewYM); return; }
@@ -1145,6 +1302,12 @@
     $("ckPartsBtn").onclick = openParts;
     $("partsReset").onclick = resetParts;
     $("partsSave").onclick = saveParts;
+    // 比薩參數設定
+    $("ckPizzaBtn").onclick = openPizza;
+    $("pizzaSave").onclick = savePizza;
+    $("pizzaAutoBtn").onclick = pizzaAutoFill;
+    ["pz_avg9Auto", "pz_avg12Auto"].forEach((id) => $(id).addEventListener("change", syncPizzaAuto));
+    ["pz_minRev", "pz_pizzaShare", "pz_share9", "pz_avg9", "pz_avg12", "pz_thick9", "pz_thick12"].forEach((id) => $(id).addEventListener("input", renderPizzaPrev));
     $("ckPrevMonth").onclick = () => shiftMonth(-1);
     $("ckNextMonth").onclick = () => shiftMonth(1);
     document.querySelectorAll("#ckCalSwitch button").forEach((b) => b.onclick = () => setCalMode(b.dataset.mode));
