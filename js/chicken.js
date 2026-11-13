@@ -76,8 +76,12 @@
   //   share9      9吋佔比薩營業額 %（把比薩營業額分成 9吋／12吋）
   //   avg9/avg12  均價（Auto=true 時用近期報表自動算，否則用手填值）
   //   thick9/12   該吋「厚片」佔比 %（薄片＝其餘）
-  const DEFAULT_PIZZA = { minRevenue: 100000, pizzaShare: 60, share9: 50, avg9: 448, avg9Auto: true, avg12: 680, avg12Auto: true, thick9: 60, thick12: 60 };
+  // 只有 minRevenue 是純手動（經營決策）；其餘比例/均價預設「自動＝近期報表計算」，可在進階手動覆寫
+  const DEFAULT_PIZZA = { minRevenue: 100000, pizzaShare: 60, pizzaShareAuto: true, share9: 50, share9Auto: true, avg9: 448, avg9Auto: true, avg12: 680, avg12Auto: true, thick9: 60, thick9Auto: true, thick12: 60, thick12Auto: true };
   const PIZZA_NUM_KEYS = ["minRevenue", "pizzaShare", "share9", "avg9", "avg12", "thick9", "thick12"];
+  const PIZZA_AUTO_KEYS = ["pizzaShareAuto", "share9Auto", "avg9Auto", "avg12Auto", "thick9Auto", "thick12Auto"];
+  // 可自動覆寫的欄位 → 對應的自動估算來源（pizzaAutoRatios 的 key；avg 由 pizzaAvgPrice）
+  const PIZZA_OVERRIDE = ["pizzaShare", "share9", "avg9", "avg12", "thick9", "thick12"];
   let pizzaCfg = JSON.parse(JSON.stringify(DEFAULT_PIZZA));
   let pizzaHistory = [];  // 比薩參數版本紀錄 [{date, pizza:{...}}]（升冪，最後一筆＝目前）
 
@@ -785,29 +789,31 @@
     if (d && d.pizza && typeof d.pizza === "object") {
       const p = d.pizza;
       PIZZA_NUM_KEYS.forEach((k) => { if (typeof p[k] === "number" && isFinite(p[k])) pizzaCfg[k] = p[k]; });
-      if (typeof p.avg9Auto === "boolean") pizzaCfg.avg9Auto = p.avg9Auto;
-      if (typeof p.avg12Auto === "boolean") pizzaCfg.avg12Auto = p.avg12Auto;
+      PIZZA_AUTO_KEYS.forEach((k) => { if (typeof p[k] === "boolean") pizzaCfg[k] = p[k]; });
     }
     pizzaHistory = (d && Array.isArray(d.pizzaHistory)) ? d.pizzaHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
   }
-  // 生效均價：Auto＝近期報表自動算（算不出時退回手填值）；否則用手填值
-  function effAvg(part) {
-    const auto = part === 9 ? pizzaCfg.avg9Auto : pizzaCfg.avg12Auto;
-    const manual = part === 9 ? pizzaCfg.avg9 : pizzaCfg.avg12;
-    if (!auto) return Number(manual) || 0;
-    const a = pizzaAvgPrice();
-    return (part === 9 ? a.p9 : a.p12) || Number(manual) || 0;
-  }
-  // 由「最低營業額」反推四類餅皮最少要備（floor）：營業額 → 比薩額 → 分 9/12 → ÷均價 → ×厚薄比
-  function pizzaFloor(cfg) {
+  // 把一組 pizza 設定解析成「生效數值」：每個欄位若為自動就用近期報表計算（算不出退回存檔值），否則用手動覆寫值
+  function resolvePizza(cfg) {
     cfg = cfg || pizzaCfg;
-    const a9 = cfg.avg9Auto ? (pizzaAvgPrice().p9 || cfg.avg9) : cfg.avg9;
-    const a12 = cfg.avg12Auto ? (pizzaAvgPrice().p12 || cfg.avg12) : cfg.avg12;
-    const rev = (Number(cfg.minRevenue) || 0) * (Number(cfg.pizzaShare) || 0) / 100;
-    const rev9 = rev * (Number(cfg.share9) || 0) / 100, rev12 = rev - rev9;
-    const n9 = a9 > 0 ? rev9 / a9 : 0, n12 = a12 > 0 ? rev12 / a12 : 0;
-    const th9 = Number(cfg.thick9) || 0, th12 = Number(cfg.thick12) || 0;
-    return { t9: Math.round(n9 * th9 / 100), s9: Math.round(n9 * (100 - th9) / 100), t12: Math.round(n12 * th12 / 100), s12: Math.round(n12 * (100 - th12) / 100), n9: Math.round(n9), n12: Math.round(n12), rev: Math.round(rev), a9: Math.round(a9), a12: Math.round(a12) };
+    const r = pizzaAutoRatios(), a = pizzaAvgPrice();
+    const auto = (key) => { const f = cfg[key + "Auto"]; return (f === undefined) ? true : !!f; };  // 未設旗標＝預設自動
+    const liveOf = { pizzaShare: r.pizzaShare, share9: r.share9, thick9: r.thick9, thick12: r.thick12, avg9: a.p9, avg12: a.p12 };
+    const pick = (key) => {
+      const fallback = Number(cfg[key]) || 0;
+      if (!auto(key)) return fallback;                 // 手動覆寫
+      const live = liveOf[key];
+      return (live != null && live > 0) ? live : fallback;  // 自動（資料不足退回存檔/預設值）
+    };
+    return { minRevenue: Number(cfg.minRevenue) || 0, pizzaShare: pick("pizzaShare"), share9: pick("share9"), avg9: pick("avg9"), avg12: pick("avg12"), thick9: pick("thick9"), thick12: pick("thick12") };
+  }
+  // 由「最低營業額」反推四類餅皮最少要備（floor）：營業額 → 比薩額 → 分 9/12 → ÷均價 → ×厚薄比（比例/均價皆取生效值）
+  function pizzaFloor(cfg) {
+    const c = resolvePizza(cfg);
+    const rev = c.minRevenue * c.pizzaShare / 100;
+    const rev9 = rev * c.share9 / 100, rev12 = rev - rev9;
+    const n9 = c.avg9 > 0 ? rev9 / c.avg9 : 0, n12 = c.avg12 > 0 ? rev12 / c.avg12 : 0;
+    return { t9: Math.round(n9 * c.thick9 / 100), s9: Math.round(n9 * (100 - c.thick9) / 100), t12: Math.round(n12 * c.thick12 / 100), s12: Math.round(n12 * (100 - c.thick12) / 100), n9: Math.round(n9), n12: Math.round(n12), rev: Math.round(rev), a9: Math.round(c.avg9), a12: Math.round(c.avg12), pizzaShare: c.pizzaShare, share9: c.share9, thick9: c.thick9, thick12: c.thick12 };
   }
   // 由歷史報表自動估算比例（9/12 分配、厚薄佔比、比薩佔全店）供「自動帶入」
   function pizzaAutoRatios() {
@@ -1121,56 +1127,67 @@
     show("pmVerBackdrop");
   }
 
-  /* ---------- 比薩參數設定（最低營業額／比薩佔比／均價／厚薄拆分；有版本紀錄） ---------- */
-  const pizzaEq = (a, b) => PIZZA_NUM_KEYS.every((k) => Number(a[k]) === Number(b[k])) && !!a.avg9Auto === !!b.avg9Auto && !!a.avg12Auto === !!b.avg12Auto;
+  /* ---------- 比薩參數設定（只有最低營業額手動；其餘比例/均價自動＋可進階覆寫；有版本紀錄） ---------- */
+  const clampPct = (v, dflt) => { let n = Number(v); if (!isFinite(n)) n = dflt; return Math.min(100, Math.max(0, Math.round(n))); };
+  // 可覆寫欄位（進階區）：key、單位、對應的自動估算來源
+  const PZ_FIELDS = [
+    { key: "pizzaShare", kind: "pct", label: "比薩佔全店" },
+    { key: "share9", kind: "pct", label: "9吋佔比薩" },
+    { key: "avg9", kind: "price", label: "9吋均價" },
+    { key: "avg12", kind: "price", label: "12吋均價" },
+    { key: "thick9", kind: "pct", label: "9吋厚片" },
+    { key: "thick12", kind: "pct", label: "12吋厚片" },
+  ];
+  const pzAutoOf = (c, key) => (c[key + "Auto"] === undefined ? true : !!c[key + "Auto"]);
+  const pzLive = () => { const r = pizzaAutoRatios(), a = pizzaAvgPrice(); return { pizzaShare: r.pizzaShare, share9: r.share9, thick9: r.thick9, thick12: r.thick12, avg9: a.p9, avg12: a.p12 }; };
+  // 只比較「有意義」的差異：最低營業額、各欄位自動旗標；手動欄位才比數值（自動欄位數值只是備援，不算變更）
+  function pizzaEq(a, b) {
+    if (Number(a.minRevenue) !== Number(b.minRevenue)) return false;
+    for (const f of PZ_FIELDS) {
+      if (pzAutoOf(a, f.key) !== pzAutoOf(b, f.key)) return false;
+      if (!pzAutoOf(a, f.key) && Number(a[f.key]) !== Number(b[f.key])) return false;
+    }
+    return true;
+  }
   function fillPizzaInputs(c) {
-    $("pz_minRev").value = c.minRevenue; $("pz_pizzaShare").value = c.pizzaShare; $("pz_share9").value = c.share9;
-    $("pz_avg9").value = c.avg9; $("pz_avg12").value = c.avg12; $("pz_thick9").value = c.thick9; $("pz_thick12").value = c.thick12;
-    $("pz_avg9Auto").checked = !!c.avg9Auto; $("pz_avg12Auto").checked = !!c.avg12Auto;
+    $("pz_minRev").value = c.minRevenue;
+    PZ_FIELDS.forEach((f) => { $(`pz_${f.key}`).value = c[f.key]; $(`pz_${f.key}Auto`).checked = pzAutoOf(c, f.key); });
     syncPizzaAuto();
   }
   function readPizzaInputs() {
-    return {
-      minRevenue: Math.max(0, Number($("pz_minRev").value) || 0),
-      pizzaShare: clampPct($("pz_pizzaShare").value, DEFAULT_PIZZA.pizzaShare),
-      share9: clampPct($("pz_share9").value, DEFAULT_PIZZA.share9),
-      avg9: Math.max(0, Number($("pz_avg9").value) || 0), avg9Auto: $("pz_avg9Auto").checked,
-      avg12: Math.max(0, Number($("pz_avg12").value) || 0), avg12Auto: $("pz_avg12Auto").checked,
-      thick9: clampPct($("pz_thick9").value, DEFAULT_PIZZA.thick9), thick12: clampPct($("pz_thick12").value, DEFAULT_PIZZA.thick12),
-    };
-  }
-  const clampPct = (v, dflt) => { let n = Number(v); if (!isFinite(n)) n = dflt; return Math.min(100, Math.max(0, Math.round(n))); };
-  // 均價 Auto 勾選時：手填格變灰、顯示自動算出的值；並刷新預覽
-  function syncPizzaAuto() {
-    const a = pizzaAvgPrice();
-    [[9, "pz_avg9", "pz_avg9Auto"], [12, "pz_avg12", "pz_avg12Auto"]].forEach(([n, inId, ckId]) => {
-      const auto = $(ckId).checked, inp = $(inId);
-      inp.disabled = auto;
-      inp.classList.toggle("pz-auto", auto);
-      if (auto) { const v = n === 9 ? a.p9 : a.p12; if (v) inp.value = v; }
-      const hint = $(inId + "_hint");
-      if (hint) hint.textContent = auto ? (((n === 9 ? a.p9 : a.p12)) ? `自動：近期報表均價 $${n === 9 ? a.p9 : a.p12}` : "自動：尚無報表，暫用此值") : "手動指定";
+    const o = { minRevenue: Math.max(0, Number($("pz_minRev").value) || 0) };
+    PZ_FIELDS.forEach((f) => {
+      o[f.key] = f.kind === "pct" ? clampPct($(`pz_${f.key}`).value, DEFAULT_PIZZA[f.key]) : Math.max(0, Number($(`pz_${f.key}`).value) || 0);
+      o[f.key + "Auto"] = $(`pz_${f.key}Auto`).checked;
     });
-    renderPizzaPrev();
+    return o;
+  }
+  // 勾「自動」時：欄位變灰、填入近期報表算出的值、hint 說明；取消勾選則可手動覆寫
+  function syncPizzaAuto() {
+    const live = pzLive();
+    PZ_FIELDS.forEach((f) => {
+      const auto = $(`pz_${f.key}Auto`).checked, inp = $(`pz_${f.key}`), hint = $(`pz_${f.key}_hint`), v = live[f.key];
+      inp.disabled = auto; inp.classList.toggle("pz-auto", auto);
+      if (auto && v != null && v > 0) inp.value = v;
+      if (hint) { const u = f.kind === "price" ? "$" : "", s = f.kind === "pct" ? "%" : ""; hint.textContent = auto ? ((v != null && v > 0) ? `自動：近期報表 ${u}${v}${s}` : "自動：報表資料還不足，暫用上方數字") : "手動覆寫中"; }
+    });
+    renderPizzaSummary(); renderPizzaPrev();
+  }
+  // 目前「生效」的比例（自動以近期報表計算的結果），唯讀顯示讓業主核對
+  function renderPizzaSummary() {
+    const el = $("pzAutoSummary"); if (!el) return;
+    const r = resolvePizza(readPizzaInputs());
+    el.innerHTML = `目前生效比例（自動以近期報表計算）<br>比薩佔全店 <b>${r.pizzaShare}%</b>　·　9吋/12吋 <b>${r.share9}/${100 - r.share9}%</b>　·　厚片 9吋 <b>${r.thick9}%</b>／12吋 <b>${r.thick12}%</b>　·　均價 <b>$${Math.round(r.avg9)}/$${Math.round(r.avg12)}</b>`;
   }
   function renderPizzaPrev() {
     const el = $("pzPrev"); if (!el) return;
     const c = readPizzaInputs(), f = pizzaFloor(c);
     el.innerHTML = `<h4>🍕 以此參數反推「六日／假日最少要備」</h4>
-      <div class="pzp-line">目標營業額 <b>$${(c.minRevenue).toLocaleString()}</b> × 比薩 ${c.pizzaShare}% ＝ 比薩 <b>$${f.rev.toLocaleString()}</b></div>
-      <div class="pzp-line">9吋 ${c.share9}%÷$${f.a9} ≈ <b>${f.n9}</b> 個　·　12吋 ${100 - c.share9}%÷$${f.a12} ≈ <b>${f.n12}</b> 個</div>
+      <div class="pzp-line">目標營業額 <b>$${(c.minRevenue).toLocaleString()}</b> × 比薩 ${f.pizzaShare}% ＝ 比薩 <b>$${f.rev.toLocaleString()}</b></div>
+      <div class="pzp-line">9吋 ${f.share9}%÷$${f.a9} ≈ <b>${f.n9}</b> 個　·　12吋 ${100 - f.share9}%÷$${f.a12} ≈ <b>${f.n12}</b> 個</div>
       <div class="pzp-grid">${DOUGH_TYPES.map((t) => `<div class="pzp-cell"><span>${DOUGH_LABEL[t]}</span><b>${f[t]}</b></div>`).join("")}</div>`;
   }
-  function openPizza() { fillPizzaInputs(pizzaCfg); renderPzHist(); show("pizzaBackdrop"); }
-  function pizzaAutoFill() {
-    const r = pizzaAutoRatios(), miss = [];
-    if (r.pizzaShare != null) $("pz_pizzaShare").value = r.pizzaShare; else miss.push("比薩佔比");
-    if (r.share9 != null) $("pz_share9").value = r.share9; else miss.push("9/12 分配");
-    if (r.thick9 != null) $("pz_thick9").value = r.thick9; else miss.push("9吋厚薄");
-    if (r.thick12 != null) $("pz_thick12").value = r.thick12; else miss.push("12吋厚薄");
-    renderPizzaPrev();
-    if (miss.length) alert("以下比例因報表資料還不足，維持原值：\n" + miss.join("、") + "\n（多上傳幾天報表後會更準）");
-  }
+  function openPizza() { fillPizzaInputs(pizzaCfg); renderPzHist(); const adv = $("pzAdv"); if (adv) adv.open = false; show("pizzaBackdrop"); }
   function savePizza() {
     const c = readPizzaInputs();
     if (pizzaEq(c, pizzaCfg)) { hide("pizzaBackdrop"); return; }
@@ -1207,15 +1224,16 @@
       ? (asc.length ? `系統最初的預設值，沿用到 ${ds(asc[0].date)} 第一次修改` : "系統預設值（目前使用中）")
       : (next ? `此版自 ${ds(v.date)} 起套用，到 ${ds(next.date)} 改版` : `此版自 ${ds(v.date)} 起套用（目前仍在使用）`);
     const row = (k, val) => `<tr><td>${k}</td><td>${val}</td></tr>`;
+    const fv = (key, u, s) => pzAutoOf(c, key) ? "自動（依報表）" : `${u || ""}${c[key]}${s || ""}`;
     $("pmVerBody").innerHTML =
       `<table class="pm"><tbody>` +
       row("六日／假日 最低營業額", `$${(Number(c.minRevenue) || 0).toLocaleString()}`) +
-      row("比薩佔全店營業額", `${c.pizzaShare}%`) +
-      row("9吋佔比薩營業額", `${c.share9}%（12吋 ${100 - c.share9}%）`) +
-      row("9吋均價", `${c.avg9Auto ? "自動" : "手動"} $${c.avg9}`) +
-      row("12吋均價", `${c.avg12Auto ? "自動" : "手動"} $${c.avg12}`) +
-      row("9吋 厚片比例", `${c.thick9}%（薄 ${100 - c.thick9}%）`) +
-      row("12吋 厚片比例", `${c.thick12}%（薄 ${100 - c.thick12}%）`) +
+      row("比薩佔全店營業額", fv("pizzaShare", "", "%")) +
+      row("9吋佔比薩營業額", fv("share9", "", "%")) +
+      row("9吋均價", fv("avg9", "$", "")) +
+      row("12吋均價", fv("avg12", "$", "")) +
+      row("9吋 厚片比例", fv("thick9", "", "%")) +
+      row("12吋 厚片比例", fv("thick12", "", "%")) +
       `</tbody></table>` +
       `<div class="pm-ver-sub">此版反推「六日／假日最少要備」</div>` +
       `<table class="pm"><thead><tr><th>9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead><tbody><tr><td>${f.t9}</td><td>${f.s9}</td><td>${f.t12}</td><td>${f.s12}</td></tr></tbody></table>`;
@@ -1393,12 +1411,14 @@
     $("ckPartsBtn").onclick = openParts;
     $("partsReset").onclick = resetParts;
     $("partsSave").onclick = saveParts;
-    // 比薩參數設定
+    // 比薩參數設定（最低營業額手動；其餘自動＋可進階覆寫）
     $("ckPizzaBtn").onclick = openPizza;
     $("pizzaSave").onclick = savePizza;
-    $("pizzaAutoBtn").onclick = pizzaAutoFill;
-    ["pz_avg9Auto", "pz_avg12Auto"].forEach((id) => $(id).addEventListener("change", syncPizzaAuto));
-    ["pz_minRev", "pz_pizzaShare", "pz_share9", "pz_avg9", "pz_avg12", "pz_thick9", "pz_thick12"].forEach((id) => $(id).addEventListener("input", renderPizzaPrev));
+    PZ_FIELDS.forEach((f) => {
+      $(`pz_${f.key}Auto`).addEventListener("change", syncPizzaAuto);
+      $(`pz_${f.key}`).addEventListener("input", () => { renderPizzaSummary(); renderPizzaPrev(); });
+    });
+    $("pz_minRev").addEventListener("input", () => { renderPizzaSummary(); renderPizzaPrev(); });
     $("ckPrevMonth").onclick = () => shiftMonth(-1);
     $("ckNextMonth").onclick = () => shiftMonth(1);
     document.querySelectorAll("#ckCalSwitch button").forEach((b) => b.onclick = () => setCalMode(b.dataset.mode));

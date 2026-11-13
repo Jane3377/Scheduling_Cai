@@ -292,6 +292,16 @@
     .pz-prev .pzp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
     .pzp-cell { background: #fff; border: 1px solid #ecd9cb; border-radius: 10px; padding: 9px 4px; text-align: center; }
     .pzp-cell span { display: block; font-size: 11.5px; color: var(--muted); } .pzp-cell b { font-size: 21px; color: #9a4a1a; }
+    .pz-grp-main { border-color: #d9a689; background: #fffdfb; box-shadow: 0 0 0 3px rgba(217,166,137,.1); }
+    .pz-auto-sum { font-size: 12.5px; color: #4a5668; background: #eef2f7; border: 1px solid #d8e0ea; border-radius: 12px; padding: 11px 13px; margin-bottom: 13px; line-height: 1.9; } .pz-auto-sum b { color: #2a2420; font-weight: 900; }
+    .pz-adv { border: 1px solid var(--line); border-radius: 13px; margin: 14px 0 4px; background: #fff; }
+    .pz-adv > summary { cursor: pointer; padding: 13px 14px; font-size: 13.5px; font-weight: 800; color: var(--brand-dark); list-style: none; display: flex; align-items: center; }
+    .pz-adv > summary::-webkit-details-marker { display: none; }
+    .pz-adv > summary::after { content: "▾"; margin-left: auto; color: var(--muted); font-size: 13px; }
+    .pz-adv[open] > summary::after { content: "▴"; }
+    .pz-adv[open] > summary { border-bottom: 1px solid var(--line); }
+    .pz-adv > *:not(summary) { margin-left: 13px; margin-right: 13px; }
+    .pz-adv > details + *, .pz-adv .pz-note:last-child { margin-bottom: 12px; }
     /* 月曆格 */
     .employee-cal-day { min-height: 90px; justify-content: flex-start; position: relative; color: var(--ink); }
     .employee-cal-day .day-number { color: var(--ink); }           /* 明確設定，避免 iOS 把按鈕文字變藍 */
@@ -769,28 +779,30 @@
     <div class="modal" style="width:min(480px,100%)">
       <div class="modal-head"><div><h3>🍕 比薩餅皮參數</h3><p>六日／假日推估的底線與拆分；餅皮推估會用到</p></div><button class="icon-btn" data-close="pizzaBackdrop">✕</button></div>
       <div class="modal-body">
-        <button type="button" class="secondary-btn full pz-autobtn" id="pizzaAutoBtn">✨ 從歷史報表自動估算比例</button>
-        <div class="pz-grp">
-          <div class="pz-grp-h">六日／假日 的底線</div>
+        <div class="pz-grp pz-grp-main">
+          <div class="pz-grp-h">六日／假日 的底線（唯一要你決定的）</div>
           <div class="pz-field"><label>目標最低營業額</label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_minRev" inputmode="numeric"></div></div>
-          <div class="pz-field"><label>比薩佔全店營業額</label><div class="pz-inwrap"><input class="input pz-in" id="pz_pizzaShare" inputmode="numeric"><span class="pz-suf">%</span></div></div>
-          <p class="pz-note">六日／假日會以「不低於這個營業額」反推最少要備多少餅皮；平日仍以近期同星期實際用量為準。</p>
+          <p class="pz-note">六日／假日會以「不低於這個營業額」反推最少要備多少餅皮；平日仍以近期同星期實際用量為準。<b>其餘比例與均價都由近期報表自動計算</b>，不用手動填。</p>
         </div>
-        <div class="pz-grp">
-          <div class="pz-grp-h">9吋 vs 12吋 分配</div>
-          <div class="pz-field"><label>9吋佔比薩營業額</label><div class="pz-inwrap"><input class="input pz-in" id="pz_share9" inputmode="numeric"><span class="pz-suf">%</span></div></div>
-          <div class="pz-field"><label>9吋均價<input type="checkbox" id="pz_avg9Auto" class="pz-ck"><span class="pz-cklbl">自動算</span></label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_avg9" inputmode="numeric"></div></div>
-          <p class="pz-hint" id="pz_avg9_hint"></p>
-          <div class="pz-field"><label>12吋均價<input type="checkbox" id="pz_avg12Auto" class="pz-ck"><span class="pz-cklbl">自動算</span></label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_avg12" inputmode="numeric"></div></div>
-          <p class="pz-hint" id="pz_avg12_hint"></p>
-        </div>
-        <div class="pz-grp">
-          <div class="pz-grp-h">厚片 vs 薄片 拆分</div>
-          <div class="pz-field"><label>9吋 厚片比例</label><div class="pz-inwrap"><input class="input pz-in" id="pz_thick9" inputmode="numeric"><span class="pz-suf">%</span></div></div>
-          <div class="pz-field"><label>12吋 厚片比例</label><div class="pz-inwrap"><input class="input pz-in" id="pz_thick12" inputmode="numeric"><span class="pz-suf">%</span></div></div>
-          <p class="pz-note">鬆厚＝厚片、薄脆＝薄片；薄片比例＝100%−厚片。</p>
-        </div>
+        <div class="pz-auto-sum" id="pzAutoSummary"></div>
         <div class="pz-prev" id="pzPrev"></div>
+        <details class="pz-adv" id="pzAdv">
+          <summary>⚙ 進階：手動覆寫自動比例</summary>
+          <p class="pz-note" style="margin:10px 0 4px">以下比例預設全部「自動」（依近期報表）。只有特殊情況才取消勾選、改成手動指定。</p>
+          <div class="pz-field"><label>比薩佔全店<input type="checkbox" id="pz_pizzaShareAuto" class="pz-ck"><span class="pz-cklbl">自動</span></label><div class="pz-inwrap"><input class="input pz-in" id="pz_pizzaShare" inputmode="numeric"><span class="pz-suf">%</span></div></div>
+          <p class="pz-hint" id="pz_pizzaShare_hint"></p>
+          <div class="pz-field"><label>9吋佔比薩<input type="checkbox" id="pz_share9Auto" class="pz-ck"><span class="pz-cklbl">自動</span></label><div class="pz-inwrap"><input class="input pz-in" id="pz_share9" inputmode="numeric"><span class="pz-suf">%</span></div></div>
+          <p class="pz-hint" id="pz_share9_hint"></p>
+          <div class="pz-field"><label>9吋均價<input type="checkbox" id="pz_avg9Auto" class="pz-ck"><span class="pz-cklbl">自動</span></label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_avg9" inputmode="numeric"></div></div>
+          <p class="pz-hint" id="pz_avg9_hint"></p>
+          <div class="pz-field"><label>12吋均價<input type="checkbox" id="pz_avg12Auto" class="pz-ck"><span class="pz-cklbl">自動</span></label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_avg12" inputmode="numeric"></div></div>
+          <p class="pz-hint" id="pz_avg12_hint"></p>
+          <div class="pz-field"><label>9吋 厚片比例<input type="checkbox" id="pz_thick9Auto" class="pz-ck"><span class="pz-cklbl">自動</span></label><div class="pz-inwrap"><input class="input pz-in" id="pz_thick9" inputmode="numeric"><span class="pz-suf">%</span></div></div>
+          <p class="pz-hint" id="pz_thick9_hint"></p>
+          <div class="pz-field"><label>12吋 厚片比例<input type="checkbox" id="pz_thick12Auto" class="pz-ck"><span class="pz-cklbl">自動</span></label><div class="pz-inwrap"><input class="input pz-in" id="pz_thick12" inputmode="numeric"><span class="pz-suf">%</span></div></div>
+          <p class="pz-hint" id="pz_thick12_hint"></p>
+          <p class="pz-note">鬆厚＝厚片、薄脆＝薄片；薄片比例＝100%−厚片。</p>
+        </details>
         <div class="pm-hist">
           <div class="pm-hist-title">版本紀錄（點可唯讀查看該版參數）</div>
           <div id="pzHistList"></div>
