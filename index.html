@@ -129,8 +129,18 @@
             <div class="sc-locked hidden" id="stockDoughLocked"></div>
           </div>
 
-          <div class="stock-note-auto">ℹ️ 雞肉與餅皮<b>獨立提交、互不影響</b>；只填「剩餘」就好 —— 製作量＝剩餘＋當天銷售，系統自動算。</div>
+          <div class="stock-note-auto">ℹ️ 雞肉與餅皮<b>獨立提交、互不影響</b>。</div>
           <div id="stockSaved" class="success-note"></div>
+        </div>
+
+        <!-- 打烊盤點防呆提醒 -->
+        <div class="stock-guard-backdrop hidden" id="stockGuard">
+          <div class="stock-guard" role="dialog" aria-modal="true">
+            <div class="sg-icon" id="sgIcon">⚠️</div>
+            <h3 id="sgTitle"></h3>
+            <p id="sgMsg"></p>
+            <div class="sg-actions"><button type="button" class="ghost-btn" id="sgNo">先不要</button><button type="button" class="primary-btn" id="sgYes">確定要填寫</button></div>
+          </div>
         </div>
 
         <div class="staff-tab-panel" id="doughPanel">

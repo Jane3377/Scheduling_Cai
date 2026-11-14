@@ -544,7 +544,7 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .stock-grid input{text-align:center;font-size:26px;font-weight:800;padding:14px 4px}
 .stock-existing{font-size:13px;color:#4a5668;background:#eef2f7;border:1px solid #d8e0ea;border-radius:10px;padding:10px 12px;margin:0 0 14px;line-height:1.6}
 .stock-existing b{color:var(--ink)}
-.stock-today{font-size:14px;font-weight:700;color:var(--muted);margin:0 0 14px}.stock-today b{color:var(--ink)}
+.stock-today{font-size:16px;font-weight:700;color:var(--muted);margin:0 0 14px}.stock-today b{color:var(--ink)}
 .stock-sec{font-size:15px;font-weight:800;color:var(--brand-dark);margin:6px 2px 9px}
 .stock-pz{margin:0 0 12px}
 .pz-head,.pz-row{display:flex;align-items:center;gap:10px}
@@ -582,3 +582,13 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .sc-locked .sc-done.pz b{color:#9a4a1a;margin:0 2px}
 .sc-who{font-size:13.5px;color:#5a524c;font-weight:700}.sc-who b{color:var(--ink)}
 .sc-hint{font-size:12px;color:var(--muted);margin-top:7px;background:#f3f0ed;border-radius:9px;padding:8px 11px}
+
+/* 打烊盤點防呆提醒 */
+.stock-guard-backdrop{position:fixed;inset:0;background:rgba(28,24,22,.5);display:grid;place-items:center;padding:20px;z-index:60}
+.stock-guard-backdrop.hidden{display:none}
+.stock-guard{background:#fff;border-radius:22px;width:min(380px,100%);padding:24px 22px 20px;text-align:center;box-shadow:0 25px 90px rgba(0,0,0,.25)}
+.stock-guard .sg-icon{font-size:38px;line-height:1}
+.stock-guard h3{margin:10px 0 8px;font-size:20px}
+.stock-guard p{margin:0 0 20px;font-size:16px;line-height:1.7;color:#5a524c;white-space:pre-line}
+.stock-guard .sg-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stock-guard .sg-actions button{padding:14px 10px;font-size:16px;font-weight:800;border-radius:13px}

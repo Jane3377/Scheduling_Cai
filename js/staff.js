@@ -545,6 +545,38 @@ function subscribeStock(){
   },err=>console.warn("stock snapshot",err));
 }
 function initStock(){renderStockToday();subscribeStock();renderStockCards();}
+/* 打烊盤點防呆：今天沒班、或還沒到晚上 6 點，先跳提醒確認（同一天確認過就不再問） */
+function hasShiftToday(){
+  const t=toDateKey(new Date());
+  return ((data&&data.shifts)||[]).some(s=>s.employeeId===staffEmployeeId&&s.date===t&&s.published!==false);
+}
+function askStockGuard(icon,title,msg){
+  return new Promise(resolve=>{
+    const bd=byId("stockGuard");if(!bd){resolve(true);return;}
+    byId("sgIcon").textContent=icon;byId("sgTitle").textContent=title;byId("sgMsg").textContent=msg;
+    bd.classList.remove("hidden");
+    const done=ok=>{bd.classList.add("hidden");byId("sgYes").onclick=null;byId("sgNo").onclick=null;resolve(ok);};
+    byId("sgYes").onclick=()=>done(true);
+    byId("sgNo").onclick=()=>done(false);
+  });
+}
+function backToMySchedule(){const b=document.querySelector('.staff-tab[data-staff-tab="mySchedule"]');if(b)b.click();}
+async function enterStockTab(){
+  initStock();
+  const today=toDateKey(new Date()),key="stockGuardOK_"+today;
+  try{if(sessionStorage.getItem(key))return;}catch(e){}
+  const rec=stockDays[today];
+  if(chickenSub(rec)&&doughSub(rec))return;   // 今天兩項都已填完，只是看紀錄，不用提醒
+  if(!hasShiftToday()){
+    const ok=await askStockGuard("📅","你今天沒有排班","系統顯示你今天沒有上班。\n打烊剩餘一般由當天上班的同事填寫。\n確定要由你來填嗎？");
+    if(!ok){backToMySchedule();return;}
+  }
+  if(new Date().getHours()<18){
+    const ok=await askStockGuard("🕕","現在還沒打烊喔","這一頁是填「打烊後」剩下的雞肉和餅皮。\n現在還不到晚上 6 點，數量可能還會變動。\n確定現在就要填嗎？");
+    if(!ok){backToMySchedule();return;}
+  }
+  try{sessionStorage.setItem(key,"1");}catch(e){}
+}
 // 雞肉／餅皮各自提交；只寫自己那部分＋填寫人時間，merge 不影響另一項
 function saveStockPart(part){
   const c=stockCol();if(!c){toast("尚未連線，請確認網路後再送出。","error");return;}
@@ -624,7 +656,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("staffPinInput")?.addEventListener("keydown",e=>{if(e.key==="Enter")login()});
   byId("staffLogoutBtn").onclick=logout;
   byId("addAllCalBtn").onclick=addAllToCalendar;
-  document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active");if(b.dataset.staffTab==="stock")initStock();if(b.dataset.staffTab==="dough")initDough();});
+  document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active");if(b.dataset.staffTab==="stock")enterStockTab();if(b.dataset.staffTab==="dough")initDough();});
   byId("stockChickenBtn")?.addEventListener("click",()=>saveStockPart("chicken"));
   byId("stockDoughBtn")?.addEventListener("click",()=>saveStockPart("dough"));
   // 我的班表：列表／月曆切換、月份切換、當天明細小卡
