@@ -71,7 +71,8 @@
   const DC = window.DoughCore;
   const { DOUGH_TYPES, DOUGH_LABEL, DEFAULT_PIZZA } = DC;
   let pizzaCfg = JSON.parse(JSON.stringify(DEFAULT_PIZZA));
-  let pizzaHistory = [];  // 比薩參數版本紀錄 [{date, pizza:{...}}](升冪，最後一筆＝目前)
+  let pizzaHistory = [];
+  let predHistory = [];   // 雞肉推估參數版本紀錄 [{date, pred:{bufferFactor, predWindow, estMethod}}](升冪；date ""＝最初)  // 比薩參數版本紀錄 [{date, pizza:{...}}](升冪，最後一筆＝目前)
 
   const $ = (id) => document.getElementById(id);
   const pad = (n) => String(n).padStart(2, "0");
@@ -178,10 +179,12 @@
   const ESTIMATORS = { avg: estMean, median: estMedian, weighted: estWeighted, max: estMax };
   // 推估某日叫貨量：同日型、回算視窗內「有上傳消耗」的日子，依推估方式計算 × 緩衝
   // asOf(選填)：站在這天「之前」推估(回頭驗證用，只用 asOf 前一天以前、回算天數內的資料)；不給＝以今天為準
-  function predict(targetKey, asOf) {
+  // P(選填)：推估參數 {bufferFactor, predWindow, estMethod}；不給＝目前設定(用於「依當時版本」計算)
+  function predict(targetKey, asOf, P) {
     const g = dayGroup(targetKey);
     if (!g) return { group: null };
-    const ref = asOf || todayKey(), endK = asOf ? prevDay(asOf) : ref, start = dateMinus(ref, predWindow);
+    const pw = P ? P.predWindow : predWindow, bf = P ? P.bufferFactor : bufferFactor, em = P ? P.estMethod : estMethod;
+    const ref = asOf || todayKey(), endK = asOf ? prevDay(asOf) : ref, start = dateMinus(ref, pw);
     const samples = [];
     Object.keys(predDays).forEach((k) => {
       if (k > endK || k < start) return;            // 僅取回算視窗內的實際日
@@ -193,11 +196,31 @@
     const n = samples.length;
     if (!n) return { group: g, n: 0 };
     samples.sort((a, b) => (a.date < b.date ? -1 : 1));  // 舊 → 新
-    const fn = ESTIMATORS[estMethod] || estMean;
+    const fn = ESTIMATORS[em] || estMean;
     const base = {}; PARTS3.forEach((p) => { base[p] = fn(samples.map((s) => Number(s.parts[p]) || 0)); });
-    const rec = { leg: Math.round(base.leg * bufferFactor), fil: Math.round(base.fil * bufferFactor), wing: Math.round(base.wing * bufferFactor) };
-    return { group: g, n, buf: bufferFactor, method: estMethod, avg: { leg: Math.round(base.leg), fil: Math.round(base.fil), wing: Math.round(base.wing) }, rec };
+    const rec = { leg: Math.round(base.leg * bf), fil: Math.round(base.fil * bf), wing: Math.round(base.wing * bf) };
+    return { group: g, n, buf: bf, method: em, window: pw, avg: { leg: Math.round(base.leg), fil: Math.round(base.fil), wing: Math.round(base.wing) }, rec };
   }
+
+  // 雞肉推估參數版本：predHistory [{date, pred}]，date "" ＝最初版本(第一次修改前的設定)；沒有紀錄＝一直是目前設定
+  const curPred = () => ({ bufferFactor, predWindow, estMethod });
+  function predAt(k) {
+    if (!predHistory.length) return curPred();
+    let v = predHistory[0];
+    predHistory.forEach((x) => { if ((x.date || "") <= k) v = x; });
+    return v.pred;
+  }
+  const predLabel = (P) => `${METHOD_LABEL[P.estMethod] || P.estMethod}・近 ${P.predWindow} 天・多備 ×${P.bufferFactor}`;
+  // 某使用日「當時的預估」：以下單日(有訂購單用它的下單日，否則推算的下單日)當天有效的參數版本、
+  // 只用下單日之前的資料計算 → 結果固定，等於當時在訂購單看到的；下單日在未來則用目前設定
+  function predictAsOrdered(k, rec) {
+    const od = (rec && rec.supplyRef && rec.supplyRef.od) || orderDayFor(k);
+    if (!od || od > todayKey()) return { p: predict(k), frozen: false };
+    return { p: predForOrder(k, od), frozen: true, od, P: predAt(od) };
+  }
+  // 訂購用的預估：下單日(今天或過去)→ 用下單日有效的參數版本、只用下單日之前的資料；未來下單日 → 目前設定。
+  // 訂購單、首頁建議、日期明細都用同一個規則，數字才會一致
+  function predForOrder(u, od) { return (od && od <= todayKey()) ? predict(u, od, predAt(od)) : predict(u); }
 
   /* ---------- 部位換算 ---------- */
   const emptyParts = () => ({ leg: 0, fil: 0, wing: 0 });
@@ -599,7 +622,7 @@
       f.deliveryDay = dOpts[0] ? dOpts[0].key : addDays(f.orderDay, 1);
       f.useDays = candidateUseDays(f.orderDay, f.deliveryDay).slice(0, 2);
     }
-    f.useDays.forEach((u) => { if (!f.perDay[u]) { const p = predict(u); f.perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; } });
+    f.useDays.forEach((u) => { if (!f.perDay[u]) { const p = predForOrder(u, f.orderDay); f.perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; } });
     f.expanded = f.useDays[0] || null;
   }
   // 預設下單日：今天是下單日就用今天，否則抓最近的下單日
@@ -630,7 +653,7 @@
     const f = orderForm, cand = candidateUseDays(f.orderDay, f.deliveryDay);
     f.useDays = f.useDays.filter((u) => cand.includes(u));
     if (!f.useDays.length) f.useDays = cand.slice(0, 2);
-    f.useDays.forEach((u) => { if (!f.perDay[u]) { const p = predict(u); f.perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; } });
+    f.useDays.forEach((u) => { if (!f.perDay[u]) { const p = predForOrder(u, f.orderDay); f.perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; } });
     if (!f.useDays.includes(f.expanded)) f.expanded = f.useDays[0] || null;
   }
   function orderTotals() {
@@ -680,7 +703,7 @@
     const f = orderForm, box = $("ordRows"); if (!box) return;
     box.innerHTML = f.useDays.map((u, idx) => {
       const r = f.perDay[u] || { leg: 0, fil: 0, wing: 0 };
-      const open = f.expanded === u, p = predict(u), last = lastSameTypeOrder(u);
+      const open = f.expanded === u, p = predForOrder(u, f.orderDay), last = lastSameTypeOrder(u);
       let exp = "";
       if (open) {
         let rows = "";
@@ -703,7 +726,7 @@
     box.querySelectorAll("button[data-exp]").forEach((b) => b.onclick = () => { f.expanded = (f.expanded === b.dataset.exp) ? null : b.dataset.exp; renderOrderRows(); });
     if (f.locked) return;
     box.querySelectorAll("input[data-pd]").forEach((inp) => inp.oninput = () => { const u = inp.dataset.pd; (f.perDay[u] = f.perDay[u] || { leg: 0, fil: 0, wing: 0 })[inp.dataset.k] = Number(inp.value) || 0; f.kg = null; renderOrderSum(); });
-    box.querySelectorAll("button[data-fill]").forEach((b) => b.onclick = () => { const [kind, u] = b.dataset.fill.split(":"); const p = predict(u), last = lastSameTypeOrder(u); const src = kind === "sug" ? (p.rec || {}) : (last ? last.order : {}); f.perDay[u] = { leg: src.leg || 0, fil: src.fil || 0, wing: src.wing || 0 }; f.kg = null; renderOrderRows(); renderOrderSum(); });
+    box.querySelectorAll("button[data-fill]").forEach((b) => b.onclick = () => { const [kind, u] = b.dataset.fill.split(":"); const p = predForOrder(u, f.orderDay), last = lastSameTypeOrder(u); const src = kind === "sug" ? (p.rec || {}) : (last ? last.order : {}); f.perDay[u] = { leg: src.leg || 0, fil: src.fil || 0, wing: src.wing || 0 }; f.kg = null; renderOrderRows(); renderOrderSum(); });
   }
   // ④ 每格公斤下方即時顯示「≈ N 隻」，與最終訂購量不同時標出多/少幾隻
   function renderKgPcs() {
@@ -780,7 +803,7 @@
   function confirmUsePicker() {
     const chosen = Array.from($("useDayList").querySelectorAll("input[data-ud]:checked")).map((i) => i.dataset.ud).sort();
     const f = orderForm; f.useDays = chosen.slice(0, 4);
-    f.useDays.forEach((u) => { if (!f.perDay[u]) { const p = predict(u); f.perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; } });
+    f.useDays.forEach((u) => { if (!f.perDay[u]) { const p = predForOrder(u, f.orderDay); f.perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; } });
     if (!f.useDays.includes(f.expanded)) f.expanded = f.useDays[0] || null;
     f.kg = null; hide("useDayBackdrop"); renderOrderForm();
   }
@@ -792,7 +815,7 @@
     const rec = days[k] || {};
     const hasSales = !!(rec.sales && Object.keys(rec.sales).length && rec.parts);
     const o = rec.order || null, u = hasSales ? rec.parts : null;
-    const p = k <= todayKey() ? predict(k, k) : predict(k), est = (p.n && p.rec) ? p.rec : null;   // 過去日只用這天之前的資料
+    const pa = predictAsOrdered(k, rec), p = pa.p, est = (p.n && p.rec) ? p.rec : null;   // 當時的預估(下單日版本，固定)
     const isBiz = !isClosed(k);
     $("detailTitle").textContent = fmtFull(k);
     let html = "";
@@ -803,7 +826,7 @@
       html += `<table class="ck-items" style="margin-bottom:6px"><thead><tr><th></th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>`;
       const act = o ? orderActualFor(k, rec) : null;
       const row3 = (label, obj) => `<tr><td>${label}</td>${cell(obj, "leg")}${cell(obj, "fil")}${cell(obj, "wing")}</tr>`;
-      html += row3(k <= todayKey() ? `預估<small class="ck-adj">(依目前設定)</small>` : "預估", est);   // 過去日的預估會隨推估參數變動
+      html += row3(pa.frozen ? `預估<small class="ck-adj">(${mdw(pa.od)} 下單時・${predLabel(pa.P)})</small>` : "預估", est);
       if (act) {
         const dm = act.demand, same = est && PARTS3.every((pp) => Math.round(Number(dm[pp]) || 0) === Math.round(Number(est[pp]) || 0));
         if (!same) html += row3(`訂購需求<small class="ck-adj">(訂購時填的，與預估不同)</small>`, dm);
@@ -969,6 +992,7 @@
     partsHistory = (d && Array.isArray(d.partsHistory)) ? d.partsHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
     pizzaCfg = DC.normalizePizza(d && d.pizza);
     pizzaHistory = (d && Array.isArray(d.pizzaHistory)) ? d.pizzaHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
+    predHistory = (d && Array.isArray(d.predHistory)) ? d.predHistory.filter((v) => v && v.pred).slice().sort((a, b) => ((a.date || "") < (b.date || "") ? -1 : 1)) : [];
   }
   // 餅皮推估的資料環境(交給共用核心 DoughCore 計算)
   const doughCtx = () => ({ reports: predDays, stock: stockDays, cfg: pizzaCfg, today: todayKey(), isClosed, natHoliday });
@@ -988,16 +1012,33 @@
     $("psBuffer").value = Number(bufferFactor).toFixed(2);   // 對應 1.00 / 1.05 / … / 1.30
     $("psWindow").value = String(predWindow);
     $("psMethod").value = estMethod;
+    renderPredHist();
     show("predBackdrop");
+  }
+  function renderPredHist() {
+    const box = $("psHist"); if (!box) return;
+    if (!predHistory.length) { box.innerHTML = `<div class="ps-hist-row">尚未修改過；目前設定：${predLabel(curPred())}</div>`; return; }
+    const desc = predHistory.slice().reverse();
+    box.innerHTML = desc.map((v, i) => `<div class="ps-hist-row"><b>${v.date ? v.date.replace(/-/g, "/") + " 起" : "最初"}</b>　${predLabel(v.pred)}${i === 0 ? `<span class="now">目前</span>` : ""}</div>`).join("");
   }
   function savePredSet() {
     let buf = Number($("psBuffer").value) || 1.0; if (!(buf >= 1 && buf <= 1.3)) buf = 1.0;
     const win = WINDOW_OPTIONS.includes(Number($("psWindow").value)) ? Number($("psWindow").value) : 35;
     const m = EST_METHODS.includes($("psMethod").value) ? $("psMethod").value : "avg";
+    const old = curPred(), neu = { bufferFactor: buf, predWindow: win, estMethod: m };
+    const changed = old.bufferFactor !== neu.bufferFactor || old.predWindow !== neu.predWindow || old.estMethod !== neu.estMethod;
     bufferFactor = buf; predWindow = win; estMethod = m;
     hide("predBackdrop");
     render(); refreshHint(); if (orderOpen()) renderOrderForm();
-    if (db) configRef().set({ bufferFactor: buf, predWindow: win, estMethod: m, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
+    if (!db) return;
+    configRef().set({ bufferFactor: buf, predWindow: win, estMethod: m, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
+    if (!changed) return;
+    // 版本紀錄另外存(規則未更新時不影響參數本身的儲存)：第一次修改先記下原本的設定當「最初版本」；同一天改多次只留最後一次
+    const t = todayKey(), hist = predHistory.length ? predHistory.slice() : [{ date: "", pred: old }];
+    const next = hist.filter((v) => v.date !== t).concat({ date: t, pred: neu }).sort((a, b) => ((a.date || "") < (b.date || "") ? -1 : 1));
+    configRef().set({ predHistory: next, updatedAt: Date.now() }, { merge: true })
+      .then(() => { predHistory = next; })
+      .catch((e) => { console.error(e); alert("推估參數已儲存，但版本紀錄沒有存成功(可能是 Firestore 規則尚未更新)：" + (e.message || e)); });
   }
   /* ---------- 批發商設定(可多家＋選預設) ---------- */
   let supDraft = null;  // { suppliers:[{id,name,weekdays,dates}], defaultId }
@@ -1093,7 +1134,7 @@
     const el = $("ckHint"); if (!el) return;
     const today = todayKey(), uses = coveredUseDays(today);
     if (!uses.length) { el.innerHTML = `🛈 今天不是下單日(批發商休或不需訂購)；點這裡仍可手動訂購 ›`; return; }
-    const k = uses[0], d = parseKey(k), p = predict(k);
+    const k = uses[0], d = parseKey(k), p = predForOrder(k, today);
     const more = uses.length > 1 ? `(另含 ${uses.slice(1).map((x) => mdw(x)).join("、")})` : "";
     const head = `🔮 推估建議：今天下單 → 使用 ${d.getMonth() + 1}/${pad(d.getDate())}(${DOW[d.getDay()]}${p.group ? "·" + p.group : ""})${more}`;
     if (!p.group) { el.innerHTML = `${head} ›`; return; }
@@ -1101,7 +1142,7 @@
     if (uses.length > 1) {
       // 多使用日：直接給本批合計(扣庫存後要叫)，不用自己加總
       const sum = { leg: 0, fil: 0, wing: 0 };
-      uses.forEach((u) => { const pu = predict(u); if (pu.n && pu.rec) { sum.leg += pu.rec.leg; sum.fil += pu.rec.fil; sum.wing += pu.rec.wing; } });
+      uses.forEach((u) => { const pu = predForOrder(u, todayKey()); if (pu.n && pu.rec) { sum.leg += pu.rec.leg; sum.fil += pu.rec.fil; sum.wing += pu.rec.wing; } });
       const s = currentStock();
       const t = s ? { leg: Math.max(0, sum.leg - s.leg), fil: Math.max(0, sum.fil - s.fil), wing: Math.max(0, sum.wing - s.wing) } : sum;
       el.innerHTML = `${head}　<b>本批合計要叫</b> <b class="ck-leg">腿 ${t.leg}</b>　<b class="ck-fil">排 ${t.fil}</b>　<b class="ck-wing">翅 ${t.wing}</b>${s ? "(已扣庫存)" : ""} ›`;
@@ -1117,7 +1158,7 @@
     const del = dOpts[0] ? dOpts[0].key : addDays(od, 1);
     const uses = candidateUseDays(od, del).slice(0, 2);
     const sum = { leg: 0, fil: 0, wing: 0 };
-    uses.forEach((u) => { const p = predict(u); if (p.n && p.rec) { sum.leg += p.rec.leg; sum.fil += p.rec.fil; sum.wing += p.rec.wing; } });
+    uses.forEach((u) => { const p = predForOrder(u, od); if (p.n && p.rec) { sum.leg += p.rec.leg; sum.fil += p.rec.fil; sum.wing += p.rec.wing; } });
     const s = currentStock(), stock = s ? { leg: s.leg, fil: s.fil, wing: s.wing } : null;
     const net = stock ? { leg: Math.max(0, sum.leg - stock.leg), fil: Math.max(0, sum.fil - stock.fil), wing: Math.max(0, sum.wing - stock.wing) } : { leg: sum.leg, fil: sum.fil, wing: sum.wing };
     const kg = { leg: kgSuggest(net.leg, "leg"), fil: kgSuggest(net.fil, "fil"), wing: kgSuggest(net.wing, "wing") };
@@ -1604,6 +1645,14 @@
   function doughLeft(k) { const s = stockDays[k]; if (!hasDoughRec(s)) return null; const o = {}; DOUGH_TYPES.forEach((t) => o[t] = Number(s[t]) || 0); return o; }
   const doughTotal = (o) => o ? DOUGH_TYPES.reduce((s, t) => s + (Number(o[t]) || 0), 0) : 0;
   const doughPizzaRev = (o) => DC.doughPizzaRev(o, pizzaCfg, doughCtx());
+  // 某天有效的比薩參數版本(第一次修改前＝系統預設值)
+  function pizzaAt(k) {
+    if (!pizzaHistory.length) return pizzaCfg;
+    let v = null; pizzaHistory.forEach((x) => { if (x.date <= k) v = x; });
+    return DC.normalizePizza(v ? v.pizza : null);
+  }
+  // 過去的日子：用那天的參數版本，自動比例、平均賣出都從那天往回算 → 結果固定；今天以後＝目前設定
+  const doughCtxAt = (k) => (k < todayKey() ? { reports: predDays, stock: stockDays, cfg: pizzaAt(k), today: k, isClosed, natHoliday } : doughCtx());
   const predictDough = (k) => DC.predictDough(k, doughCtx());
   function doughCells(o) { return DOUGH_TYPES.map((t) => o ? `<td>${o[t]}</td>` : `<td class="ck-muted">—</td>`).join(""); }
   function nextOpenDays(fromKey, n) { const out = [], d = parseKey(fromKey); for (let i = 0; i < 40 && out.length < n; i++) { const k = toKey(d); if (!isClosed(k)) out.push(k); d.setDate(d.getDate() + 1); } return out; }
@@ -1661,23 +1710,27 @@
         return `<button type="button" class="dg-rrow ca-row${short ? " has-short" : ""}" data-dgd="${r.k}"><span class="dg-rd">${mdw(r.k)}</span><span class="ca-ps">${chips}</span></button>`;
       }).join("");
     }
-    $("doughBody").querySelectorAll("button[data-dgd]").forEach((b) => b.onclick = () => openDoughDetail(b.dataset.dgd));
+    $("doughUpcoming").querySelectorAll("button[data-dgd]").forEach((b) => b.onclick = () => openDoughDetail(b.dataset.dgd));
+    $("doughRecent").querySelectorAll("button[data-dgd]").forEach((b) => b.onclick = () => openDoughDetail(b.dataset.dgd, "current"));
   }
-  function openDoughDetail(k) {
-    const p = predictDough(k), made = doughMade(k), sold = doughSold(k), left = doughLeft(k);
+  // mode "current"＝從「推估準不準」點進來：用目前設定回推；否則過去日子顯示當天的版本(固定)
+  function openDoughDetail(k, mode) {
+    const ctx = mode === "current" ? doughCtx() : doughCtxAt(k), frozen = mode !== "current" && k < todayKey();
+    const cfgK = ctx.cfg, rev = (o) => DC.doughPizzaRev(o, cfgK, ctx);
+    const p = DC.predictDough(k, ctx), made = doughMade(k), sold = doughSold(k), left = doughLeft(k);
     $("doughDetTitle").textContent = fmtFull(k);
     if (!p.rec) { $("doughDetBody").innerHTML = `<div class="hint">這天公休。</div>`; show("doughDetBackdrop"); return; }
     const r = sizeTotals(p.rec), money = (v) => "$" + Math.round(v).toLocaleString();
     const cell = (o, t, hi) => o ? `<td${hi ? ` class="dg-hi"` : ""}>${o[t]}</td>` : `<td class="ck-muted">—</td>`;
     let html = `<div class="dg-sug">
-      <div class="dg-sug-h">${p.label}・建議備</div>
+      <div class="dg-sug-h">${p.label}・建議備${frozen ? `<small class="dg-sug-tag">當天的推估(依當時參數，不會變)</small>` : (mode === "current" ? `<small class="dg-sug-tag">依目前設定回推</small>` : "")}</div>
       <div class="dg-sug-n"><span>9吋 <b>${r.n9}</b><small>厚${p.rec.t9} 薄${p.rec.s9}</small></span><span>12吋 <b>${r.n12}</b><small>厚${p.rec.t12} 薄${p.rec.s12}</small></span></div>
     </div>`;
     // ① 怎麼來的
     html += `<div class="dg-sec-h">① 怎麼來的</div>
       <table class="ck-items dg-basis"><thead><tr><th></th><th>9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead><tbody>
       <tr><td>近 ${p.n || p.N} 個${p.sampleName}平均銷售</td>${DOUGH_TYPES.map((t) => cell(p.avg, t, p.src[t] === "avg")).join("")}</tr>
-      ${p.isWeekend ? `<tr><td>最低營業額 ${money(pizzaCfg.minRevenue || 0)} 反推</td>${DOUGH_TYPES.map((t) => cell(p.floor, t, p.src[t] === "floor")).join("")}</tr>` : ""}
+      ${p.isWeekend ? `<tr><td>最低營業額 ${money(cfgK.minRevenue || 0)} 反推</td>${DOUGH_TYPES.map((t) => cell(p.floor, t, p.src[t] === "floor")).join("")}</tr>` : ""}
       <tr class="sum"><td>✔ 建議</td>${DOUGH_TYPES.map((t) => `<td>${p.rec[t]}</td>`).join("")}</tr>
       </tbody></table>
       <div class="dg-explain">${!p.n ? `還沒有${p.sampleName}的銷售資料${p.isWeekend ? "，暫時只用最低營業額反推。" : "，無法推估。"}`
@@ -1685,15 +1738,15 @@
         : `平日：直接用近 ${p.n} 個${p.sampleName}的平均銷售量。`}${p.n && p.n < p.N ? `(設定參考 ${p.N} 次，目前只有 ${p.n} 次資料)` : ""}</div>`;
     // ② 預估比薩營業額＝個數×均價(均價取近 4 週假日)，對照「最低營業額×比薩佔比」；只在六日/假日顯示
     if (p.isWeekend) {
-      const R = doughPizzaRev(p.rec), line = (x) => `9吋 ${x.n9}個×$${x.a9} ＋ 12吋 ${x.n12}個×$${x.a12}`;
+      const R = rev(p.rec), line = (x) => `9吋 ${x.n9}個×$${x.a9} ＋ 12吋 ${x.n12}個×$${x.a12}`;
       html += `<div class="dg-sec-h">② 預估比薩營業額</div>
         <div class="dg-rev"><b>${money(R.rev)}</b><span>依建議量：${line(R)}</span></div>
         <div class="dg-rev-sub">比薩約佔全店 ${R.share}%，換算全店約 <b>${money(R.store)}</b></div>`;
       if (p.isWeekend && p.floor) {
-        const target = Math.round((Number(pizzaCfg.minRevenue) || 0) * R.share / 100);
-        const A = p.avg ? doughPizzaRev(p.avg) : null;
+        const target = Math.round((Number(cfgK.minRevenue) || 0) * R.share / 100);
+        const A = p.avg ? rev(p.avg) : null;
         const item = (lbl, v, f) => `<div class="dg-rv"><div class="dg-rv-h"><span>${lbl}</span><b>${money(v)}</b></div><small>${f}</small></div>`;
-        html += `<div class="dg-rvs">${A ? item("平均銷售的比薩營業額", A.rev, line(A)) : ""}${item("底線目標比薩營業額", target, `最低營業額 ${money(pizzaCfg.minRevenue || 0)} × 比薩 ${R.share}%`)}</div>`;
+        html += `<div class="dg-rvs">${A ? item("平均銷售的比薩營業額", A.rev, line(A)) : ""}${item("底線目標比薩營業額", target, `最低營業額 ${money(cfgK.minRevenue || 0)} × 比薩 ${R.share}%`)}</div>`;
         if (A && A.rev < target) html += `<div class="dg-warn">⚠ 平常${p.sampleName}賣出的比薩營業額(${money(A.rev)})比底線目標 ${money(target)} 低，所以建議量是被底線撐高的；若常剩太多，可考慮調低最低營業額。</div>`;
       }
     }
@@ -1710,7 +1763,7 @@
       const e2 = sizeTotals(p.rec), s2 = sizeTotals(sold), v9 = doughVerdict(e2.n9, s2.n9), v12 = doughVerdict(e2.n12, s2.n12);
       html += `<div class="dg-sec-h">這天的實際結果 <span class="dg-rdiff ${v9.key}">9吋 ${v9.text}</span> <span class="dg-rdiff ${v12.key}">12吋 ${v12.text}</span></div>
         <table class="ck-items"><thead><tr><th></th><th>9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead><tbody>
-        <tr><td>🔮 推估<small class="ck-adj">(依目前設定)</small></td>${doughCells(p.rec)}</tr>
+        <tr><td>🔮 推估<small class="ck-adj">(${frozen ? "依當天設定" : "依目前設定"})</small></td>${doughCells(p.rec)}</tr>
         <tr><td>實際賣</td>${doughCells(sold)}</tr>
         <tr><td>剩餘</td>${doughCells(left)}</tr>
         ${made ? `<tr><td>🍕 製作</td>${doughCells(made)}</tr>` : ""}
@@ -1732,7 +1785,7 @@
       const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {}, stock: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
-        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory, pizza: data.pizza, pizzaHistory: data.pizzaHistory };
+        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory, pizza: data.pizza, pizzaHistory: data.pizzaHistory, predHistory: data.predHistory };
         else if (id.indexOf("poultry_stock_") === 0) out.stock[id.slice("poultry_stock_".length)] = { days: data.days || {} };
         else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
@@ -1757,7 +1810,7 @@
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
     if (data.stock) Object.keys(data.stock).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: stockRefOf(ym), data: { days: data.stock[ym].days || {}, updatedAt: Date.now() } }); });
-    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; if (data.config.pizza && typeof data.config.pizza === "object") c.pizza = data.config.pizza; if (Array.isArray(data.config.pizzaHistory)) c.pizzaHistory = data.config.pizzaHistory; writes.push({ ref: configRef(), data: c }); }
+    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; if (data.config.pizza && typeof data.config.pizza === "object") c.pizza = data.config.pizza; if (Array.isArray(data.config.pizzaHistory)) c.pizzaHistory = data.config.pizzaHistory; if (Array.isArray(data.config.predHistory)) c.predHistory = data.config.predHistory; writes.push({ ref: configRef(), data: c }); }
     let i = 0;
     (function next() {
       if (i >= writes.length) { hide("backupBackdrop"); alert("匯入完成。"); watchMonth(viewYM); return; }

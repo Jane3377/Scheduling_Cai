@@ -271,6 +271,11 @@
     .pm-hist { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
     .pm-hist-title { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
     .pm-hist-empty { font-size: 13px; color: var(--muted); padding: 4px 2px; }
+    .ps-hist-h { font-size: 13.5px; font-weight: 800; color: var(--brand-dark); margin: 14px 2px 6px; }
+    .ps-hist { display: grid; gap: 6px; margin-bottom: 4px; }
+    .ps-hist-row { background: #faf7f4; border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; font-size: 13.5px; color: #5a524c; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .ps-hist-row b { color: var(--ink); } .ps-hist-row .now { margin-left: auto; font-size: 11.5px; color: #fff; background: var(--ok); border-radius: 999px; padding: 2px 8px; }
+    .dg-sug-tag { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 2px; }
     .pm-ver { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: #faf7f4; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 7px; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer; }
     .pm-ver .d { color: var(--brand-dark); }
     .pm-ver .now { font-size: 11.5px; color: #fff; background: var(--ok); border-radius: 999px; padding: 2px 8px; }
@@ -911,6 +916,8 @@
           <div class="ps-k">📈 推估方式 <select class="ps-sel" id="psMethod"><option value="avg">平均</option><option value="median">中位數</option><option value="weighted">近期加權</option><option value="max">同型日最大</option></select></div>
           <div class="ps-d">平均(預設)／中位數(最穩)／近期加權(越近越重)／同型日最大(最保守)。</div>
         </div>
+        <div class="ps-hist-h">版本紀錄(回頭看過去日子的預估，會用當時的版本計算)</div>
+        <div class="ps-hist" id="psHist"></div>
         <div class="modal-actions"><button class="ghost-btn" data-close="predBackdrop">取消</button><button class="primary-btn" id="psSave">儲存設定</button></div>
       </div>
     </div>
