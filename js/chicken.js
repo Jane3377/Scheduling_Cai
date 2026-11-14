@@ -395,7 +395,8 @@
   // 月曆格只顯示 9吋／12吋 合計(厚薄明細在點開的明細裡)
   function doughTotals(o, est) {
     const n9 = (Number(o.t9) || 0) + (Number(o.s9) || 0), n12 = (Number(o.t12) || 0) + (Number(o.s12) || 0);
-    return `<span class="ck-dough2${est ? " est" : ""}"><span class="cd2"><i>9吋</i><b>${n9}</b></span><span class="cd2"><i>12吋</i><b>${n12}</b></span></span>`;
+    // 與使用月曆相同的「標籤＋數字」排版（ck-parts/ck-line），手機窄格也不壓線
+    return `<span class="ck-parts ck-dparts${est ? " est" : ""}"><span class="ck-line"><i>9</i><b>${n9}</b></span><span class="ck-line"><i>12</i><b>${n12}</b></span></span>`;
   }
   function doughCell(k, dd) {
     const dow = parseKey(k).getDay(), redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
