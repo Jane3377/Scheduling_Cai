@@ -177,13 +177,14 @@
   const estMax = (a) => a.reduce((m, x) => Math.max(m, x), 0);
   const ESTIMATORS = { avg: estMean, median: estMedian, weighted: estWeighted, max: estMax };
   // 推估某日叫貨量：同日型、回算視窗內「有上傳消耗」的日子，依推估方式計算 × 緩衝
-  function predict(targetKey) {
+  // asOf(選填)：站在這天「之前」推估(回頭驗證用，只用 asOf 前一天以前、回算天數內的資料)；不給＝以今天為準
+  function predict(targetKey, asOf) {
     const g = dayGroup(targetKey);
     if (!g) return { group: null };
-    const todayK = todayKey(), start = dateMinus(todayK, predWindow);
+    const ref = asOf || todayKey(), endK = asOf ? prevDay(asOf) : ref, start = dateMinus(ref, predWindow);
     const samples = [];
     Object.keys(predDays).forEach((k) => {
-      if (k > todayK || k < start) return;            // 僅取回算視窗內的實際日
+      if (k > endK || k < start) return;            // 僅取回算視窗內的實際日
       if (dayGroup(k) !== g) return;                   // 同日型
       const rec = predDays[k];
       if (!(rec && rec.parts && rec.sales && Object.keys(rec.sales).length)) return; // 需有實際消耗
@@ -432,6 +433,7 @@
     setDisp("ckCalSwitch", !dough);
     setDisp("ckHint", !dough);
     setDisp("ckDoughBtn", dough);
+    setDisp("ckChkAccBtn", !dough);
     setDisp("ckStockTop", !dough);
     document.querySelectorAll("#ckCatSwitch button").forEach((b) => b.classList.toggle("on", (b.dataset.cat === "dough") === dough));
     document.querySelectorAll("#ckCalSwitch button").forEach((b) => b.classList.toggle("on", b.dataset.mode === calMode));
@@ -1449,6 +1451,67 @@
     show("pmVerBackdrop");
   }
 
+  /* ---------- 雞肉推估準不準(以目前設定回推：系統推估 vs 實際用；不另存資料) ---------- */
+  const CHK_OVER_PCT = 15;
+  const CHK_NAME = { leg: "腿", fil: "排", wing: "翅" };
+  function chickenActual(k) { const r = predDays[k]; return (r && r.parts && r.sales && Object.keys(r.sales).length) ? r.parts : null; }
+  function chkVerdict(est, act) {
+    const diff = Math.round(est - act);
+    if (diff < 0) return { key: "short", text: "估少", diff };
+    if (act > 0 && diff > act * CHK_OVER_PCT / 100) return { key: "over", text: "估多", diff };
+    return { key: "ok", text: "差不多", diff };
+  }
+  const chkSetting = () => `以目前設定回推：${METHOD_LABEL[estMethod] || estMethod}・近 ${predWindow} 天・多備 ×${bufferFactor}`;
+  const signed = (n) => (n > 0 ? "+" : "") + n;
+  function chkAccRows() {
+    const t = todayKey(), from = dateMinus(t, 13);
+    return Object.keys(predDays).filter((k) => k >= from && k <= t && chickenActual(k)).sort((a, b) => (a < b ? 1 : -1)).map((k) => {
+      const p = predict(k, k), act = chickenActual(k), v = {};
+      if (p.n) PARTS3.forEach((pt) => { v[pt] = chkVerdict(p.rec[pt], Number(act[pt]) || 0); });
+      return { k, p, act, v, ok: !!p.n };
+    });
+  }
+  function openChkAcc() { renderChkAcc(); show("chkAccBackdrop"); }
+  function renderChkAcc() {
+    const rows = chkAccRows(), valid = rows.filter((r) => r.ok);
+    $("chkAccSetting").textContent = chkSetting();
+    if (!rows.length) { $("chkAccSum").innerHTML = ""; $("chkAccList").innerHTML = `<div class="rec-empty">近 14 天還沒有上傳銷售報表。</div>`; return; }
+    if (valid.length) {
+      const cnt = {}, avg = {};
+      PARTS3.forEach((pt) => { cnt[pt] = { ok: 0, short: 0, over: 0 }; valid.forEach((r) => cnt[pt][r.v[pt].key]++); avg[pt] = Math.round(valid.reduce((s2, r) => s2 + r.v[pt].diff, 0) / valid.length); });
+      $("chkAccSum").innerHTML = `
+        <table class="ck-items ca-sum"><thead><tr><th></th><th>差不多</th><th>估少(不夠)</th><th>估多(>${CHK_OVER_PCT}%)</th><th>平均每天</th></tr></thead><tbody>
+        ${PARTS3.map((pt) => `<tr><td class="ck-${pt}">${CHK_NAME[pt]}</td><td class="ca-ok">${cnt[pt].ok}</td><td class="ca-short">${cnt[pt].short}</td><td class="ca-over">${cnt[pt].over}</td><td class="${avg[pt] < 0 ? "ca-short" : avg[pt] > 0 ? "ca-over" : ""}">${avg[pt] === 0 ? "0" : `${avg[pt] > 0 ? "估多" : "估少"} ${Math.abs(avg[pt])}`}</td></tr>`).join("")}
+        </tbody></table>
+        <div class="dg-acc-sum">近 14 天 ${valid.length} 個營業日・單位：隻</div>`;
+    } else $("chkAccSum").innerHTML = "";
+    $("chkAccList").innerHTML = rows.map((r) => {
+      const short = r.ok && PARTS3.some((pt) => r.v[pt].key === "short");
+      const parts = r.ok ? PARTS3.map((pt) => `<span class="ca-p ${r.v[pt].key}"><i>${CHK_NAME[pt]}</i>${signed(r.v[pt].diff)}</span>`).join("") : `<span class="ca-p">此日型資料不足，無法回推</span>`;
+      return `<button type="button" class="dg-rrow ca-row${short ? " has-short" : ""}" data-cad="${r.k}"><span class="dg-rd">${mdw(r.k)}</span><span class="ca-ps">${parts}</span></button>`;
+    }).join("");
+    $("chkAccList").querySelectorAll("button[data-cad]").forEach((b) => b.onclick = () => openChkAccDetail(b.dataset.cad));
+  }
+  function openChkAccDetail(k) {
+    const p = predict(k, k), act = chickenActual(k), rec = predDays[k] || {}, ord = rec.order, st = stockDays[k];
+    $("chkAccDetTitle").textContent = fmtFull(k);
+    const row = (label, o, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${label}</td>${PARTS3.map((pt) => o ? `<td>${Math.round(Number(o[pt]) || 0)}</td>` : `<td class="ck-muted">—</td>`).join("")}</tr>`;
+    const diffRow = (label, a, b) => `<tr class="sum"><td>${label}</td>${PARTS3.map((pt) => (a && b) ? diffCell(Math.round((Number(a[pt]) || 0) - (Number(b[pt]) || 0))) : `<td class="ck-muted">—</td>`).join("")}</tr>`;
+    let html = `<div class="dg-det-sub">${chkSetting()}<br>${p.group ? `日型：${p.group}` : ""}${p.n ? `・參考 ${p.n} 個同日型的日子(這天之前的近 ${predWindow} 天)` : "・此日型資料不足"}</div>`;
+    html += `<table class="ck-items"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>
+      ${row(`${METHOD_LABEL[estMethod] || ""}基準`, p.n ? p.avg : null)}
+      ${row(`🔮 推估(×${bufferFactor})`, p.n ? p.rec : null)}
+      ${row("📦 實際訂購", ord || null)}
+      ${row("🍗 實際用", act)}
+      ${row("打烊剩餘", hasChickenRec(st) ? st : null)}
+      ${diffRow("差額(估−用)", p.n ? p.rec : null, act)}
+      ${ord ? diffRow("差額(訂−用)", ord, act) : ""}
+      </tbody></table>
+      <div class="hint" style="margin:8px 2px">差額正＝多、負＝不夠。「推估」用目前設定回推；「實際訂購」是當時存下的訂購量${ord ? "" : "(這天沒有訂購紀錄)"}。</div>`;
+    $("chkAccDetBody").innerHTML = html;
+    show("chkAccDetBackdrop");
+  }
+
   /* ---------- 餅皮推估 ＋ 管理者檢視 ---------- */
   // 某天「製作量」＝ 當天剩餘(盤點) ＋ 當天賣出(報表)；沒有剩餘盤點就不算(不顯示製作量)
   function doughMade(k) {
@@ -1641,6 +1704,7 @@
     ["orderKgleg", "orderKgfil", "orderKgwing"].forEach((id) => $(id).addEventListener("input", () => { if (orderForm) orderForm.kg = { leg: Number($("orderKgleg").value) || 0, fil: Number($("orderKgfil").value) || 0, wing: Number($("orderKgwing").value) || 0 }; }));
     $("ckHint").onclick = () => openOrderForm(null);
     $("ckDoughBtn").onclick = openDough;
+    $("ckChkAccBtn").onclick = openChkAcc;
     // 推估設定(工具列按鈕)
     $("ckPredBtn").onclick = openPredSet;
     $("psSave").onclick = savePredSet;
