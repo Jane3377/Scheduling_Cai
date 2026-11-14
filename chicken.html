@@ -1028,13 +1028,13 @@
         <div class="pz-grp pz-grp-main">
           <div class="pz-grp-h">六日／假日 的底線</div>
           <div class="pz-field"><label>目標最低營業額</label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_minRev" inputmode="numeric"></div></div>
-          <p class="pz-note">六日／假日會以「不低於這個營業額」反推最少要備多少餅皮；兩者取較大的。<b>其餘比例與均價都由近期報表自動計算</b>，不用手動填。</p>
+          <p class="pz-note">六日／假日會以「不低於這個營業額」反推最少要備多少餅皮；兩者取較大的。<b>其餘比例與均價都由近 4 週假日的報表自動計算</b>，不用手動填。</p>
         </div>
         <div class="pz-auto-sum" id="pzAutoSummary"></div>
         <div class="pz-prev" id="pzPrev"></div>
         <details class="pz-adv" id="pzAdv">
           <summary>⚙ 進階：手動覆寫自動比例</summary>
-          <p class="pz-note" style="margin:10px 0 4px">以下比例預設全部「自動」(依近期報表)。只有特殊情況才取消勾選、改成手動指定。</p>
+          <p class="pz-note" style="margin:10px 0 4px">以下比例預設全部「自動」(依近 4 週週六、週日與國定假日的報表，不含今天)。只有特殊情況才取消勾選、改成手動指定。</p>
           <div class="pz-field"><label>比薩佔全店<input type="checkbox" id="pz_pizzaShareAuto" class="pz-ck"><span class="pz-cklbl">自動</span></label><div class="pz-inwrap"><input class="input pz-in" id="pz_pizzaShare" inputmode="numeric"><span class="pz-suf">%</span></div></div>
           <p class="pz-hint" id="pz_pizzaShare_hint"></p>
           <div class="pz-field"><label>9吋佔比薩<input type="checkbox" id="pz_share9Auto" class="pz-ck"><span class="pz-cklbl">自動</span></label><div class="pz-inwrap"><input class="input pz-in" id="pz_share9" inputmode="numeric"><span class="pz-suf">%</span></div></div>
@@ -1075,6 +1075,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="js/firebase-config.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="js/dough-core.js"></script>
   <script src="js/chicken.js"></script>
   <script src="js/update.js"></script>
 </body>

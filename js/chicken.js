@@ -67,21 +67,9 @@
   let orderUnsubs = [], orderMonthData = {}, orderDays = {}, orderForm = null;  // 叫貨單(poultry_order_YYYY-MM，以下單日為 key)
   let reminderChecked = false;  // 每日提醒：本次載入是否已檢查過
   let partsHistory = [];  // 部位對照表版本紀錄 [{date:'YYYY-MM-DD', map:{...}}](日期升冪，最後一筆＝目前)
-  // 比薩餅皮：四類(t=厚片/鬆厚、s=薄片/薄脆)；推估與參數後台用
-  const DOUGH_TYPES = ["t9", "s9", "t12", "s12"];
-  const DOUGH_LABEL = { t9: "9吋厚", s9: "9吋薄", t12: "12吋厚", s12: "12吋薄" };
-  // 比薩參數(後台可改、有版本紀錄)：
-  //   minRevenue  六日／假日「目標最低營業額」(反推餅皮最少要備多少)
-  //   pizzaShare  比薩佔全店營業額 %(反推用)
-  //   share9      9吋佔比薩營業額 %(把比薩營業額分成 9吋／12吋)
-  //   avg9/avg12  均價(Auto=true 時用近期報表自動算，否則用手填值)
-  //   thick9/12   該吋「厚片」佔比 %(薄片＝其餘)
-  // 只有 minRevenue 是純手動(經營決策)；其餘比例/均價預設「自動＝近期報表計算」，可在進階手動覆寫
-  const DEFAULT_PIZZA = { minRevenue: 100000, doughSamples: 2, pizzaShare: 60, pizzaShareAuto: true, share9: 50, share9Auto: true, avg9: 448, avg9Auto: true, avg12: 680, avg12Auto: true, thick9: 60, thick9Auto: true, thick12: 60, thick12Auto: true };
-  const PIZZA_NUM_KEYS = ["minRevenue", "doughSamples", "pizzaShare", "share9", "avg9", "avg12", "thick9", "thick12"];
-  const PIZZA_AUTO_KEYS = ["pizzaShareAuto", "share9Auto", "avg9Auto", "avg12Auto", "thick9Auto", "thick12Auto"];
-  // 可自動覆寫的欄位 → 對應的自動估算來源(pizzaAutoRatios 的 key；avg 由 pizzaAvgPrice)
-  const PIZZA_OVERRIDE = ["pizzaShare", "share9", "avg9", "avg12", "thick9", "thick12"];
+  // 比薩餅皮：四類(t=厚片/鬆厚、s=薄片/薄脆)。推估公式與比薩參數定義都在 js/dough-core.js(後台、員工頁共用同一份)
+  const DC = window.DoughCore;
+  const { DOUGH_TYPES, DOUGH_LABEL, DEFAULT_PIZZA } = DC;
   let pizzaCfg = JSON.parse(JSON.stringify(DEFAULT_PIZZA));
   let pizzaHistory = [];  // 比薩參數版本紀錄 [{date, pizza:{...}}](升冪，最後一筆＝目前)
 
@@ -468,13 +456,6 @@
     const dough = d ? `　🍕 餅皮 9吋 厚${d.t9 || 0}/薄${d.s9 || 0}・12吋 厚${d.t12 || 0}/薄${d.s12 || 0}` : "";
     return `<div class="ck-sumline">💰 全店營業額 <b>$${(s.total || 0).toLocaleString()}</b>　🍕 9吋 <b>${p9}</b>(均價 $${avg9})・12吋 <b>${p12}</b>(均價 $${avg12})${dough}</div>`;
   }
-  // 比薩均價(自動算：近期報表 總額÷數量)；回傳 {p9, p12}
-  function pizzaAvgPrice() {
-    let a9 = 0, q9 = 0, a12 = 0, q12 = 0;
-    Object.values(predDays).forEach((r) => { const s = r && r.summary; if (s) { a9 += s.pizza9amt || 0; q9 += s.pizza9 || 0; a12 += s.pizza12amt || 0; q12 += s.pizza12 || 0; } });
-    return { p9: q9 ? Math.round(a9 / q9) : 0, p12: q12 ? Math.round(a12 / q12) : 0 };
-  }
-
   /* ---------- 彈窗：顯示／隱藏 ---------- */
   function show(id) { $(id).classList.remove("hidden"); }
   function hide(id) { $(id).classList.add("hidden"); }
@@ -906,52 +887,14 @@
       PARTS3.forEach((p) => { const v = d.purchase[p]; if (v && typeof v === "object") purchase[p] = { code: String(v.code || DEFAULT_PURCHASE[p].code), g: Number(v.g) || DEFAULT_PURCHASE[p].g }; });
     }
     partsHistory = (d && Array.isArray(d.partsHistory)) ? d.partsHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
-    pizzaCfg = JSON.parse(JSON.stringify(DEFAULT_PIZZA));
-    if (d && d.pizza && typeof d.pizza === "object") {
-      const p = d.pizza;
-      PIZZA_NUM_KEYS.forEach((k) => { if (typeof p[k] === "number" && isFinite(p[k])) pizzaCfg[k] = p[k]; });
-      PIZZA_AUTO_KEYS.forEach((k) => { if (typeof p[k] === "boolean") pizzaCfg[k] = p[k]; });
-    }
+    pizzaCfg = DC.normalizePizza(d && d.pizza);
     pizzaHistory = (d && Array.isArray(d.pizzaHistory)) ? d.pizzaHistory.slice().sort((a, b) => (a.date < b.date ? -1 : 1)) : [];
   }
-  // 把一組 pizza 設定解析成「生效數值」：每個欄位若為自動就用近期報表計算(算不出退回存檔值)，否則用手動覆寫值
-  function resolvePizza(cfg) {
-    cfg = cfg || pizzaCfg;
-    const r = pizzaAutoRatios(), a = pizzaAvgPrice();
-    const auto = (key) => { const f = cfg[key + "Auto"]; return (f === undefined) ? true : !!f; };  // 未設旗標＝預設自動
-    const liveOf = { pizzaShare: r.pizzaShare, share9: r.share9, thick9: r.thick9, thick12: r.thick12, avg9: a.p9, avg12: a.p12 };
-    const pick = (key) => {
-      const fallback = Number(cfg[key]) || 0;
-      if (!auto(key)) return fallback;                 // 手動覆寫
-      const live = liveOf[key];
-      return (live != null && live > 0) ? live : fallback;  // 自動(資料不足退回存檔/預設值)
-    };
-    return { minRevenue: Number(cfg.minRevenue) || 0, pizzaShare: pick("pizzaShare"), share9: pick("share9"), avg9: pick("avg9"), avg12: pick("avg12"), thick9: pick("thick9"), thick12: pick("thick12") };
-  }
-  // 由「最低營業額」反推四類餅皮最少要備(floor)：營業額 → 比薩額 → 分 9/12 → ÷均價 → ×厚薄比(比例/均價皆取生效值)
-  function pizzaFloor(cfg) {
-    const c = resolvePizza(cfg);
-    const rev = c.minRevenue * c.pizzaShare / 100;
-    const rev9 = rev * c.share9 / 100, rev12 = rev - rev9;
-    const n9 = c.avg9 > 0 ? rev9 / c.avg9 : 0, n12 = c.avg12 > 0 ? rev12 / c.avg12 : 0;
-    return { t9: Math.round(n9 * c.thick9 / 100), s9: Math.round(n9 * (100 - c.thick9) / 100), t12: Math.round(n12 * c.thick12 / 100), s12: Math.round(n12 * (100 - c.thick12) / 100), n9: Math.round(n9), n12: Math.round(n12), rev: Math.round(rev), a9: Math.round(c.avg9), a12: Math.round(c.avg12), pizzaShare: c.pizzaShare, share9: c.share9, thick9: c.thick9, thick12: c.thick12 };
-  }
-  // 由歷史報表自動估算比例(9/12 分配、厚薄佔比、比薩佔全店)供「自動帶入」
-  function pizzaAutoRatios() {
-    let r9 = 0, r12 = 0, t9 = 0, s9 = 0, t12 = 0, s12 = 0, totalRev = 0;
-    Object.values(predDays).forEach((r) => {
-      const s = r && r.summary, d = r && r.dough;
-      if (s) { r9 += s.pizza9amt || 0; r12 += s.pizza12amt || 0; totalRev += s.total || 0; }
-      if (d) { t9 += d.t9 || 0; s9 += d.s9 || 0; t12 += d.t12 || 0; s12 += d.s12 || 0; }
-    });
-    const pizzaRev = r9 + r12;
-    return {
-      share9: pizzaRev > 0 ? Math.round(r9 / pizzaRev * 100) : null,
-      thick9: (t9 + s9) > 0 ? Math.round(t9 / (t9 + s9) * 100) : null,
-      thick12: (t12 + s12) > 0 ? Math.round(t12 / (t12 + s12) * 100) : null,
-      pizzaShare: totalRev > 0 ? Math.round(pizzaRev / totalRev * 100) : null,
-    };
-  }
+  // 餅皮推估的資料環境(交給共用核心 DoughCore 計算)
+  const doughCtx = () => ({ reports: predDays, stock: stockDays, cfg: pizzaCfg, today: todayKey(), isClosed, natHoliday });
+  const resolvePizza = (cfg) => DC.resolvePizza(cfg || pizzaCfg, doughCtx());
+  const pizzaFloor = (cfg) => DC.pizzaFloor(cfg || pizzaCfg, doughCtx());
+  const pizzaAuto = () => DC.autoStats(doughCtx());   // 近 4 週假日自動比例/均價
   const mapEq = (a, b) => PIECES.every((pc) => ["leg", "fil", "wing"].every((k) => ((a[pc] || {})[k] || 0) === ((b[pc] || {})[k] || 0)));
   function watchConfig() {
     if (!db) return;
@@ -1301,9 +1244,9 @@
     { key: "thick12", kind: "pct", label: "12吋厚片" },
   ];
   // 餅皮推估參考「近幾次同星期」(預設 2，限 1~8)
-  const samplesOf = (c) => { const n = Math.round(Number(c && c.doughSamples)); return (isFinite(n) && n >= 1) ? Math.min(8, n) : DEFAULT_PIZZA.doughSamples; };
+  const samplesOf = DC.samplesOf;
   const pzAutoOf = (c, key) => (c[key + "Auto"] === undefined ? true : !!c[key + "Auto"]);
-  const pzLive = () => { const r = pizzaAutoRatios(), a = pizzaAvgPrice(); return { pizzaShare: r.pizzaShare, share9: r.share9, thick9: r.thick9, thick12: r.thick12, avg9: a.p9, avg12: a.p12 }; };
+  const pzLive = pizzaAuto;
   // 只比較「有意義」的差異：最低營業額、各欄位自動旗標；手動欄位才比數值(自動欄位數值只是備援，不算變更)
   function pizzaEq(a, b) {
     if (Number(a.minRevenue) !== Number(b.minRevenue)) return false;
@@ -1335,15 +1278,17 @@
       const auto = $(`pz_${f.key}Auto`).checked, inp = $(`pz_${f.key}`), hint = $(`pz_${f.key}_hint`), v = live[f.key];
       inp.disabled = auto; inp.classList.toggle("pz-auto", auto);
       if (auto && v != null && v > 0) inp.value = v;
-      if (hint) { const u = f.kind === "price" ? "$" : "", s = f.kind === "pct" ? "%" : ""; hint.textContent = auto ? ((v != null && v > 0) ? `自動：近期報表 ${u}${v}${s}` : "自動：報表資料還不足，暫用上方數字") : "手動覆寫中"; }
+      if (hint) { const u = f.kind === "price" ? "$" : "", s = f.kind === "pct" ? "%" : ""; hint.textContent = auto ? ((v != null && v > 0) ? `自動：近 4 週假日 ${u}${v}${s}` : "自動：近 4 週假日資料不足，暫用上方數字") : "手動覆寫中"; }
     });
     renderPizzaSummary(); renderPizzaPrev();
   }
   // 目前「生效」的比例(自動以近期報表計算的結果)，唯讀顯示讓業主核對
   function renderPizzaSummary() {
     const el = $("pzAutoSummary"); if (!el) return;
-    const r = resolvePizza(readPizzaInputs());
-    el.innerHTML = `目前生效比例(自動以近期報表計算)<br>比薩佔全店 <b>${r.pizzaShare}%</b>　·　9吋/12吋 <b>${r.share9}/${100 - r.share9}%</b>　·　厚片 9吋 <b>${r.thick9}%</b>／12吋 <b>${r.thick12}%</b>　·　均價 <b>$${Math.round(r.avg9)}/$${Math.round(r.avg12)}</b>`;
+    const r = resolvePizza(readPizzaInputs()), a = pizzaAuto(), md = (k) => k.slice(5).replace("-", "/");
+    const basis = a.enough ? `依近 4 週假日 <b>${a.n}</b> 天(${md(a.from)}～${md(a.to)})的報表計算`
+      : `近 4 週假日只有 ${a.n} 天有報表(需 ${a.minDays} 天以上)，自動欄位暫用存檔數字`;
+    el.innerHTML = `目前生效比例・${basis}<br>比薩佔全店 <b>${r.pizzaShare}%</b>　·　9吋/12吋 <b>${r.share9}/${100 - r.share9}%</b>　·　厚片 9吋 <b>${r.thick9}%</b>／12吋 <b>${r.thick12}%</b>　·　均價 <b>$${Math.round(r.avg9)}/$${Math.round(r.avg12)}</b>`;
   }
   function renderPizzaPrev() {
     const el = $("pzPrev"); if (!el) return;
@@ -1419,44 +1364,8 @@
   function doughSold(k) { const r = predDays[k]; return (r && r.dough) ? r.dough : null; }
   function doughLeft(k) { const s = stockDays[k]; if (!s) return null; const o = {}; DOUGH_TYPES.forEach((t) => o[t] = Number(s[t]) || 0); return o; }
   const doughTotal = (o) => o ? DOUGH_TYPES.reduce((s, t) => s + (Number(o[t]) || 0), 0) : 0;
-  // 某天實際「比薩營業額」(報表 9吋＋12吋 金額)
-  const dayPizzaRev = (k) => { const s = predDays[k] && predDays[k].summary; return s ? (Number(s.pizza9amt) || 0) + (Number(s.pizza12amt) || 0) : 0; };
-  // 由餅皮個數估「比薩營業額」：9吋個數×9吋均價＋12吋個數×12吋均價(均價/比薩佔比取生效值)
-  function doughPizzaRev(o) {
-    const c = resolvePizza(pizzaCfg), n9 = (Number(o.t9) || 0) + (Number(o.s9) || 0), n12 = (Number(o.t12) || 0) + (Number(o.s12) || 0);
-    const a9 = Math.round(c.avg9), a12 = Math.round(c.avg12), rev = n9 * a9 + n12 * a12;
-    return { n9, n12, a9, a12, rev, share: c.pizzaShare, store: c.pizzaShare > 0 ? Math.round(rev / (c.pizzaShare / 100)) : 0 };
-  }
-  const dowName = (dow) => (dow === 0 ? "週日" : "週" + DOW[dow]);
-  // 餅皮推估：平日、六日/假日都以「近 N 次同星期平均銷售量」為基準(N 在餅皮參數設定，預設 2)；
-  // 六日/假日再與「最低營業額反推」取較大；國定假日營業＝用週日樣本。
-  // 只用 targetKey 之前(且不晚於今天)的資料，回頭驗證過去日子才公平。
-  function predictDough(targetKey) {
-    if (isClosed(targetKey)) return { group: null, rec: null };
-    const nat = natHoliday(targetKey), dow = parseKey(targetKey).getDay();
-    const isWeekend = (dow === 0 || dow === 6 || !!nat);
-    const sampleDow = nat ? 0 : dow;   // 國定假日→比照週日
-    const todayK = todayKey(), N = samplesOf(pizzaCfg), samples = [];
-    Object.keys(predDays).forEach((k) => {
-      if (k >= targetKey || k > todayK) return;
-      if (parseKey(k).getDay() !== sampleDow) return;
-      const s = doughSold(k); if (s) samples.push({ date: k, sold: s, rev: dayPizzaRev(k), left: doughLeft(k) });
-    });
-    samples.sort((a, b) => (a.date < b.date ? 1 : -1));  // 新→舊
-    const recent = samples.slice(0, N);
-    const avg = recent.length ? {} : null;
-    if (recent.length) DOUGH_TYPES.forEach((t) => { avg[t] = Math.round(recent.reduce((s, x) => s + (Number(x.sold[t]) || 0), 0) / recent.length); });
-    const floor = isWeekend ? pizzaFloor() : null;
-    const rec = {}, src = {};
-    DOUGH_TYPES.forEach((t) => {
-      const a = avg ? avg[t] : 0, fl = floor ? floor[t] : 0;
-      if (isWeekend && fl > a) { rec[t] = fl; src[t] = "floor"; }
-      else { rec[t] = a; src[t] = avg ? "avg" : "none"; }
-    });
-    const label = nat ? ("國定假日·" + nat) : (dow === 0 ? "週日" : dow === 6 ? "週六" : "平日·週" + DOW[dow]);
-    const sampleName = nat ? "週日" : dowName(dow);
-    return { group: isWeekend ? "假日" : "平日", label, sampleName, isWeekend, nat: nat || "", sampleDow, N, n: recent.length, avg, floor, rec, src, samples: recent };
-  }
+  const doughPizzaRev = (o) => DC.doughPizzaRev(o, pizzaCfg, doughCtx());
+  const predictDough = (k) => DC.predictDough(k, doughCtx());
   function doughCells(o) { return DOUGH_TYPES.map((t) => o ? `<td>${o[t]}</td>` : `<td class="ck-muted">—</td>`).join(""); }
   function nextOpenDays(fromKey, n) { const out = [], d = parseKey(fromKey); for (let i = 0; i < 40 && out.length < n; i++) { const k = toKey(d); if (!isClosed(k)) out.push(k); d.setDate(d.getDate() + 1); } return out; }
   // 近 14 天(含今天)有上傳餅皮銷售的日子，新→舊
@@ -1480,7 +1389,7 @@
     $("doughUpcoming").innerHTML = up.map((k) => {
       const p = predictDough(k), anyFloor = p.src && DOUGH_TYPES.some((t) => p.src[t] === "floor");
       const basis = !p.n ? `同星期資料累積中${p.floor ? "・暫用最低營業額反推" : ""}`
-        : `依近 ${p.n} 個${p.sampleName}平均銷售${anyFloor ? "・已套最低營業額底線" : ""}・預估比薩營業額約 $${doughPizzaRev(p.rec).rev.toLocaleString()}`;
+        : `依近 ${p.n} 個${p.sampleName}平均銷售${anyFloor ? "・已套最低營業額底線" : ""}${p.isWeekend ? `・預估比薩營業額約 $${doughPizzaRev(p.rec).rev.toLocaleString()}` : ""}`;
       return `<button type="button" class="dg-up" data-dgd="${k}">
         <div class="dg-up-h">${mdw(k)}<span class="dg-tag${p.isWeekend ? " wk" : ""}">${p.label}</span><span class="dg-up-more">看依據 ›</span></div>
         <div class="dg-up-nums">${DOUGH_TYPES.map((t) => `<span${p.src[t] === "floor" ? ` class="fl"` : ""}><i>${DOUGH_LABEL[t]}</i><b>${p.rec[t]}</b></span>`).join("")}</div>
@@ -1532,8 +1441,8 @@
       <div class="dg-explain">${!p.n ? `還沒有${p.sampleName}的銷售資料${p.isWeekend ? "，暫時只用最低營業額反推。" : "，無法推估。"}`
         : p.isWeekend ? "六日／假日：每一格取「平均銷售」與「最低營業額反推」較大的那個(底色標示採用哪個)。"
         : `平日：直接用近 ${p.n} 個${p.sampleName}的平均銷售量。`}${p.n && p.n < p.N ? `(設定參考 ${p.N} 次，目前只有 ${p.n} 次資料)` : ""}</div>`;
-    // ② 預估比薩營業額＝個數×均價；六日/假日再對照「最低營業額×比薩佔比」的底線目標
-    {
+    // ② 預估比薩營業額＝個數×均價(均價取近 4 週假日)，對照「最低營業額×比薩佔比」；只在六日/假日顯示
+    if (p.isWeekend) {
       const R = doughPizzaRev(p.rec), line = (x) => `9吋 ${x.n9}個×$${x.a9} ＋ 12吋 ${x.n12}個×$${x.a12}`;
       html += `<div class="dg-sec-h">② 預估比薩營業額</div>
         <div class="dg-rev"><b>${money(R.rev)}</b><span>依建議量：${line(R)}</span></div>
