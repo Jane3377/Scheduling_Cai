@@ -620,14 +620,29 @@ function subscribeDough(){
 }
 function initDough(){subscribeDough();renderDoughStaff();}
 // 員工頁餅皮推估：只顯示「當日」(不顯示未來日期)
+// 員工端：未來 2 個營業日的建議量＋可展開「怎麼來的」與參考日子的銷售明細(不顯示營業額)
 function renderDoughStaff(){
   const box=byId("doughStaffList");if(!box)return;
-  const today=toDateKey(new Date());
-  if(isClosedDay(today)){box.innerHTML=`<div class="empty-state">今天公休，無當日餅皮推估。</div>`;return;}
-  const p=predictDoughS(today),anyFloor=p.src&&DOUGH_TYPES.some(t=>p.src[t]==="floor");
-  box.innerHTML=`<div class="dgs-card"><div class="dgs-h">${formatDate(today)}<span class="dgs-tag${p.isWeekend?" wk":""}">${p.label}</span></div>
-    <div class="dgs-nums">${DOUGH_TYPES.map(t=>`<span><i>${DOUGH_LABEL[t]}</i><b>${p.rec?p.rec[t]:0}</b></span>`).join("")}</div>
-    ${!p.n?`<div class="dgs-note">同星期資料累積中${p.floor?"・暫用最低營業額反推":""}</div>`:(anyFloor?`<div class="dgs-note">已套「最低營業額」底線</div>`:"")}</div>`;
+  const days=nextOpenDaysS(2);
+  if(!days.length){box.innerHTML=`<div class="empty-state">近期都公休，沒有餅皮推估。</div>`;return;}
+  const cells=(o,hi)=>DOUGH_TYPES.map(t=>o?`<td${hi&&hi[t]?' class="hi"':""}>${o[t]}</td>`:`<td class="mut">—</td>`).join("");
+  const head=`<tr><th></th>${DOUGH_TYPES.map(t=>`<th>${DOUGH_LABEL[t].replace("吋","")}</th>`).join("")}</tr>`;
+  box.innerHTML=days.map((k,i)=>{
+    const p=predictDoughS(k),anyFloor=DOUGH_TYPES.some(t=>p.src[t]==="floor");
+    const hiAvg={},hiFl={};DOUGH_TYPES.forEach(t=>{hiAvg[t]=p.isWeekend&&p.src[t]==="avg";hiFl[t]=p.src[t]==="floor";});
+    const how=`<table class="dgs-tbl"><thead>${head}</thead><tbody>
+        <tr><td>近 ${p.n||p.N} 個${p.sampleName}平均賣出</td>${cells(p.avg,hiAvg)}</tr>
+        ${p.isWeekend?`<tr><td>假日最少要備</td>${cells(p.floor,hiFl)}</tr>`:""}
+        <tr class="sum"><td>✔ 建議</td>${cells(p.rec)}</tr></tbody></table>
+      <div class="dgs-explain">${!p.n?`還沒有${p.sampleName}的銷售資料${p.isWeekend?"，先用假日最少要備的量。":"。"}`:p.isWeekend?"六日／假日：每一格取「平均賣出」和「假日最少要備」比較多的那個(有底色的是採用的)。":`平日：用近 ${p.n} 個${p.sampleName}的平均賣出量。`}</div>
+      ${p.n?`<div class="dgs-sub">參考的 ${p.n} 天實際賣出</div>
+      <table class="dgs-tbl"><thead>${head.replace("<th></th>","<th>日期</th>")}</thead><tbody>
+        ${p.samples.map(x=>`<tr><td>${formatDate(x.date)}</td>${cells(x.sold)}</tr>`).join("")}</tbody></table>`:""}`;
+    return `<div class="dgs-card"><div class="dgs-h">${formatDate(k)}${i===0&&k===toDateKey(new Date())?`<span class="dgs-today">今天</span>`:""}<span class="dgs-tag${p.isWeekend?" wk":""}">${p.label}</span></div>
+      <div class="dgs-nums">${DOUGH_TYPES.map(t=>`<span><i>${DOUGH_LABEL[t]}</i><b>${p.rec?p.rec[t]:0}</b></span>`).join("")}</div>
+      ${!p.n?`<div class="dgs-note">同星期資料累積中${p.floor?"・暫用假日最少要備的量":""}</div>`:(anyFloor?`<div class="dgs-note">已套「假日最少要備」</div>`:"")}
+      <details class="dgs-how"><summary>看怎麼來的</summary>${how}</details></div>`;
+  }).join("");
 }
 document.addEventListener("DOMContentLoaded",()=>{
   applyStaffBranding();

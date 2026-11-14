@@ -556,8 +556,8 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .pz-row input{flex:1;min-width:0;text-align:center;font-size:23px;font-weight:800;padding:11px 4px}
 .stock-note-auto{font-size:12.5px;color:#6f8a79;background:#f3faf5;border:1px solid #cfe6d7;border-radius:10px;padding:10px 12px;margin:0 0 14px;line-height:1.5}
 /* 餅皮推估（員工端：餅皮／管理者） */
-.dough-staff-list{display:grid;gap:12px;margin:2px 0 14px}
-.dgs-card{border:1.5px solid #ecd9cb;border-radius:14px;background:#fffdfb;padding:13px 14px}
+.dough-staff-list{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin:2px 0 14px}
+.dgs-card{min-width:0;border:1.5px solid #ecd9cb;border-radius:14px;background:#fffdfb;padding:13px 14px}
 .dgs-h{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:900;color:var(--ink);margin-bottom:10px}
 .dgs-tag{font-size:12px;font-weight:800;color:#5a524c;background:#efeae4;border-radius:999px;padding:3px 11px}
 .dgs-tag.wk{color:#9a4a1a;background:#fbe3d2}
@@ -566,6 +566,21 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .dgs-nums i{display:block;font-style:normal;font-size:12px;color:var(--muted);margin-bottom:2px}
 .dgs-nums b{font-size:28px;color:#9a4a1a;font-weight:900}
 .dgs-note{font-size:12.5px;color:#8a6d1f;font-weight:700;margin-top:9px}
+.dgs-today{font-size:12px;font-weight:800;color:#fff;background:var(--brand,#c0532f);border-radius:999px;padding:3px 10px}
+.dgs-how{margin-top:10px;border-top:1px dashed #ecd9cb;padding-top:8px}
+.dgs-how summary{cursor:pointer;font-size:15px;font-weight:800;color:#9a4a1a;padding:4px 0;list-style:none}
+.dgs-how summary::-webkit-details-marker{display:none}
+.dgs-how summary::after{content:" ›";}
+.dgs-how[open] summary::after{content:" ˅";}
+.dgs-tbl{width:100%;min-width:0;border-collapse:collapse;margin-top:8px;table-layout:fixed}
+.dgs-tbl th,.dgs-tbl td{padding:8px 4px;text-align:center;font-size:15px;border-bottom:1px solid #f0ebe7}
+.dgs-tbl th{font-size:13px;color:var(--muted);background:#fcfaf8;font-weight:800}
+.dgs-tbl th:first-child,.dgs-tbl td:first-child{text-align:left;width:38%;font-size:14px}
+.dgs-tbl td.hi{background:#fff0dc;color:#9a4a1a;font-weight:900}
+.dgs-tbl td.mut{color:var(--muted)}
+.dgs-tbl tr.sum td{font-weight:900;background:#faf7f4}
+.dgs-explain{font-size:13.5px;color:#6b5a4c;line-height:1.6;margin:8px 2px 0}
+.dgs-sub{font-size:14px;font-weight:800;color:#9a4a1a;margin-top:14px}
 .dough-staff-note{font-size:12.5px;color:var(--muted);line-height:1.6;background:#faf7f4;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 /* 打烊盤點：雞肉／餅皮獨立卡片＋提交鎖定 */
 .stock-card{margin-bottom:14px}
