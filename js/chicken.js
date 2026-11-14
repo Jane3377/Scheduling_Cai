@@ -791,7 +791,11 @@
     else if (isBiz) html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
     $("detailBody").innerHTML = html;
     const go = $("detailGoOrder"); if (go) go.onclick = () => { hide("detailBackdrop"); const sr = rec.supplyRef; openOrderForm(sr ? sr.od : (orderDayFor(k) || k)); };
-    $("detailEditOrder").onclick = () => { hide("detailBackdrop"); const sr = rec.supplyRef; openOrderForm(sr ? sr.od : (orderDayFor(k) || k)); };
+    // 「訂購雞肉」只在今天以後的日子出現；這天的下單日已過、又沒有訂購單時也不顯示(來不及訂)
+    const sr = rec.supplyRef, odFor = sr ? sr.od : (orderDayFor(k) || k), t = todayKey();
+    const canOrder = k >= t && (!!sr || odFor >= t);
+    $("detailEditOrder").classList.toggle("hidden", !canOrder);
+    $("detailEditOrder").onclick = () => { hide("detailBackdrop"); openOrderForm(odFor); };
     show("detailBackdrop");
   }
 
@@ -1559,24 +1563,27 @@
     const recent = recentDoughDays(14);
     if (!recent.length) { $("doughAcc").innerHTML = ""; $("doughRecent").innerHTML = `<div class="rec-empty">近 14 天還沒有餅皮銷售資料；請先上傳含餅皮的銷售報表。</div>`; }
     else {
-      const rows = recent.map((k) => { const p = predictDough(k), sT = doughTotal(doughSold(k)), rT = doughTotal(p.rec); return { k, p, sT, rT, v: doughVerdict(rT, sT) }; });
-      const valid = rows.filter((r) => r.p.n > 0 || r.p.floor);   // 沒有任何依據的日子不列入準確度
-      const cnt = { ok: 0, short: 0, over: 0 }; valid.forEach((r) => cnt[r.v.key]++);
-      const avgDiff = valid.length ? Math.round(valid.reduce((s, r) => s + r.v.diff, 0) / valid.length) : 0;
-      $("doughAcc").innerHTML = valid.length ? `
-        <div class="dg-acc-grid">
-          <div class="dg-acc ok"><b>${cnt.ok}</b><span>差不多</span></div>
-          <div class="dg-acc short"><b>${cnt.short}</b><span>估少(不夠)</span></div>
-          <div class="dg-acc over"><b>${cnt.over}</b><span>估多(>${DOUGH_OVER_PCT}%)</span></div>
-        </div>
-        <div class="dg-acc-sum">近 14 天 ${valid.length} 個營業日・平均每天 ${avgDiff >= 0 ? "估多" : "估少"} <b>${Math.abs(avgDiff)}</b> 個</div>` : "";
+      // 9吋、12吋分開判斷(一個估多、一個估少時，合計會被誤判成「差不多」)
+      const SZ = [["n9", "9吋"], ["n12", "12吋"]];
+      const rows = recent.map((k) => {
+        const p = predictDough(k), sold = sizeTotals(doughSold(k)), est = sizeTotals(p.rec), v = {};
+        SZ.forEach(([z]) => { v[z] = doughVerdict(est[z], sold[z]); });
+        return { k, p, sold, est, v, none: !(p.n > 0 || p.floor) };
+      });
+      const valid = rows.filter((r) => !r.none);   // 沒有任何依據的日子不列入準確度
+      if (valid.length) {
+        const cnt = {}, avg = {};
+        SZ.forEach(([z]) => { cnt[z] = { ok: 0, short: 0, over: 0 }; valid.forEach((r) => cnt[z][r.v[z].key]++); avg[z] = Math.round(valid.reduce((t, r) => t + r.v[z].diff, 0) / valid.length); });
+        $("doughAcc").innerHTML = `
+          <table class="ck-items ca-sum"><thead><tr><th></th><th>差不多</th><th>估少(不夠)</th><th>估多(>${DOUGH_OVER_PCT}%)</th><th>平均每天</th></tr></thead><tbody>
+          ${SZ.map(([z, lab]) => `<tr><td>${lab}</td><td class="ca-ok">${cnt[z].ok}</td><td class="ca-short">${cnt[z].short}</td><td class="ca-over">${cnt[z].over}</td><td class="${avg[z] < 0 ? "ca-short" : avg[z] > 0 ? "ca-over" : ""}">${avg[z] === 0 ? "0" : `${avg[z] > 0 ? "估多" : "估少"} ${Math.abs(avg[z])}`}</td></tr>`).join("")}
+          </tbody></table>
+          <div class="dg-acc-sum">近 14 天 ${valid.length} 個營業日・單位：個(厚＋薄)</div>`;
+      } else $("doughAcc").innerHTML = "";
       $("doughRecent").innerHTML = rows.map((r) => {
-        const left = doughLeft(r.k), lT = left ? doughTotal(left) : null, none = !(r.p.n > 0 || r.p.floor);
-        return `<button type="button" class="dg-rrow" data-dgd="${r.k}">
-          <span class="dg-rd">${mdw(r.k)}</span>
-          <span class="dg-rm"><span>估 <b>${none ? "—" : r.rT}</b></span> · <span>賣 <b>${r.sT}</b></span> · <span>剩 <b>${lT != null ? lT : "—"}</b></span></span>
-          <span class="dg-rdiff ${none ? "" : r.v.key}">${none ? "無依據" : `${r.v.text} ${r.v.diff > 0 ? "+" : ""}${r.v.diff}`}</span>
-        </button>`;
+        const short = !r.none && SZ.some(([z]) => r.v[z].key === "short");
+        const chips = r.none ? `<span class="ca-p">無依據</span>` : SZ.map(([z, lab]) => `<span class="ca-p ${r.v[z].key}"><i>${lab}</i>${r.v[z].diff > 0 ? "+" : ""}${r.v[z].diff}</span>`).join("");
+        return `<button type="button" class="dg-rrow ca-row${short ? " has-short" : ""}" data-dgd="${r.k}"><span class="dg-rd">${mdw(r.k)}</span><span class="ca-ps">${chips}</span></button>`;
       }).join("");
     }
     $("doughBody").querySelectorAll("button[data-dgd]").forEach((b) => b.onclick = () => openDoughDetail(b.dataset.dgd));
@@ -1625,8 +1632,8 @@
     // 實際結果(已有銷售的日子)
     if (sold) {
       const diff = {}; DOUGH_TYPES.forEach((t) => diff[t] = p.rec[t] - (Number(sold[t]) || 0));
-      const v = doughVerdict(doughTotal(p.rec), doughTotal(sold));
-      html += `<div class="dg-sec-h">這天的實際結果 <span class="dg-rdiff ${v.key}">${v.text}</span></div>
+      const e2 = sizeTotals(p.rec), s2 = sizeTotals(sold), v9 = doughVerdict(e2.n9, s2.n9), v12 = doughVerdict(e2.n12, s2.n12);
+      html += `<div class="dg-sec-h">這天的實際結果 <span class="dg-rdiff ${v9.key}">9吋 ${v9.text}</span> <span class="dg-rdiff ${v12.key}">12吋 ${v12.text}</span></div>
         <table class="ck-items"><thead><tr><th></th><th>9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead><tbody>
         <tr><td>🔮 推估</td>${doughCells(p.rec)}</tr>
         <tr><td>實際賣</td>${doughCells(sold)}</tr>
