@@ -529,7 +529,8 @@
   /* ---------- 記錄叫貨(叫貨單：批發商＋到貨日＋使用日＋狀態流程) ---------- */
   const numsHTML = (o) => `<i>腿</i><b class="ck-leg">${o.leg}</b> <i>排</i><b class="ck-fil">${o.fil}</b> <i>翅</i><b class="ck-wing">${o.wing}</b>`;
   const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return toKey(d); };
-  const STATUS_LABEL = { draft: "待訂購", ordered: "已訂購", arrived: "已到貨" };
+  // 已取消「存草稿」：新單一律直接確認；draft 只剩舊資料(以前存的草稿)，標「未確認」，可確認或刪除
+  const STATUS_LABEL = { draft: "未確認", ordered: "已訂購", arrived: "已到貨" };
   const STATUS_CLS = { draft: "st-wait", ordered: "st-sent", arrived: "st-arr" };
   function orderStatus(o) { if (!o) return null; if (o.status === "ordered") return (o.deliveryDay && o.deliveryDay <= todayKey()) ? "arrived" : "ordered"; return "draft"; }
   const orderRefOf = (ym) => db.collection(COLL).doc("poultry_order_" + ym);
@@ -644,7 +645,7 @@
     const f = orderForm; if (!f) return;
     const st = f.exists ? (orderStatus(orderForDay(f.orderDay)) || "draft") : "draft";
     f.locked = f.exists && (st === "ordered" || st === "arrived");   // 已訂購/已到貨：僅供檢視
-    const chip = $("ordStatus"); if (chip) { chip.textContent = STATUS_LABEL[st]; chip.className = "ord-status " + STATUS_CLS[st]; }
+    const chip = $("ordStatus"); if (chip) { chip.textContent = STATUS_LABEL[st]; chip.className = "ord-status " + STATUS_CLS[st]; chip.classList.toggle("hidden", !f.exists); }   // 新單不顯示狀態
     // 選的廠商這天不是它的下單日(例如臨時休市)→ 提醒到貨日、使用日只是參考，請自行確認
     const hs = $("ordHeadSub"), supObj = suppliers.find((x) => x.id === f.supplier);
     if (hs) { const warn = !f.locked && !engineDefaults(f.orderDay, f.supplier); hs.textContent = warn ? `⚠ ${supObj ? supObj.name : "此廠商"}這天休息或無法隔天送達，到貨日、使用日請自行確認` : ""; hs.classList.toggle("ord-warn", warn); }
@@ -1772,13 +1773,12 @@
     $("ckUploadBtn").onclick = openUpload;
     $("ckOrderBtn").onclick = () => openOrderForm(null);
     $("ckOpenReport").onclick = openReport;
-    // 叫貨單：三個選擇器＋逐日表＋草稿/確認/刪除
+    // 叫貨單：三個選擇器＋逐日表＋確認/刪除
     // 換廠商：到貨日、使用日改用該廠商的休息日重新帶預設(之後仍可自己改)
     $("ordSupplier").addEventListener("change", (e) => { orderForm.supplier = e.target.value; orderForm.kg = null; applyOrderDefaults(orderForm); renderOrderForm(); });
     $("ordDelivery").addEventListener("change", (e) => { orderForm.deliveryDay = e.target.value; orderForm.kg = null; recomputeUseDays(); renderOrderForm(); });
     $("ordUseBtn").onclick = openUsePicker;
     $("useDaySave").onclick = confirmUsePicker;
-    $("ordDraftBtn").onclick = () => saveOrderForm(false);
     $("ordConfirmBtn").onclick = () => saveOrderForm(true);
     $("ordDeleteBtn").onclick = deleteOrderForm;
     // ② 公斤手動改 → 記為覆寫(不再自動蓋掉)
