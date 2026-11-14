@@ -333,7 +333,7 @@
     const clickFn = calMode === "order" ? openOrderForm : calMode === "dough" ? openDoughDetail : openDetail;
     grid.querySelectorAll("button[data-date]:not([disabled])").forEach((b) => b.addEventListener("click", () => clickFn(b.dataset.date)));
     const lg = $("ckLegend"); if (lg) lg.innerHTML =
-      calMode === "order" ? `<span><i class="legend-dot" style="background:#2f7d52"></i>已到貨</span><span><i class="legend-dot" style="background:#2a5aa0"></i>已訂購</span><span><i class="legend-dot" style="background:#e0a884"></i>建議訂購</span><span><i class="legend-dot closed"></i>公休</span>`
+      calMode === "order" ? `<span><i class="legend-dot" style="background:#2f7d52"></i>已到貨</span><span><i class="legend-dot" style="background:#2a5aa0"></i>已訂購</span><span><i class="legend-dot" style="background:#e0a884"></i>建議訂購</span><span><i class="legend-dot closed"></i>公休(週一等仍可下單)</span><span>🚚休市＝批發商臨時休市</span>`
       : calMode === "dough" ? `<span><i class="legend-dot available"></i>製作量</span><span><i class="legend-dot" style="background:#d9d3cd"></i>只有賣出(未記錄剩餘)</span><span><i class="legend-dot" style="background:#e0a884"></i>推估建議</span><span><i class="legend-dot closed"></i>公休</span>`
       : `<span><i class="legend-dot available"></i>已上傳銷售</span><span><i class="legend-dot" style="background:#ecd98f"></i>已排訂購</span><span><i class="legend-dot closed"></i>公休</span><span>📝 已訂購</span>`;
     const t = $("ckCalTitle"); if (t) t.textContent =
@@ -358,20 +358,29 @@
     else { if (k === todayKey()) cls += " ck-today"; inner = numHtml; }
     return `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
   }
+  // 預設批發商的臨時休市日(每週固定休不顯示在月曆)
+  function supTempOff(k) { return (supplierOff.dates || []).find((x) => x.date === k) || null; }
+  // 訂購月曆：下單日照批發商上班推算(店家公休也可能是下單日，例如週一)；批發商臨時休市顯示 🚚休市，仍可手動下單(可改訂他家)
   function orderCell(k, dd) {
     const dow = parseKey(k).getDay();
     const redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
     const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
-    if (isClosed(k)) return `<div class="employee-cal-day ck-rest">${numHtml}<span class="ck-tag">${closedLabel(k)}</span></div>`;
-    const o = orderForDay(k);
-    let cls = "employee-cal-day ck-ordcell", inner = numHtml, disabled = "";
+    const closed = isClosed(k), o = orderForDay(k), off = supTempOff(k), t = todayKey(), future = k >= t;
+    const covered = !off && coveredUseDays(k).length > 0;
+    const sup = defSupplier(), offTxt = off ? `${sup ? sup.name : "批發商"}休市${off.note ? "・" + off.note : ""}` : "";
+    const offTag = off ? `<span class="ck-supoff" title="${esc(offTxt)}">🚚休市</span>` : "";
+    const closedTag = closed ? `<span class="ck-tag">${closedLabel(k)}</span>` : "";
+    if (!o && !(future && (covered || off))) {
+      if (closed) return `<div class="employee-cal-day ck-rest">${numHtml}${closedTag}${offTag}</div>`;
+      return `<button type="button" class="employee-cal-day ck-ordcell${k === t ? " ck-today" : ""}" data-date="${k}" disabled>${numHtml}${offTag}</button>`;
+    }
+    let cls = "employee-cal-day ck-ordcell" + (closed ? " ck-rest" : ""), inner = numHtml + closedTag + offTag;
     if (o) { const st = orderStatus(o); inner += `<span class="ck-po ${STATUS_CLS[st]}">${esc(o.supplierName || "廠商")}<i>${STATUS_LABEL[st]}</i></span>`; }
-    else if (coveredUseDays(k).length) {
-      if (k === todayKey()) { cls += " ck-today"; inner += `<span class="ck-po ck-posugg">建議下單</span>`; }
-      else if (k > todayKey()) inner += `<span class="ck-pocan">可下單</span>`;
-      else disabled = "disabled";   // 過去未下單的下單日：不可點
-    } else { if (k === todayKey()) cls += " ck-today"; disabled = "disabled"; }
-    return `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
+    else if (covered) {
+      if (k === t) { cls += " ck-today"; inner += `<span class="ck-po ck-posugg">建議下單</span>`; }
+      else inner += `<span class="ck-pocan">可下單</span>`;
+    } else { if (k === t) cls += " ck-today"; inner += `<span class="ck-pocan">可改訂他家</span>`; }
+    return `<button type="button" class="${cls}" data-date="${k}" title="${esc(offTxt)}">${inner}</button>`;
   }
   // 餅皮月曆：每格顯示建議做多少(有製作量資料則顯示實際製作量)；格式＝9吋 厚/薄、12吋 厚/薄
   function doughLines(o, est) {
@@ -551,6 +560,25 @@
     while (k <= end) { if (!isClosed(k)) out.push(k); k = addDays(k, 1); }
     return out;
   }
+  // 依某廠商的休息日，用叫貨時程引擎算「預設」到貨日＋使用日(與批發商設定的推算一致)；這天不是該廠商的下單日 → null
+  function engineDefaults(orderDay, supId) {
+    return withSupplierOff(supplierOffOf(supId), () => {
+      const uds = coveredUseDays(orderDay);
+      return uds.length ? { del: deliveryDayFor(uds[0]), uds } : null;
+    });
+  }
+  // 套用預設(僅預設，之後仍可自己改到貨日、使用日)；引擎算不出時退回「最近可到貨日＋其後 2 個營業日」
+  function applyOrderDefaults(f) {
+    const e = engineDefaults(f.orderDay, f.supplier);
+    if (e) { f.deliveryDay = e.del; f.useDays = e.uds.slice(); }
+    else {
+      const dOpts = deliveryOptions(f.orderDay, f.supplier);
+      f.deliveryDay = dOpts[0] ? dOpts[0].key : addDays(f.orderDay, 1);
+      f.useDays = candidateUseDays(f.orderDay, f.deliveryDay).slice(0, 2);
+    }
+    f.useDays.forEach((u) => { if (!f.perDay[u]) { const p = predict(u); f.perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; } });
+    f.expanded = f.useDays[0] || null;
+  }
   // 預設下單日：今天是下單日就用今天，否則抓最近的下單日
   function defaultOrderDay() { const t = todayKey(); if (coveredUseDays(t).length) return t; const u = nextCoveredUse(); return orderDayFor(u) || t; }
   function openOrderForm(orderDay, existing) {
@@ -559,11 +587,11 @@
     if (existing) {
       orderForm = { orderDay: od, supplier: existing.supplier || defaultSupplier, deliveryDay: existing.deliveryDay || addDays(od, 1), useDays: (existing.useDays || []).slice(), perDay: JSON.parse(JSON.stringify(existing.perDay || {})), deductStock: existing.deductStock != null && existing.deductStock !== false, kg: existing.orderKg ? Object.assign({}, existing.orderKg) : null, expanded: (existing.useDays || [])[0] || null, exists: true };
     } else {
-      const sup = defaultSupplier, dOpts = deliveryOptions(od, sup);
-      const del = dOpts[0] ? dOpts[0].key : addDays(od, 1);
-      const uds = candidateUseDays(od, del).slice(0, 2);
-      const perDay = {}; uds.forEach((u) => { const p = predict(u); perDay[u] = (p.n && p.rec) ? Object.assign({}, p.rec) : { leg: 0, fil: 0, wing: 0 }; });
-      orderForm = { orderDay: od, supplier: sup, deliveryDay: del, useDays: uds, perDay: perDay, deductStock: true, kg: null, expanded: uds[0] || null, exists: false };
+      // 預設廠商這天不能下單(例如臨時休市)→ 改用第一家這天可下單的廠商
+      let sup = defaultSupplier;
+      if (!engineDefaults(od, sup)) { const alt = suppliers.find((x) => engineDefaults(od, x.id)); if (alt) sup = alt.id; }
+      orderForm = { orderDay: od, supplier: sup, deliveryDay: null, useDays: [], perDay: {}, deductStock: true, kg: null, expanded: null, exists: false };
+      applyOrderDefaults(orderForm);
     }
     renderOrderForm(); show("orderBackdrop");
   }
@@ -595,7 +623,9 @@
     const st = f.exists ? (orderStatus(orderForDay(f.orderDay)) || "draft") : "draft";
     f.locked = f.exists && (st === "ordered" || st === "arrived");   // 已訂購/已到貨：僅供檢視
     const chip = $("ordStatus"); if (chip) { chip.textContent = STATUS_LABEL[st]; chip.className = "ord-status " + STATUS_CLS[st]; }
-    const hs = $("ordHeadSub"); if (hs) hs.textContent = "";
+    // 選的廠商這天不是它的下單日(例如臨時休市)→ 提醒到貨日、使用日只是參考，請自行確認
+    const hs = $("ordHeadSub"), supObj = suppliers.find((x) => x.id === f.supplier);
+    if (hs) { const warn = !f.locked && !engineDefaults(f.orderDay, f.supplier); hs.textContent = warn ? `⚠ ${supObj ? supObj.name : "此廠商"}這天休息或無法隔天送達，到貨日、使用日請自行確認` : ""; hs.classList.toggle("ord-warn", warn); }
     const od = $("ordOrderDay"); if (od) od.textContent = mdw(f.orderDay);
     $("ordSupplier").innerHTML = suppliers.map((s) => `<option value="${s.id}"${s.id === f.supplier ? " selected" : ""}>${esc(s.name)}</option>`).join("");
     const dOpts = deliveryOptions(f.orderDay, f.supplier);
@@ -1591,7 +1621,8 @@
     $("ckOrderBtn").onclick = () => openOrderForm(null);
     $("ckOpenReport").onclick = openReport;
     // 叫貨單：三個選擇器＋逐日表＋草稿/確認/刪除
-    $("ordSupplier").addEventListener("change", (e) => { orderForm.supplier = e.target.value; orderForm.kg = null; recomputeUseDays(); renderOrderForm(); });
+    // 換廠商：到貨日、使用日改用該廠商的休息日重新帶預設(之後仍可自己改)
+    $("ordSupplier").addEventListener("change", (e) => { orderForm.supplier = e.target.value; orderForm.kg = null; applyOrderDefaults(orderForm); renderOrderForm(); });
     $("ordDelivery").addEventListener("change", (e) => { orderForm.deliveryDay = e.target.value; orderForm.kg = null; recomputeUseDays(); renderOrderForm(); });
     $("ordUseBtn").onclick = openUsePicker;
     $("useDaySave").onclick = confirmUsePicker;
