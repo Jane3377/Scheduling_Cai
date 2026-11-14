@@ -93,7 +93,7 @@
       const r = reports[k], sold = r && r.dough;
       if (!sold) return;
       const s = r.summary, st = stock[k];
-      let left = null; if (st) { left = {}; DOUGH_TYPES.forEach((t) => left[t] = num(st[t])); }
+      let left = null; if (st && DOUGH_TYPES.some((t) => st[t] != null)) { left = {}; DOUGH_TYPES.forEach((t) => left[t] = num(st[t])); }
       samples.push({ date: k, sold, rev: s ? num(s.pizza9amt) + num(s.pizza12amt) : 0, left });
     });
     samples.sort((a, b) => (a.date < b.date ? 1 : -1));

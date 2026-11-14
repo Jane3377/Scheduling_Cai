@@ -852,7 +852,7 @@
   function currentStock(refDay) {
     const t = refDay || todayKey(), win = recentBizDays(3, t);
     const cutoff = win.length ? win[win.length - 1] : t;   // 3 個營業日前(含)
-    const keys = Object.keys(stockDays).filter((k) => k <= t && k >= cutoff).sort();
+    const keys = Object.keys(stockDays).filter((k) => k <= t && k >= cutoff && hasChickenRec(stockDays[k])).sort();
     if (!keys.length) return null;
     const k = keys[keys.length - 1], r = stockDays[k];
     return { date: k, leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0, byName: r.byName || "" };
@@ -1101,51 +1101,109 @@
   // 雞肉／餅皮各自提交中繼(相容舊合併紀錄)
   function recChickenBy(r) { if (r && r.chicken && r.chicken.at) return r.chicken; if (r && r.at && (r.leg != null || r.fil != null || r.wing != null)) return { byName: r.byName, at: r.at }; return null; }
   function recDoughBy(r) { if (r && r.dough && r.dough.at) return r.dough; if (r && r.at && (r.t9 != null || r.s9 != null || r.t12 != null || r.s12 != null)) return { byName: r.byName, at: r.at }; return null; }
+  // 某筆盤點是否有填該部分(只填雞肉或只填餅皮時，另一部分不能當成 0)
+  const hasChickenRec = (r) => !!r && (r.leg != null || r.fil != null || r.wing != null);
+  const hasDoughRec = (r) => !!r && (r.t9 != null || r.s9 != null || r.t12 != null || r.s12 != null);
   function openRecords() {
     const keys = Object.keys(stockDays).sort((a, b) => (a < b ? 1 : -1)), tbl = $("recordsTbl");
     if (!tbl) return;
     if (!keys.length) { tbl.innerHTML = `<tbody><tr><td class="rec-empty">目前還沒有盤點紀錄。</td></tr></tbody>`; return; }
     const head = `<thead><tr class="grp"><th rowspan="2">日期</th><th rowspan="2">填寫人・時間</th><th colspan="3" class="sep">🍗 剩餘雞肉</th><th colspan="4" class="sep">🍕 剩餘餅皮</th><th rowspan="2" class="sep">更正</th></tr><tr class="sub"><th class="sep">腿</th><th>排</th><th>翅</th><th class="sep">9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead>`;
+    const v = (r, key, has) => has ? (Number(r[key]) || 0) : `<span class="ck-muted">—</span>`;
     const body = keys.map((k) => {
-      const r = stockDays[k] || {}, d = parseKey(k);
+      const r = stockDays[k] || {}, d = parseKey(k), hc = hasChickenRec(r), hd = hasDoughRec(r);
       const cb = recChickenBy(r), dbm = recDoughBy(r);
       const same = cb && dbm && cb.byName === dbm.byName && cb.at === dbm.at;
       const who = same ? `<b>${esc(cb.byName || "？")}</b><span class="rf-t">${fmtAt(cb.at)}</span>`
         : `${cb ? `<span class="rf-l">🍗 <b>${esc(cb.byName || "？")}</b> <span class="rf-t">${fmtAt(cb.at)}</span></span>` : ""}${dbm ? `<span class="rf-l">🍕 <b>${esc(dbm.byName || "？")}</b> <span class="rf-t">${fmtAt(dbm.at)}</span></span>` : ""}` || "—";
-      const edTag = (r.edits && r.edits.length) ? `<span class="rec-edited">已更正${r.edits.length}</span>` : "";
-      return `<tr><td class="rd">${d.getMonth() + 1}/${pad(d.getDate())}(${DOW[d.getDay()]})${edTag}</td><td class="rw">${who}</td><td class="sep rl">${r.leg || 0}</td><td class="rf">${r.fil || 0}</td><td class="rwg">${r.wing || 0}</td><td class="sep rp">${r.t9 || 0}</td><td class="rp">${r.s9 || 0}</td><td class="rp">${r.t12 || 0}</td><td class="rp">${r.s12 || 0}</td><td class="sep"><button type="button" class="rec-edit" data-edit="${k}">✏️</button></td></tr>`;
+      const eds = r.edits || [], nFix = eds.filter((e) => e.type !== "add").length;
+      const edTag = (eds.some((e) => e.type === "add") ? `<span class="rec-edited">回填</span>` : "") + (nFix ? `<span class="rec-edited">已更正${nFix}</span>` : "");
+      return `<tr><td class="rd">${d.getMonth() + 1}/${pad(d.getDate())}(${DOW[d.getDay()]})${edTag}</td><td class="rw">${who}</td><td class="sep rl">${v(r, "leg", hc)}</td><td class="rf">${v(r, "fil", hc)}</td><td class="rwg">${v(r, "wing", hc)}</td><td class="sep rp">${v(r, "t9", hd)}</td><td class="rp">${v(r, "s9", hd)}</td><td class="rp">${v(r, "t12", hd)}</td><td class="rp">${v(r, "s12", hd)}</td><td class="sep"><button type="button" class="rec-edit" data-edit="${k}">✏️</button></td></tr>`;
     }).join("");
     tbl.innerHTML = head + `<tbody>${body}</tbody>`;
     tbl.querySelectorAll("button[data-edit]").forEach((b) => b.onclick = () => openStockEdit(b.dataset.edit));
   }
-  /* ---------- 管理者更正盤點(PIN 閘門＝管理者權限；保留修改紀錄) ---------- */
-  let stockEditKey = null;
+  /* ---------- 管理者新增／更正盤點(PIN 閘門＝管理者權限；保留修改紀錄) ---------- */
+  let stockEditKey = null, stockEditMode = "edit", stockEditRec = null, seLoadSeq = 0;
   const SE_CHK = [["seLeg", "leg"], ["seFil", "fil"], ["seWing", "wing"]];
   const SE_DGH = [["seT9", "t9"], ["seS9", "s9"], ["seT12", "t12"], ["seS12", "s12"]];
+  // 套用某天的紀錄到表單：已填的部分固定勾選；沒填的部分可勾選「補填」
+  function seApply(k, r) {
+    stockEditKey = k; stockEditRec = r || null;
+    const hc = hasChickenRec(r), hd = hasDoughRec(r), any = !!r && (hc || hd);
+    [...SE_CHK, ...SE_DGH].forEach(([id, key]) => { const el = $(id); if (el) el.value = (r && r[key] != null ? r[key] : ""); });
+    const setPart = (cbId, has) => { const cb = $(cbId); cb.checked = has || !any; cb.disabled = has; };
+    setPart("seChkOn", hc); setPart("seDghOn", hd);
+    const add = stockEditMode === "add";
+    $("seTitle").textContent = add ? "新增盤點紀錄" : `更正盤點 · ${mdw(k)}`;
+    $("seSub").textContent = add ? "回填員工漏填的剩餘量；會保留紀錄" : "管理者更正；會保留修改紀錄";
+    const note = $("seNote"), closedTxt = isClosed(k) ? "這天是公休日。" : "";
+    note.textContent = (add && any) ? `${mdw(k)} 已經有紀錄，儲存會變成「更正」(保留修改紀錄)。${closedTxt}` : closedTxt;
+    note.classList.toggle("hidden", !note.textContent);
+    $("seSave").textContent = any ? "儲存更正" : "新增紀錄";
+    seSyncParts(); renderStockEditHist(r);
+  }
+  function seSyncParts() {
+    [["seChkOn", SE_CHK, "seChkBox"], ["seDghOn", SE_DGH, "seDghBox"]].forEach(([cbId, list, boxId]) => {
+      const on = $(cbId).checked;
+      list.forEach(([id]) => { const el = $(id); el.disabled = !on; if (on && el.value === "") el.value = 0; if (!on) el.value = ""; });
+      $(boxId).classList.toggle("se-off", !on);
+    });
+  }
+  // 讀某天的紀錄(月份可能不在目前訂閱範圍 → 直接向雲端讀，避免覆蓋到看不到的舊紀錄)
+  function seLoadDate(k) {
+    const seq = ++seLoadSeq;
+    if (stockDays[k] || !db) { seApply(k, stockDays[k] || null); return; }
+    $("seSave").disabled = true;
+    stockRefOf(ymOf(k)).get().then((snap) => {
+      if (seq !== seLoadSeq) return;
+      const days = (snap.data() && snap.data().days) || {};
+      seApply(k, days[k] || null);
+    }).catch((err) => { console.error(err); alert("讀取這天的紀錄失敗：" + (err.message || err)); })
+      .finally(() => { if (seq === seLoadSeq) $("seSave").disabled = false; });
+  }
   function openStockEdit(k) {
-    stockEditKey = k; const r = stockDays[k] || {};
-    $("seTitle").textContent = `更正盤點 · ${mdw(k)}`;
-    [...SE_CHK, ...SE_DGH].forEach(([id, key]) => { const el = $(id); if (el) el.value = (r[key] != null ? r[key] : 0); });
-    renderStockEditHist(r);
+    stockEditMode = "edit"; $("seDateRow").classList.add("hidden");
+    seApply(k, stockDays[k] || null);
+    show("stockEditBackdrop");
+  }
+  function openStockAdd() {
+    stockEditMode = "add";
+    const di = $("seDate"), t = todayKey();
+    di.max = t; di.value = t; $("seDateRow").classList.remove("hidden");
+    seLoadDate(t);
     show("stockEditBackdrop");
   }
   function renderStockEditHist(r) {
     const box = $("seHist"); if (!box) return;
     const cb = recChickenBy(r), dbm = recDoughBy(r), ed = (r && r.edits) || [];
+    const nv = (o, keys) => (o && keys.some((k) => o[k] != null)) ? keys.map((k) => o[k] != null ? o[k] : 0).join("/") : "—";
     let html = `<div class="se-orig">原始填寫：${cb ? `🍗 ${esc(cb.byName || "？")} ${fmtAt(cb.at)}　` : ""}${dbm ? `🍕 ${esc(dbm.byName || "？")} ${fmtAt(dbm.at)}` : ""}${(!cb && !dbm) ? "—" : ""}</div>`;
-    if (ed.length) html += `<div class="se-hist-h">修改紀錄(${ed.length})</div>` + ed.slice().reverse().map((e) => `<div class="se-hist-row">${fmtAt(e.at)}　<b>${esc(e.byName || "管理者")}</b>　🍗 ${e.after.leg}/${e.after.fil}/${e.after.wing}・🍕 ${e.after.t9}/${e.after.s9}/${e.after.t12}/${e.after.s12}</div>`).join("");
+    if (ed.length) html += `<div class="se-hist-h">修改紀錄(${ed.length})</div>` + ed.slice().reverse().map((e) => `<div class="se-hist-row">${fmtAt(e.at)}　<b>${esc(e.byName || "管理者")}</b>${e.type === "add" ? " 新增" : ""}　🍗 ${nv(e.after, ["leg", "fil", "wing"])}・🍕 ${nv(e.after, ["t9", "s9", "t12", "s12"])}</div>`).join("");
     box.innerHTML = html;
   }
   function saveStockEdit() {
     const k = stockEditKey; if (!k) { hide("stockEditBackdrop"); return; }
+    if (k > todayKey()) { alert("不能新增未來日期的盤點。"); return; }
+    const onC = $("seChkOn").checked, onD = $("seDghOn").checked;
+    if (!onC && !onD) { alert("請至少勾選雞肉或餅皮其中一項。"); return; }
     if (!db) { hide("stockEditBackdrop"); return; }
-    const num = (id) => { const el = $(id); return el ? Math.max(0, Math.floor(Number(el.value) || 0)) : 0; };
-    const after = {}; [...SE_CHK, ...SE_DGH].forEach(([id, key]) => after[key] = num(id));
-    const prev = stockDays[k] || {};
-    const before = {}; [...SE_CHK, ...SE_DGH].forEach(([, key]) => before[key] = Number(prev[key]) || 0);
-    const entry = { at: Date.now(), byName: "管理者", before, after: Object.assign({}, after) };
-    const edits = ((prev.edits) || []).concat(entry);
-    stockRefOf(ymOf(k)).set({ days: { [k]: Object.assign({}, after, { edits: edits }) }, updatedAt: Date.now() }, { merge: true })
+    const prev = stockEditRec || {}, hadC = hasChickenRec(prev), hadD = hasDoughRec(prev), had = hadC || hadD;
+    const num = (id) => Math.max(0, Math.floor(Number($(id).value) || 0));
+    const pick = (o, list, has) => { const x = {}; list.forEach(([, key]) => x[key] = has ? (Number(o[key]) || 0) : null); return x; };
+    const after = Object.assign(onC ? Object.fromEntries(SE_CHK.map(([id, key]) => [key, num(id)])) : pick(prev, SE_CHK, hadC),
+                                onD ? Object.fromEntries(SE_DGH.map(([id, key]) => [key, num(id)])) : pick(prev, SE_DGH, hadD));
+    const before = Object.assign(pick(prev, SE_CHK, hadC), pick(prev, SE_DGH, hadD));
+    if (had && JSON.stringify(after) === JSON.stringify(before)) { hide("stockEditBackdrop"); return; }
+    const now = Date.now(), meta = { byName: "管理者(回填)", at: now, backfill: true };
+    const patch = {};
+    if (onC) SE_CHK.forEach(([, key]) => patch[key] = after[key]);
+    if (onD) SE_DGH.forEach(([, key]) => patch[key] = after[key]);
+    if (onC && !hadC) patch.chicken = meta;          // 新補填的部分記錄回填者
+    if (onD && !hadD) patch.dough = meta;
+    if (!had) { patch.byName = meta.byName; patch.at = now; }
+    patch.edits = ((prev.edits) || []).concat({ at: now, byName: "管理者", type: had ? "edit" : "add", before, after });
+    stockRefOf(ymOf(k)).set({ days: { [k]: patch }, updatedAt: now }, { merge: true })
       .then(() => { hide("stockEditBackdrop"); openRecords(); })
       .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
   }
@@ -1154,7 +1212,8 @@
     if (!keys.length) { alert("目前沒有盤點紀錄可匯出。"); return; }
     const rows = [["日期", "星期", "填寫人", "填寫時間", "剩餘腿", "剩餘排", "剩餘翅", "餅皮9厚", "餅皮9薄", "餅皮12厚", "餅皮12薄"]];
     keys.forEach((k) => { const r = stockDays[k] || {}, d = parseKey(k);
-      rows.push([k, DOW[d.getDay()], r.byName || "", r.at ? fmtAt(r.at) : "", r.leg || 0, r.fil || 0, r.wing || 0, r.t9 || 0, r.s9 || 0, r.t12 || 0, r.s12 || 0]);
+      const c = hasChickenRec(r), g = hasDoughRec(r), v = (key, has) => has ? (Number(r[key]) || 0) : "";   // 沒填的部分留空(不當 0)
+      rows.push([k, DOW[d.getDay()], r.byName || "", r.at ? fmtAt(r.at) : "", v("leg", c), v("fil", c), v("wing", c), v("t9", g), v("s9", g), v("t12", g), v("s12", g)]);
     });
     downloadCSV(`盤點紀錄_${todayKey()}.csv`, rows);
   }
@@ -1355,14 +1414,14 @@
   /* ---------- 餅皮推估 ＋ 管理者檢視 ---------- */
   // 某天「製作量」＝ 當天剩餘(盤點) ＋ 當天賣出(報表)；沒有剩餘盤點就不算(不顯示製作量)
   function doughMade(k) {
-    const rep = predDays[k], sold = rep && rep.dough, left = stockDays[k];
+    const rep = predDays[k], sold = rep && rep.dough, left = doughLeft(k);
     if (!sold || !left) return null;
     const out = {};
     DOUGH_TYPES.forEach((t) => { out[t] = (Number(sold[t]) || 0) + (Number(left[t]) || 0); });
     return out;
   }
   function doughSold(k) { const r = predDays[k]; return (r && r.dough) ? r.dough : null; }
-  function doughLeft(k) { const s = stockDays[k]; if (!s) return null; const o = {}; DOUGH_TYPES.forEach((t) => o[t] = Number(s[t]) || 0); return o; }
+  function doughLeft(k) { const s = stockDays[k]; if (!hasDoughRec(s)) return null; const o = {}; DOUGH_TYPES.forEach((t) => o[t] = Number(s[t]) || 0); return o; }
   const doughTotal = (o) => o ? DOUGH_TYPES.reduce((s, t) => s + (Number(o[t]) || 0), 0) : 0;
   const doughPizzaRev = (o) => DC.doughPizzaRev(o, pizzaCfg, doughCtx());
   const predictDough = (k) => DC.predictDough(k, doughCtx());
@@ -1553,6 +1612,9 @@
     document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => switchView(b.dataset.view));
     $("recordsExport").onclick = doRecordsExport;
     $("seSave").onclick = saveStockEdit;
+    $("seChkOn").onchange = seSyncParts; $("seDghOn").onchange = seSyncParts;
+    $("seDate").onchange = () => { const v = $("seDate").value; if (v) seLoadDate(v); };
+    $("recordsAdd").onclick = openStockAdd;
     $("ckExportCsvBtn").onclick = openCsv;
     $("csvDownload").onclick = doCsvExport;
     $("ckBackupBtn").onclick = openBackup;
