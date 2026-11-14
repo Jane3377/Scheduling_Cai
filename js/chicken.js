@@ -600,7 +600,7 @@
   function orderTotals() {
     const f = orderForm, sum = { leg: 0, fil: 0, wing: 0 };
     f.useDays.forEach((u) => { const r = f.perDay[u] || {}; sum.leg += Number(r.leg) || 0; sum.fil += Number(r.fil) || 0; sum.wing += Number(r.wing) || 0; });
-    const s = f.deductStock ? currentStock() : null;
+    const s = f.deductStock ? currentStock(f.orderDay) : null;
     const stock = s ? { leg: s.leg, fil: s.fil, wing: s.wing } : null;
     const net = stock ? { leg: Math.max(0, sum.leg - stock.leg), fil: Math.max(0, sum.fil - stock.fil), wing: Math.max(0, sum.wing - stock.wing) } : { leg: sum.leg, fil: sum.fil, wing: sum.wing };
     return { sum, stock, net, stockRec: s };
@@ -668,7 +668,7 @@
     box.querySelectorAll("button[data-fill]").forEach((b) => b.onclick = () => { const [kind, u] = b.dataset.fill.split(":"); const p = predict(u), last = lastSameTypeOrder(u); const src = kind === "sug" ? (p.rec || {}) : (last ? last.order : {}); f.perDay[u] = { leg: src.leg || 0, fil: src.fil || 0, wing: src.wing || 0 }; f.kg = null; renderOrderRows(); renderOrderSum(); });
   }
   function renderOrderSum() {
-    const f = orderForm, { sum, net } = orderTotals(), s = currentStock();
+    const f = orderForm, { sum, net } = orderTotals(), s = currentStock(f.orderDay);
     let html = `<div class="os-row os-sum"><span class="os-k">合計需求(隻)</span><span class="os-c ck-leg">${sum.leg}</span><span class="os-c ck-fil">${sum.fil}</span><span class="os-c ck-wing">${sum.wing}</span></div>`;
     if (s) html += `<div class="os-row os-stk"><span class="os-k"><label class="os-ck"><input type="checkbox" id="ordDeduct"${f.deductStock ? " checked" : ""}${f.locked ? " disabled" : ""}> 扣除目前庫存</label></span>` + (f.deductStock ? `<span class="os-c">−${s.leg}</span><span class="os-c">−${s.fil}</span><span class="os-c">−${s.wing}</span>` : `<span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span>`) + `</div>`;
     else html += `<div class="os-row os-stk os-nostk"><span class="os-k">扣除目前庫存</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span></div>`;
@@ -857,14 +857,15 @@
   }
   // 目前庫存＝今天(含)以前、最近一筆盤點(往下一個營業日累積顯示)
   // 最近 n 個營業日(含今天，若今天營業)：新→舊
-  function recentBizDays(n) {
-    const out = [], d = parseKey(todayKey());
+  function recentBizDays(n, fromKey) {
+    const out = [], d = parseKey(fromKey || todayKey());
     for (let i = 0; i < 90 && out.length < n; i++) { const k = toKey(d); if (!isClosed(k)) out.push(k); d.setDate(d.getDate() - 1); }
     return out;
   }
-  // 目前庫存＝「近 3 個營業日內」最新的剩餘雞肉紀錄；超過 3 營業日的舊紀錄不採用(回傳 null，不當成 0)
-  function currentStock() {
-    const t = todayKey(), win = recentBizDays(3);
+  // 目前庫存＝以 refDay(預設今天；訂購單用該單的下單日)往回「近 3 個營業日內」最新的剩餘雞肉紀錄；
+  // 超過 3 營業日的舊紀錄不採用(回傳 null，不當成 0)
+  function currentStock(refDay) {
+    const t = refDay || todayKey(), win = recentBizDays(3, t);
     const cutoff = win.length ? win[win.length - 1] : t;   // 3 個營業日前(含)
     const keys = Object.keys(stockDays).filter((k) => k <= t && k >= cutoff).sort();
     if (!keys.length) return null;
