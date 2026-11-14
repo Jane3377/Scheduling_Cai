@@ -803,7 +803,7 @@
       html += `<table class="ck-items" style="margin-bottom:6px"><thead><tr><th></th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>`;
       const act = o ? orderActualFor(k, rec) : null;
       const row3 = (label, obj) => `<tr><td>${label}</td>${cell(obj, "leg")}${cell(obj, "fil")}${cell(obj, "wing")}</tr>`;
-      html += row3("預估", est);
+      html += row3(k <= todayKey() ? `預估<small class="ck-adj">(依目前設定)</small>` : "預估", est);   // 過去日的預估會隨推估參數變動
       if (act) {
         const dm = act.demand, same = est && PARTS3.every((pp) => Math.round(Number(dm[pp]) || 0) === Math.round(Number(est[pp]) || 0));
         if (!same) html += row3(`訂購需求<small class="ck-adj">(訂購時填的，與預估不同)</small>`, dm);
@@ -1710,7 +1710,7 @@
       const e2 = sizeTotals(p.rec), s2 = sizeTotals(sold), v9 = doughVerdict(e2.n9, s2.n9), v12 = doughVerdict(e2.n12, s2.n12);
       html += `<div class="dg-sec-h">這天的實際結果 <span class="dg-rdiff ${v9.key}">9吋 ${v9.text}</span> <span class="dg-rdiff ${v12.key}">12吋 ${v12.text}</span></div>
         <table class="ck-items"><thead><tr><th></th><th>9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead><tbody>
-        <tr><td>🔮 推估</td>${doughCells(p.rec)}</tr>
+        <tr><td>🔮 推估<small class="ck-adj">(依目前設定)</small></td>${doughCells(p.rec)}</tr>
         <tr><td>實際賣</td>${doughCells(sold)}</tr>
         <tr><td>剩餘</td>${doughCells(left)}</tr>
         ${made ? `<tr><td>🍕 製作</td>${doughCells(made)}</tr>` : ""}
