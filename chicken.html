@@ -756,57 +756,60 @@
   <!-- 使用說明彈窗 -->
   <div id="guideBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(560px,100%)">
-      <div class="modal-head"><div><h3>📖 使用說明</h3><p>每天三步驟＋系統怎麼幫你推估</p></div><button class="icon-btn" data-close="guideBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3>📖 使用說明</h3><p>每天怎麼做、推估怎麼來、各頁在哪裡</p></div><button class="icon-btn" data-close="guideBackdrop">✕</button></div>
       <div class="modal-body gd">
 
         <div class="gd-sec">
           <h4>🗓️ 每天這樣做</h4>
-          <div class="gd-step"><span class="gd-num">1</span><span class="tx"><b>上傳銷售報表</b>：打烊後點右上〈＋ 上傳銷售報表〉，開大麥系統下載「餐點銷售狀況」Excel 回來上傳。系統自動換算當天用掉的 🍗腿／🥩排／🪽翅。</span></div>
-          <div class="gd-step"><span class="gd-num">2</span><span class="tx"><b>看推估建議</b>：首頁〈今日建議〉或月曆〈🔮 推估建議〉會算出下次該訂多少(原理見下方)。</span></div>
-          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>訂購雞肉</b>：點「<b>帶入</b>」把平均銷售填到各使用日，系統自動換成整數<b>公斤</b>(可微調)→ 存／確認。存好月曆出現 📝。</span></div>
+          <div class="gd-step"><span class="gd-num">1</span><span class="tx"><b>打烊後上傳銷售報表</b>：在〈首頁〉按「⬆ 上傳報表」，上傳大麥系統下載的「餐點銷售狀況」Excel。系統會自動換算當天用掉的 🍗腿／🥩排／🪽翅，以及賣出的餅皮。</span></div>
+          <div class="gd-step"><span class="gd-num">2</span><span class="tx"><b>員工填打烊剩餘</b>：員工在班表系統的「今日打烊剩餘」填雞肉、餅皮剩多少(兩項分開送出)。有人漏填，管理者可在〈紀錄〉回填。</span></div>
+          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>看今日建議、訂購雞肉</b>：〈首頁〉的「今日建議」會告訴你今天要不要訂雞肉、餅皮要做多少。按「🛒 訂購雞肉」開訂購單，數字可以改，確認後存起來。</span></div>
         </div>
 
         <div class="gd-sec">
-          <h4>🔮 推估建議怎麼來的</h4>
+          <h4>🍗 雞肉訂購單怎麼看</h4>
           <div class="gd-tools">
-            <div class="gd-tool"><span class="k">分「同型日」</span><span>平日(二三四)／週五／假日(六日＋國定)分開比較，公休不估。</span></div>
-            <div class="gd-tool"><span class="k">依實際用量</span><span>取「回算天數」內(預設 35 天)同型日當天真正用掉的量來估，不是亂猜。</span></div>
-            <div class="gd-tool"><span class="k">算法可調</span><span>平均／中位數／近期加權／同型日最大，再加「多備比例」保險 — 都在〈⚙ 推估設定〉。</span></div>
-            <div class="gd-tool"><span class="k">上次同型日</span><span>旁邊另給你「上次實際叫多少」當對照。</span></div>
+            <div class="gd-tool"><span class="k">① 訂購資訊</span><span>下單日、批發商、到貨日、使用日。到貨日、使用日會照批發商的公休與臨時休市自動帶入，也可以自己改。</span></div>
+            <div class="gd-tool"><span class="k">② 各使用日需求</span><span>每個使用日要用多少隻。可按「帶入」用平均銷售，或參考上次同日型的量。</span></div>
+            <div class="gd-tool"><span class="k">③ 訂購數量確認</span><span>合計需求 − 打烊剩餘 ＝ 最終訂購量。剩餘只採用近 3 個營業日內最新的盤點(例如「扣除 11/13 剩餘」)，沒有紀錄就不扣。</span></div>
+            <div class="gd-tool"><span class="k">④ 重量換算</span><span>批發商用公斤叫貨，系統自動把隻數換成整數公斤，可以微調。</span></div>
+            <div class="gd-tool"><span class="k">確認後鎖定</span><span>按「確認已訂購」後只能看、不能改；真的要重開，可在最下方刪除。</span></div>
           </div>
         </div>
 
         <div class="gd-sec">
-          <h4>📦 為什麼要換公斤</h4>
-          <div class="gd-tip" style="margin:0">你習慣用「<b>隻</b>」估需求，但批發商用「<b>公斤</b>」叫貨。系統會自動把隻數換成整數公斤(可手動微調)，並回算「約等於幾隻」記起來。每支約幾克、批發代號在〈⚙ 部位對照設定〉設。</div>
+          <h4>🔮 推估怎麼來的</h4>
+          <div class="gd-tools">
+            <div class="gd-tool"><span class="k">雞肉</span><span>平日(二三四)／週五／假日(六日＋國定)分開，取「回算天數」內同日型實際用掉的量，用平均等方法算，再乘上多備比例。都在〈設定 → 雞肉推估參數〉。</span></div>
+            <div class="gd-tool"><span class="k">餅皮</span><span>取近幾次同星期的平均賣出量(預設 2 次)。六日／假日另外用「最低營業額」反推最少要備，兩者取多的。都在〈設定 → 餅皮推估參數〉。</span></div>
+            <div class="gd-tool"><span class="k">推估準不準</span><span>〈月曆〉上方的「📊 雞肉推估準不準」和「🍕 餅皮推估」，可以看近 14 天推估和實際的差距，用來決定要不要調參數。</span></div>
+          </div>
         </div>
 
         <div class="gd-sec">
           <h4>📅 月曆怎麼看</h4>
+          <div class="gd-tip" style="margin:0 0 8px">上方先選「🍗 雞肉管理」或「🍕 餅皮管理」。雞肉再分「使用月曆」和「訂購月曆」。</div>
           <div class="gd-legend">
-            <div class="gd-leg-row"><span class="gd-sw" style="background:#f3faf5;border-color:#cfe6d7"></span>綠底：已上傳銷售，格子裡是當天用掉的腿／排／翅</div>
-            <div class="gd-leg-row"><span class="gd-sw" style="background:#fff3c9;border-color:#ecd98f"></span>黃底／📝：已訂購</div>
+            <div class="gd-leg-row"><span class="gd-sw" style="background:#f3faf5;border-color:#cfe6d7"></span>使用月曆：已上傳銷售的日子，顯示當天用掉的腿／排／翅</div>
+            <div class="gd-leg-row"><span class="gd-sw" style="background:#fff;border-color:#e0a884;border-style:dashed"></span>訂購月曆：「可下單」「建議下單」的日子可以開訂購單；店休的週一也可能可以下單</div>
+            <div class="gd-leg-row"><span class="gd-sw" style="background:#fff3d6;border-color:#f1dca8"></span>🚚休市：批發商臨時休市，可改訂其他廠商</div>
             <div class="gd-leg-row"><span class="gd-sw" style="background:#f3f0ed;border-color:#e4ddd7"></span>灰底：公休</div>
             <div class="gd-leg-row"><span class="gd-sw" style="background:#fff;border-color:#eee;color:#b3261e;display:grid;place-items:center;font-weight:800;font-size:12px">15</span>紅字：假日／國定假日</div>
-            <div class="gd-leg-row">👉 <span>點月曆<b>任何一天</b>，可看那天「叫貨 vs 實際消耗」的對比。</span></div>
+            <div class="gd-leg-row">👉 <span>點任何一天可看明細；餅皮月曆有剩餘盤點才顯示製作量，沒有就顯示灰色的賣出量。</span></div>
           </div>
         </div>
 
         <div class="gd-sec">
-          <h4>🛠️ 下方工具列</h4>
+          <h4>🧭 各頁在哪裡</h4>
           <div class="gd-tools">
-            <div class="gd-tool"><span class="k">⚙ 推估設定</span><span>調多備比例(+0～+30%)、回算天數、推估方式。</span></div>
-            <div class="gd-tool"><span class="k">⚙ 部位對照設定</span><span>每份幾塊換幾個部位；每支約幾克、批發代號。</span></div>
-            <div class="gd-tool"><span class="k">⤓ 匯出 CSV</span><span>下載某月每天的消耗／叫貨明細。</span></div>
-            <div class="gd-tool"><span class="k">💾 備份／還原</span><span>所有資料存成一個檔備用，或從檔案還原。</span></div>
+            <div class="gd-tool"><span class="k">🏠 首頁</span><span>今日建議、訂購雞肉、上傳報表。</span></div>
+            <div class="gd-tool"><span class="k">📅 月曆</span><span>雞肉使用／訂購月曆、餅皮月曆、推估準不準。</span></div>
+            <div class="gd-tool"><span class="k">📋 紀錄</span><span>員工打烊剩餘的填寫紀錄，可切換月份、新增(回填)、更正，會保留修改紀錄。</span></div>
+            <div class="gd-tool"><span class="k">⚙️ 設定</span><span>雞肉推估參數、雞肉單位轉換、餅皮推估參數、雞肉批發商、匯出 CSV、備份／還原。</span></div>
           </div>
         </div>
 
-        <div class="gd-tip">
-          🍗 腿(紅)　🥩 排(綠)　🪽 翅(黃)<br>
-          資料會<b>自動雲端同步</b>，換手機或平板都看得到；右上角出現〈✓ 已同步〉就表示存好了。
-        </div>
-
+        <div class="gd-tip">🍗 腿(紅)　🥩 排(綠)　🪽 翅(黃)<br>資料會<b>自動雲端同步</b>，換手機或平板都看得到；出現〈✓ 已同步〉就表示存好了。</div>
         <div class="modal-actions"><button class="primary-btn" data-close="guideBackdrop">知道了</button></div>
       </div>
     </div>
