@@ -1419,7 +1419,14 @@
   function doughSold(k) { const r = predDays[k]; return (r && r.dough) ? r.dough : null; }
   function doughLeft(k) { const s = stockDays[k]; if (!s) return null; const o = {}; DOUGH_TYPES.forEach((t) => o[t] = Number(s[t]) || 0); return o; }
   const doughTotal = (o) => o ? DOUGH_TYPES.reduce((s, t) => s + (Number(o[t]) || 0), 0) : 0;
-  const dayRevenue = (k) => { const s = predDays[k] && predDays[k].summary; return (s && Number(s.total)) || 0; };
+  // 某天實際「比薩營業額」(報表 9吋＋12吋 金額)
+  const dayPizzaRev = (k) => { const s = predDays[k] && predDays[k].summary; return s ? (Number(s.pizza9amt) || 0) + (Number(s.pizza12amt) || 0) : 0; };
+  // 由餅皮個數估「比薩營業額」：9吋個數×9吋均價＋12吋個數×12吋均價(均價/比薩佔比取生效值)
+  function doughPizzaRev(o) {
+    const c = resolvePizza(pizzaCfg), n9 = (Number(o.t9) || 0) + (Number(o.s9) || 0), n12 = (Number(o.t12) || 0) + (Number(o.s12) || 0);
+    const a9 = Math.round(c.avg9), a12 = Math.round(c.avg12), rev = n9 * a9 + n12 * a12;
+    return { n9, n12, a9, a12, rev, share: c.pizzaShare, store: c.pizzaShare > 0 ? Math.round(rev / (c.pizzaShare / 100)) : 0 };
+  }
   const dowName = (dow) => (dow === 0 ? "週日" : "週" + DOW[dow]);
   // 餅皮推估：平日、六日/假日都以「近 N 次同星期平均銷售量」為基準(N 在餅皮參數設定，預設 2)；
   // 六日/假日再與「最低營業額反推」取較大；國定假日營業＝用週日樣本。
@@ -1433,14 +1440,12 @@
     Object.keys(predDays).forEach((k) => {
       if (k >= targetKey || k > todayK) return;
       if (parseKey(k).getDay() !== sampleDow) return;
-      const s = doughSold(k); if (s) samples.push({ date: k, sold: s, rev: dayRevenue(k), left: doughLeft(k) });
+      const s = doughSold(k); if (s) samples.push({ date: k, sold: s, rev: dayPizzaRev(k), left: doughLeft(k) });
     });
     samples.sort((a, b) => (a.date < b.date ? 1 : -1));  // 新→舊
     const recent = samples.slice(0, N);
     const avg = recent.length ? {} : null;
     if (recent.length) DOUGH_TYPES.forEach((t) => { avg[t] = Math.round(recent.reduce((s, x) => s + (Number(x.sold[t]) || 0), 0) / recent.length); });
-    const revs = recent.map((x) => x.rev).filter((v) => v > 0);
-    const rev = revs.length ? { avg: Math.round(revs.reduce((a, b) => a + b, 0) / revs.length), max: Math.max(...revs), min: Math.min(...revs), n: revs.length } : null;
     const floor = isWeekend ? pizzaFloor() : null;
     const rec = {}, src = {};
     DOUGH_TYPES.forEach((t) => {
@@ -1450,7 +1455,7 @@
     });
     const label = nat ? ("國定假日·" + nat) : (dow === 0 ? "週日" : dow === 6 ? "週六" : "平日·週" + DOW[dow]);
     const sampleName = nat ? "週日" : dowName(dow);
-    return { group: isWeekend ? "假日" : "平日", label, sampleName, isWeekend, nat: nat || "", sampleDow, N, n: recent.length, avg, floor, rec, src, samples: recent, rev };
+    return { group: isWeekend ? "假日" : "平日", label, sampleName, isWeekend, nat: nat || "", sampleDow, N, n: recent.length, avg, floor, rec, src, samples: recent };
   }
   function doughCells(o) { return DOUGH_TYPES.map((t) => o ? `<td>${o[t]}</td>` : `<td class="ck-muted">—</td>`).join(""); }
   function nextOpenDays(fromKey, n) { const out = [], d = parseKey(fromKey); for (let i = 0; i < 40 && out.length < n; i++) { const k = toKey(d); if (!isClosed(k)) out.push(k); d.setDate(d.getDate() + 1); } return out; }
@@ -1475,7 +1480,7 @@
     $("doughUpcoming").innerHTML = up.map((k) => {
       const p = predictDough(k), anyFloor = p.src && DOUGH_TYPES.some((t) => p.src[t] === "floor");
       const basis = !p.n ? `同星期資料累積中${p.floor ? "・暫用最低營業額反推" : ""}`
-        : `依近 ${p.n} 個${p.sampleName}平均銷售${anyFloor ? "・已套最低營業額底線" : ""}${p.rev ? `・預估營業額約 $${p.rev.avg.toLocaleString()}` : ""}`;
+        : `依近 ${p.n} 個${p.sampleName}平均銷售${anyFloor ? "・已套最低營業額底線" : ""}・預估比薩營業額約 $${doughPizzaRev(p.rec).rev.toLocaleString()}`;
       return `<button type="button" class="dg-up" data-dgd="${k}">
         <div class="dg-up-h">${mdw(k)}<span class="dg-tag${p.isWeekend ? " wk" : ""}">${p.label}</span><span class="dg-up-more">看依據 ›</span></div>
         <div class="dg-up-nums">${DOUGH_TYPES.map((t) => `<span${p.src[t] === "floor" ? ` class="fl"` : ""}><i>${DOUGH_LABEL[t]}</i><b>${p.rec[t]}</b></span>`).join("")}</div>
@@ -1527,17 +1532,24 @@
       <div class="dg-explain">${!p.n ? `還沒有${p.sampleName}的銷售資料${p.isWeekend ? "，暫時只用最低營業額反推。" : "，無法推估。"}`
         : p.isWeekend ? "六日／假日：每一格取「平均銷售」與「最低營業額反推」較大的那個(底色標示採用哪個)。"
         : `平日：直接用近 ${p.n} 個${p.sampleName}的平均銷售量。`}${p.n && p.n < p.N ? `(設定參考 ${p.N} 次，目前只有 ${p.n} 次資料)` : ""}</div>`;
-    // ② 預估營業額
-    if (p.rev) {
-      const low = p.isWeekend && pizzaCfg.minRevenue > 0 && p.rev.avg < pizzaCfg.minRevenue;
-      html += `<div class="dg-sec-h">② 預估營業額</div>
-        <div class="dg-rev"><b>${money(p.rev.avg)}</b><span>近 ${p.rev.n} 個${p.sampleName}平均${p.rev.n > 1 ? `(最高 ${money(p.rev.max)}・最低 ${money(p.rev.min)})` : ""}</span></div>
-        ${low ? `<div class="dg-warn">⚠ 平常${p.sampleName}的營業額比最低營業額 ${money(pizzaCfg.minRevenue)} 低，所以建議量是被底線撐高的；若常剩太多，可考慮調低最低營業額。</div>` : ""}`;
+    // ② 預估比薩營業額＝個數×均價；六日/假日再對照「最低營業額×比薩佔比」的底線目標
+    {
+      const R = doughPizzaRev(p.rec), line = (x) => `9吋 ${x.n9}個×$${x.a9} ＋ 12吋 ${x.n12}個×$${x.a12}`;
+      html += `<div class="dg-sec-h">② 預估比薩營業額</div>
+        <div class="dg-rev"><b>${money(R.rev)}</b><span>依建議量：${line(R)}</span></div>
+        <div class="dg-rev-sub">比薩約佔全店 ${R.share}%，換算全店約 <b>${money(R.store)}</b></div>`;
+      if (p.isWeekend && p.floor) {
+        const target = Math.round((Number(pizzaCfg.minRevenue) || 0) * R.share / 100);
+        const A = p.avg ? doughPizzaRev(p.avg) : null;
+        const item = (lbl, v, f) => `<div class="dg-rv"><div class="dg-rv-h"><span>${lbl}</span><b>${money(v)}</b></div><small>${f}</small></div>`;
+        html += `<div class="dg-rvs">${A ? item("平均銷售的比薩營業額", A.rev, line(A)) : ""}${item("底線目標比薩營業額", target, `最低營業額 ${money(pizzaCfg.minRevenue || 0)} × 比薩 ${R.share}%`)}</div>`;
+        if (A && A.rev < target) html += `<div class="dg-warn">⚠ 平常${p.sampleName}賣出的比薩營業額(${money(A.rev)})比底線目標 ${money(target)} 低，所以建議量是被底線撐高的；若常剩太多，可考慮調低最低營業額。</div>`;
+      }
     }
     // ③ 參考的日子
     if (p.n) {
       html += `<div class="dg-sec-h">③ 參考的 ${p.n} 天</div>
-        <table class="ck-items dg-samp"><thead><tr><th>日期</th><th>營業額</th><th>賣9吋</th><th>賣12吋</th><th>剩餘</th></tr></thead><tbody>
+        <table class="ck-items dg-samp"><thead><tr><th>日期</th><th>比薩營業額</th><th>賣9吋</th><th>賣12吋</th><th>剩餘</th></tr></thead><tbody>
         ${p.samples.map((x) => { const z = sizeTotals(x.sold); return `<tr><td>${mdw(x.date)}</td><td>${x.rev ? money(x.rev) : "—"}</td><td>${z.n9}</td><td>${z.n12}</td><td>${x.left ? doughTotal(x.left) : "—"}</td></tr>`; }).join("")}
         </tbody></table>`;
     }
