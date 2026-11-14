@@ -689,12 +689,12 @@
   function renderOrderSum() {
     const f = orderForm, { sum, net } = orderTotals(), s = currentStock(f.orderDay);
     let html = `<div class="os-row os-sum"><span class="os-k">合計需求(隻)</span><span class="os-c ck-leg">${sum.leg}</span><span class="os-c ck-fil">${sum.fil}</span><span class="os-c ck-wing">${sum.wing}</span></div>`;
-    if (s) html += `<div class="os-row os-stk"><span class="os-k"><label class="os-ck"><input type="checkbox" id="ordDeduct"${f.deductStock ? " checked" : ""}${f.locked ? " disabled" : ""}> 扣除目前庫存</label></span>` + (f.deductStock ? `<span class="os-c">−${s.leg}</span><span class="os-c">−${s.fil}</span><span class="os-c">−${s.wing}</span>` : `<span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span>`) + `</div>`;
-    else html += `<div class="os-row os-stk os-nostk"><span class="os-k">扣除目前庫存</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span></div>`;
+    if (s) html += `<div class="os-row os-stk"><span class="os-k"><label class="os-ck"><input type="checkbox" id="ordDeduct"${f.deductStock ? " checked" : ""}${f.locked ? " disabled" : ""}> 扣除 ${s.date.slice(5).replace("-", "/").replace(/^0/, "")} 剩餘</label></span>` + (f.deductStock ? `<span class="os-c">−${s.leg}</span><span class="os-c">−${s.fil}</span><span class="os-c">−${s.wing}</span>` : `<span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span>`) + `</div>`;
+    else html += `<div class="os-row os-stk os-nostk"><span class="os-k">扣除剩餘(無紀錄)</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span></div>`;
     html += `<div class="os-row os-net"><span class="os-k">最終訂購量(隻)</span><span class="os-c ck-leg">${net.leg}</span><span class="os-c ck-fil">${net.fil}</span><span class="os-c ck-wing">${net.wing}</span></div>`;
     $("ordSumTbl").innerHTML = html;
     const dc = $("ordDeduct"); if (dc) dc.onchange = () => { f.deductStock = dc.checked; f.kg = null; renderOrderSum(); };
-    $("ordStockNote").textContent = s ? (f.deductStock ? `庫存只在「第一個使用日」扣(${mdw(s.date)} 盤點)；可取消勾選` : "") : `⚠ ${STOCK_NONE_MSG}，本單不扣庫存(不當作 0)。`;
+    $("ordStockNote").textContent = s ? (f.deductStock ? `${mdw(s.date)} 打烊盤點的剩餘，只在「第一個使用日」扣；可取消勾選` : "") : `⚠ ${STOCK_NONE_MSG}，本單不扣庫存(不當作 0)。`;
     if (!f.kg) PARTS3.forEach((p) => { $(`orderKg${p}`).value = net[p] > 0 ? kgSuggest(net[p], p) : 0; });
     else PARTS3.forEach((p) => { $(`orderKg${p}`).value = f.kg[p] != null ? f.kg[p] : 0; });
   }
