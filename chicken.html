@@ -265,13 +265,41 @@
     .dg-up-nums span { background: #fff; border: 1px solid #ecd9cb; border-radius: 9px; padding: 7px 2px; text-align: center; }
     .dg-up-nums i { display: block; font-style: normal; font-size: 11px; color: var(--muted); }
     .dg-up-nums b { font-size: 20px; color: #9a4a1a; }
-    .dg-up-note { font-size: 11.5px; color: #8a6d1f; margin-top: 7px; font-weight: 700; }
+    .dg-up-note { margin-top: 7px; font-weight: 700; font-size: 13px; color: #6b5a4c; line-height: 1.5; }
     .dg-recent { display: grid; gap: 7px; }
     .dg-rrow { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 11px; background: #faf7f4; padding: 10px 12px; cursor: pointer; }
     .dg-rd { font-size: 14px; font-weight: 800; color: var(--ink); flex: 0 0 auto; min-width: 86px; }
-    .dg-rm { font-size: 13px; color: #5a524c; } .dg-rm b { color: var(--ink); font-weight: 800; }
-    .dg-rdiff { margin-left: auto; font-size: 12.5px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+    .dg-rm { font-size: 14px; color: #5a524c; } .dg-rm b { color: var(--ink); font-weight: 800; }
+    .dg-rm > span { white-space: nowrap; }
+    @media (max-width:480px){ .dg-rd { min-width: 0; } .dg-rrow { gap: 8px; } }
+    .dg-rdiff { margin-left: auto; font-size: 13.5px; font-weight: 800; color: var(--muted); white-space: nowrap; }
     .dg-rdiff.pos { color: #b7791f; } .dg-rdiff.neg { color: var(--danger); }
+    .dg-up-more { margin-left: auto; font-size: 13px; font-weight: 800; color: var(--brand); }
+    .dg-up-nums span.fl { background: #fff6ec; border-color: #f0cfa8; }
+    .dg-acc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+    .dg-acc { border-radius: 12px; padding: 10px 4px; text-align: center; border: 1px solid var(--line); background: #faf7f4; }
+    .dg-acc b { display: block; font-size: 24px; line-height: 1.2; }
+    .dg-acc span { font-size: 13px; font-weight: 700; color: var(--muted); }
+    .dg-acc.ok b { color: #2f7d52; } .dg-acc.short b { color: var(--danger); } .dg-acc.over b { color: #b7791f; }
+    .dg-acc-sum { font-size: 14px; color: #5a524c; margin: 0 2px 10px; } .dg-acc-sum b { color: var(--ink); font-size: 16px; }
+    .dg-rdiff.ok { color: #2f7d52; } .dg-rdiff.short { color: var(--danger); } .dg-rdiff.over { color: #b7791f; }
+    .dg-sec-h .dg-rdiff { margin-left: 8px; font-size: 14px; }
+    .dg-sug { background: #fff6ec; border: 1.5px solid #f0cfa8; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+    .dg-sug-h { font-size: 14px; font-weight: 800; color: var(--brand-dark); margin-bottom: 6px; }
+    .dg-sug-n { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .dg-sug-n span { font-size: 16px; font-weight: 800; color: var(--ink); line-height: 1.25; }
+    .dg-sug-n b { font-size: 30px; color: #9a4a1a; margin-left: 4px; }
+    .dg-sug-n small { display: block; font-size: 13.5px; color: var(--muted); font-weight: 700; }
+    #doughDetBody .dg-sec-h { margin-top: 16px; }
+    .dg-basis td:first-child { text-align: left; font-size: 13.5px; }
+    .dg-basis td.dg-hi { background: #fff0dc; font-weight: 900; color: #9a4a1a; }
+    .dg-explain { font-size: 13.5px; color: #6b5a4c; line-height: 1.6; margin: 8px 2px 0; }
+    .dg-rev { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .dg-rev b { font-size: 24px; color: var(--ink); } .dg-rev span { font-size: 14px; color: var(--muted); }
+    .dg-warn { font-size: 13.5px; color: #8a5a10; background: #fff8e6; border: 1px solid #f1dca8; border-radius: 10px; padding: 9px 11px; margin-top: 8px; line-height: 1.6; }
+    table.ck-items.dg-samp { table-layout: auto; }
+    table.ck-items.dg-samp th, table.ck-items.dg-samp td { white-space: nowrap; padding-left: 4px; padding-right: 4px; }
+    table.ck-items.dg-samp th:first-child, table.ck-items.dg-samp td:first-child { width: auto; }
     .dg-det-sub { font-size: 12.5px; font-weight: 700; color: var(--brand-dark); background: #faf6f2; border: 1px solid #efe1d6; border-radius: 10px; padding: 9px 11px; margin-bottom: 12px; line-height: 1.5; }
     /* 比薩餅皮參數 */
     .pz-autobtn { margin-bottom: 14px; }
@@ -561,6 +589,7 @@
     .ck-dcell .ck-dough2.est .cd2 b { color: #b07a4a; }
     .ck-dparts .ck-line b { color: #9a4a1a; }
     .ck-dparts.est .ck-line b { color: #b07a4a; }
+    .ck-dsold .ck-dparts .ck-line b { color: #9b928a; }
     .ck-dcell .cd-empty { display: block; text-align: center; color: #cbbeb0; font-size: 17px; margin-top: 8px; }
     @media (max-width: 480px) {
       .ck-cat .cat-tx b { font-size: 15px; } .ck-cat .cat-tx small { font-size: 11px; }
@@ -935,11 +964,12 @@
   <!-- 餅皮推估檢視彈窗(管理者) -->
   <div id="doughBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(560px,100%)">
-      <div class="modal-head"><div><h3>🍕 餅皮推估</h3><p>接下來幾天要備多少・近期推估 vs 實際</p></div><button class="icon-btn" data-close="doughBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3>🍕 餅皮推估</h3><p>接下來 2 個營業日要備多少・近 14 天準不準</p></div><button class="icon-btn" data-close="doughBackdrop">✕</button></div>
       <div class="modal-body" id="doughBody">
-        <div class="dg-sec-h">接下來要備(點看每天明細)</div>
+        <div class="dg-sec-h">接下來要備(點看推估依據)</div>
         <div id="doughUpcoming" class="dg-up-list"></div>
-        <div class="dg-sec-h" style="margin-top:16px">近期回顧(推估 vs 實際賣)</div>
+        <div class="dg-sec-h" style="margin-top:18px">近 14 天推估準不準</div>
+        <div id="doughAcc"></div>
         <div id="doughRecent" class="dg-recent"></div>
         <div class="modal-actions"><button class="primary-btn" data-close="doughBackdrop">關閉</button></div>
       </div>
@@ -949,7 +979,7 @@
   <!-- 餅皮某天明細(推估/製作/實際賣/剩餘/差額) -->
   <div id="doughDetBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(460px,100%)">
-      <div class="modal-head"><div><h3 id="doughDetTitle"></h3><p>餅皮：推估／製作／實際賣／剩餘</p></div><button class="icon-btn" data-close="doughDetBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3 id="doughDetTitle"></h3><p>餅皮建議量與推估依據</p></div><button class="icon-btn" data-close="doughDetBackdrop">✕</button></div>
       <div class="modal-body"><div id="doughDetBody"></div>
         <div class="modal-actions"><button class="primary-btn" data-close="doughDetBackdrop">關閉</button></div>
       </div>
@@ -985,9 +1015,14 @@
       <div class="modal-head"><div><h3>🍕 比薩餅皮參數</h3><p>六日／假日推估的底線與拆分；餅皮推估會用到</p></div><button class="icon-btn" data-close="pizzaBackdrop">✕</button></div>
       <div class="modal-body">
         <div class="pz-grp pz-grp-main">
-          <div class="pz-grp-h">六日／假日 的底線(唯一要你決定的)</div>
+          <div class="pz-grp-h">推估方式</div>
+          <div class="pz-field"><label>參考近幾次同星期</label><div class="pz-inwrap"><input class="input pz-in" id="pz_samples" inputmode="numeric"><span class="pz-suf">次</span></div></div>
+          <p class="pz-note">平日與六日／假日都以「近幾次同星期的<b>平均銷售量</b>」為基準，預設 2 次(可設 1~8)。</p>
+        </div>
+        <div class="pz-grp pz-grp-main">
+          <div class="pz-grp-h">六日／假日 的底線</div>
           <div class="pz-field"><label>目標最低營業額</label><div class="pz-inwrap"><span class="pz-pre">$</span><input class="input pz-in" id="pz_minRev" inputmode="numeric"></div></div>
-          <p class="pz-note">六日／假日會以「不低於這個營業額」反推最少要備多少餅皮；平日仍以近期同星期實際用量為準。<b>其餘比例與均價都由近期報表自動計算</b>，不用手動填。</p>
+          <p class="pz-note">六日／假日會以「不低於這個營業額」反推最少要備多少餅皮；兩者取較大的。<b>其餘比例與均價都由近期報表自動計算</b>，不用手動填。</p>
         </div>
         <div class="pz-auto-sum" id="pzAutoSummary"></div>
         <div class="pz-prev" id="pzPrev"></div>
