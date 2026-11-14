@@ -360,7 +360,8 @@
   }
   // 預設批發商的臨時休市日(每週固定休不顯示在月曆)
   function supTempOff(k) { return (supplierOff.dates || []).find((x) => x.date === k) || null; }
-  // 訂購月曆：下單日照批發商上班推算(店家公休也可能是下單日，例如週一)；批發商臨時休市顯示 🚚休市，仍可手動下單(可改訂他家)
+  // 訂購月曆：下單日照批發商上班推算(店家公休也可能是下單日，例如週一)；批發商臨時休市顯示 🚚休市(可改訂他家)；
+  // 今天以後的日子都可自行開單(非下單日不標示)；過去只能點開已存的單
   function orderCell(k, dd) {
     const dow = parseKey(k).getDay();
     const redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
@@ -370,7 +371,7 @@
     const sup = defSupplier(), offTxt = off ? `${sup ? sup.name : "批發商"}休市${off.note ? "・" + off.note : ""}` : "";
     const offTag = off ? `<span class="ck-supoff" title="${esc(offTxt)}">🚚休市</span>` : "";
     const closedTag = closed ? `<span class="ck-tag">${closedLabel(k)}</span>` : "";
-    if (!o && !(future && (covered || off))) {
+    if (!o && !future) {
       if (closed) return `<div class="employee-cal-day ck-rest">${numHtml}${closedTag}${offTag}</div>`;
       return `<button type="button" class="employee-cal-day ck-ordcell${k === t ? " ck-today" : ""}" data-date="${k}" disabled>${numHtml}${offTag}</button>`;
     }
@@ -379,7 +380,8 @@
     else if (covered) {
       if (k === t) { cls += " ck-today"; inner += `<span class="ck-po ck-posugg">建議下單</span>`; }
       else inner += `<span class="ck-pocan">可下單</span>`;
-    } else { if (k === t) cls += " ck-today"; inner += `<span class="ck-pocan">可改訂他家</span>`; }
+    } else if (off) { if (k === t) cls += " ck-today"; inner += `<span class="ck-pocan">可改訂他家</span>`; }
+    else if (k === t) cls += " ck-today";   // 非下單日：不標示，但仍可自行開單
     return `<button type="button" class="${cls}" data-date="${k}" title="${esc(offTxt)}">${inner}</button>`;
   }
   // 餅皮月曆：每格顯示建議做多少(有製作量資料則顯示實際製作量)；格式＝9吋 厚/薄、12吋 厚/薄
@@ -551,6 +553,8 @@
     return withSupplierOff(supplierOffOf(supId), () => {
       const out = [];
       [[1, "隔天"], [2, "後天"]].forEach(([n, lab]) => { const k = addDays(orderDay, n); if (!isClosed(k) && supplierOpen(k)) out.push({ key: k, label: `${mdw(k)}・${lab}` }); });
+      // 隔天、後天都不行(例如週六下單：週日批發商休、週一店休)→ 補上 7 天內第一個可到貨日，讓自行開單也有合理選項
+      if (!out.length) for (let n = 3; n <= 7; n++) { const k = addDays(orderDay, n); if (!isClosed(k) && supplierOpen(k)) { out.push({ key: k, label: `${mdw(k)}・${n}天後` }); break; } }
       return out;
     });
   }
@@ -637,7 +641,7 @@
     PARTS3.forEach((p) => { const el = $(`orderKg${p}`); if (el) el.disabled = f.locked; });
     const lb = $("ordLockBanner"); if (lb) lb.classList.toggle("hidden", !f.locked);
     const acts = $("ordActions"); if (acts) acts.classList.toggle("hidden", f.locked);
-    const delBtn = $("ordDeleteBtn"); if (delBtn) delBtn.classList.toggle("hidden", !f.exists || f.locked);
+    const delBtn = $("ordDeleteBtn"); if (delBtn) { delBtn.classList.toggle("hidden", !f.exists); delBtn.classList.toggle("ord-delbtn-locked", !!f.locked); }
     const closeBtn = $("ordCloseBtn"); if (closeBtn) closeBtn.classList.toggle("hidden", !f.locked);
     renderOrderRows();
     renderOrderSum();
@@ -716,9 +720,13 @@
       .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
   }
   function deleteOrderForm() {
-    const f = orderForm; if (!f || f.locked || !db) { hide("orderBackdrop"); return; }
+    const f = orderForm; if (!f || !db) { hide("orderBackdrop"); return; }
     const prev = orderForDay(f.orderDay); if (!prev) { hide("orderBackdrop"); return; }
-    if (!window.confirm("確定刪除這張訂單？涵蓋的使用日訂購紀錄也會一併清除。")) return;
+    const st = orderStatus(prev) || "draft";
+    const msg = (st === "draft")
+      ? "確定刪除這張訂單？涵蓋的使用日訂購紀錄也會一併清除。"
+      : `確定刪除 ${mdw(f.orderDay)} 這張「${STATUS_LABEL[st]}」的訂購單？\n\n使用日(${(prev.useDays || []).map(mdw).join("、") || "—"})的訂購紀錄、差額會一起清除。\n刪除後無法復原。`;
+    if (!window.confirm(msg)) return;
     const ordYm = ymOf(f.orderDay), DEL = firebase.firestore.FieldValue.delete();
     const writes = [{ ref: orderRefOf(ordYm), data: { orders: { [f.orderDay]: DEL }, updatedAt: Date.now() } }];
     const dayPatch = {};
