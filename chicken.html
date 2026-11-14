@@ -47,6 +47,9 @@
     .ck-stock-top small { color: var(--muted); font-weight: 600; }
     /* ② 實際下單公斤：醒目可改 */
     .ord-cell.kg > span b { color: var(--brand-dark); }
+    .kg-pcs { display: block; text-align: center; font-size: 13px; color: #5a524c; font-weight: 700; margin-top: 4px; line-height: 1.35; }
+    .kg-pcs b { font-size: 15px; color: var(--ink); } .kg-pcs em { display: block; font-style: normal; color: #b7791f; } .kg-pcs em.lack { color: var(--danger); }
+    .ck-adj { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
     .ord-cell.kg input { border-color: #d9a689; background: #fffdfb; box-shadow: 0 0 0 3px rgba(217,166,137,.14); }
     /* 將記錄 */
     .will-save { margin-top: 14px; border: 1px solid #cfe6d7; border-radius: 12px; background: #f3faf5; padding: 11px 13px; }
@@ -866,9 +869,9 @@
         <section class="ord-sec">
           <div class="ord-sec-h"><b class="ord-step">④</b> 重量換算</div>
           <div class="ck-num3">
-            <label class="ord-cell kg"><span>🍗 <b id="lblKgleg">D5</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgleg" /></label>
-            <label class="ord-cell kg"><span>🥩 <b id="lblKgfil">TS4</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgfil" /></label>
-            <label class="ord-cell kg"><span>🪽 <b id="lblKgwing">W6</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgwing" /></label>
+            <label class="ord-cell kg"><span>🍗 <b id="lblKgleg">D5</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgleg" /><small class="kg-pcs" id="kgPcsleg"></small></label>
+            <label class="ord-cell kg"><span>🥩 <b id="lblKgfil">TS4</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgfil" /><small class="kg-pcs" id="kgPcsfil"></small></label>
+            <label class="ord-cell kg"><span>🪽 <b id="lblKgwing">W6</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgwing" /><small class="kg-pcs" id="kgPcswing"></small></label>
           </div>
         </section>
       </div>
@@ -929,7 +932,7 @@
   <!-- 點某天明細彈窗 -->
   <div id="detailBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(520px,100%)">
-      <div class="modal-head"><div><h3 id="detailTitle"></h3><p>預估／訂購量／實際賣 對比</p></div><button class="icon-btn" data-close="detailBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3 id="detailTitle"></h3><p>預估／實際叫貨／實際賣 對比</p></div><button class="icon-btn" data-close="detailBackdrop">✕</button></div>
       <div class="modal-body">
         <div id="detailBody"></div>
         <div class="modal-actions"><button class="ghost-btn" id="detailEditOrder">📝 訂購雞肉</button><button class="primary-btn" data-close="detailBackdrop">關閉</button></div>

@@ -355,7 +355,7 @@
     let cls = "employee-cal-day", inner = numHtml, disabled = "";
     if (isClosed(k)) { cls += " ck-rest"; disabled = "disabled"; inner += `<span class="ck-tag">${closedLabel(k)}</span>`; }
     else if (hasSales) { cls += " available"; inner = numHtml + mark + partLines(rec.parts); }
-    else if (hasOrder) { cls += " ck-order"; inner = numHtml + mark + `<span class="ck-tag ck-ord-tag">${st ? STATUS_LABEL[st] : "已排訂購"}</span>` + partLines(rec.order); }
+    else if (hasOrder) { cls += " ck-order"; inner = numHtml + mark + `<span class="ck-tag ck-ord-tag">${st ? STATUS_LABEL[st] : "已排訂購"}</span>` + partLines((orderActualFor(k, rec) || {}).alloc || rec.order); }
     else { if (k === todayKey()) cls += " ck-today"; inner = numHtml; }
     return `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
   }
@@ -534,6 +534,22 @@
   function orderStatus(o) { if (!o) return null; if (o.status === "ordered") return (o.deliveryDay && o.deliveryDay <= todayKey()) ? "arrived" : "ordered"; return "draft"; }
   const orderRefOf = (ym) => db.collection(COLL).doc("poultry_order_" + ym);
   const orderForDay = (od) => orderDays[od] || null;
+  // 某使用日的「實際叫貨」：整張單的公斤換算隻數(存檔時記下 kgPieces；舊單用公斤回算，無條件捨去)，
+  // 依各使用日「需求」比例分攤(累計取整，各天加總剛好等於總隻數)；第一個使用日另計扣掉的庫存。找不到訂購單 → null
+  function orderActualFor(u, rec) {
+    const sr = rec && rec.supplyRef, o = sr ? orderForDay(sr.od) : null;
+    if (!o || !o.perDay || !o.perDay[u]) return null;
+    const uds = (o.useDays || []).slice().sort(), first = uds[0] === u, ds = o.deductStock || null;
+    const alloc = {}, stock = {}, avail = {};
+    PARTS3.forEach((p) => {
+      const total = (o.kgPieces && o.kgPieces[p] != null) ? (Number(o.kgPieces[p]) || 0) : kgToPieces((o.orderKg || {})[p], p);
+      const dem = uds.map((d) => Number((o.perDay[d] || {})[p]) || 0), tot = dem.reduce((a, b) => a + b, 0);
+      let acc = 0, prevR = 0, val = 0;
+      uds.forEach((d, i) => { acc += dem[i]; const r = tot > 0 ? Math.round(total * acc / tot) : Math.round(total * (i + 1) / uds.length); if (d === u) val = r - prevR; prevR = r; });
+      alloc[p] = val; stock[p] = (first && ds) ? (Number(ds[p]) || 0) : 0; avail[p] = alloc[p] + stock[p];
+    });
+    return { od: sr.od, demand: o.perDay[u], alloc, stock, avail, hasStock: !!(first && ds), stockDate: (ds && ds.date) || "", multi: uds.length > 1 };
+  }
   function watchOrderMonths() {
     orderUnsubs.forEach((u) => u && u()); orderUnsubs = []; orderMonthData = {};
     if (!db) return;
@@ -688,6 +704,16 @@
     box.querySelectorAll("input[data-pd]").forEach((inp) => inp.oninput = () => { const u = inp.dataset.pd; (f.perDay[u] = f.perDay[u] || { leg: 0, fil: 0, wing: 0 })[inp.dataset.k] = Number(inp.value) || 0; f.kg = null; renderOrderSum(); });
     box.querySelectorAll("button[data-fill]").forEach((b) => b.onclick = () => { const [kind, u] = b.dataset.fill.split(":"); const p = predict(u), last = lastSameTypeOrder(u); const src = kind === "sug" ? (p.rec || {}) : (last ? last.order : {}); f.perDay[u] = { leg: src.leg || 0, fil: src.fil || 0, wing: src.wing || 0 }; f.kg = null; renderOrderRows(); renderOrderSum(); });
   }
+  // ④ 每格公斤下方即時顯示「≈ N 隻」，與最終訂購量不同時標出多/少幾隻
+  function renderKgPcs() {
+    if (!orderForm) return;
+    const { net } = orderTotals();
+    PARTS3.forEach((p) => {
+      const el = $(`kgPcs${p}`); if (!el) return;
+      const pcs = kgToPieces($(`orderKg${p}`).value, p), d = pcs - (net[p] || 0);
+      el.innerHTML = `≈ <b>${pcs}</b> 隻${d < 0 ? `<em class="lack">(比需求少 ${-d})</em>` : d > 0 ? `<em>(比需求多 ${d})</em>` : ""}`;
+    });
+  }
   function renderOrderSum() {
     const f = orderForm, { sum, net } = orderTotals(), s = currentStock(f.orderDay);
     let html = `<div class="os-row os-sum"><span class="os-k">合計需求(隻)</span><span class="os-c ck-leg">${sum.leg}</span><span class="os-c ck-fil">${sum.fil}</span><span class="os-c ck-wing">${sum.wing}</span></div>`;
@@ -699,6 +725,7 @@
     $("ordStockNote").textContent = s ? (f.deductStock ? `${mdw(s.date)} 打烊盤點的剩餘，只在「第一個使用日」扣；可取消勾選` : "") : `⚠ ${STOCK_NONE_MSG}，本單不扣庫存(不當作 0)。`;
     if (!f.kg) PARTS3.forEach((p) => { $(`orderKg${p}`).value = net[p] > 0 ? kgSuggest(net[p], p) : 0; });
     else PARTS3.forEach((p) => { $(`orderKg${p}`).value = f.kg[p] != null ? f.kg[p] : 0; });
+    renderKgPcs();
   }
   function saveOrderForm(confirmed) {
     const f = orderForm; if (!f || f.locked) return;
@@ -709,7 +736,7 @@
     const sup = suppliers.find((s) => s.id === f.supplier) || defSupplier();
     const perDay = {}; f.useDays.forEach((u) => { const r = f.perDay[u] || {}; perDay[u] = { leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0 }; });
     const ordYm = ymOf(f.orderDay), prev = orderForDay(f.orderDay);
-    const order = { supplier: f.supplier, supplierName: sup.name, orderDay: f.orderDay, deliveryDay: f.deliveryDay, useDays: f.useDays.slice(), perDay: perDay, deductStock: (f.deductStock && stockRec) ? { leg: stockRec.leg, fil: stockRec.fil, wing: stockRec.wing } : null, totalPieces: net, orderKg: kg, status: confirmed ? "ordered" : "draft", createdAt: (prev && prev.createdAt) || Date.now(), updatedAt: Date.now() };
+    const order = { supplier: f.supplier, supplierName: sup.name, orderDay: f.orderDay, deliveryDay: f.deliveryDay, useDays: f.useDays.slice(), perDay: perDay, deductStock: (f.deductStock && stockRec) ? { leg: stockRec.leg, fil: stockRec.fil, wing: stockRec.wing, date: stockRec.date } : null, totalPieces: net, orderKg: kg, kgPieces: Object.fromEntries(PARTS3.map((p) => [p, kgToPieces(kg[p], p)])), status: confirmed ? "ordered" : "draft", createdAt: (prev && prev.createdAt) || Date.now(), updatedAt: Date.now() };
     if (confirmed) order.orderedAt = Date.now();
     const DEL = firebase.firestore.FieldValue.delete();
     const writes = [{ ref: orderRefOf(ordYm), data: { orders: { [f.orderDay]: order }, updatedAt: Date.now() } }];
@@ -764,7 +791,7 @@
     const rec = days[k] || {};
     const hasSales = !!(rec.sales && Object.keys(rec.sales).length && rec.parts);
     const o = rec.order || null, u = hasSales ? rec.parts : null;
-    const p = predict(k), est = (p.n && p.rec) ? p.rec : null;
+    const p = k <= todayKey() ? predict(k, k) : predict(k), est = (p.n && p.rec) ? p.rec : null;   // 過去日只用這天之前的資料
     const isBiz = !isClosed(k);
     $("detailTitle").textContent = fmtFull(k);
     let html = "";
@@ -773,19 +800,27 @@
     if (isBiz && (est || o || u)) {
       html += `<div class="cmp-h">預估 vs 訂購 vs 實際賣</div>`;
       html += `<table class="ck-items" style="margin-bottom:6px"><thead><tr><th></th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>`;
-      html += `<tr><td>預估</td>${cell(est, "leg")}${cell(est, "fil")}${cell(est, "wing")}</tr>`;
-      html += `<tr><td>訂購量</td>${cell(o, "leg")}${cell(o, "fil")}${cell(o, "wing")}</tr>`;
-      html += `<tr><td>實際賣</td>${cell(u, "leg")}${cell(u, "fil")}${cell(u, "wing")}</tr>`;
-      if (o && u) html += `<tr class="sum"><td>差額(叫−賣)</td>${diffCell(o.leg - u.leg)}${diffCell(o.fil - u.fil)}${diffCell(o.wing - u.wing)}</tr>`;
+      const act = o ? orderActualFor(k, rec) : null;
+      const row3 = (label, obj) => `<tr><td>${label}</td>${cell(obj, "leg")}${cell(obj, "fil")}${cell(obj, "wing")}</tr>`;
+      html += row3("預估", est);
+      if (act) {
+        const dm = act.demand, same = est && PARTS3.every((pp) => Math.round(Number(dm[pp]) || 0) === Math.round(Number(est[pp]) || 0));
+        if (!same) html += row3(`訂購需求<small class="ck-adj">(訂購時填的，與預估不同)</small>`, dm);
+        html += row3(`實際叫貨<small class="ck-adj">(公斤換算)</small>`, act.alloc);
+        if (act.hasStock) html += row3(`＋扣掉的庫存${act.stockDate ? `<small class="ck-adj">(${mdw(act.stockDate)} 剩餘)</small>` : ""}`, act.stock);
+      } else if (o) html += row3("訂購量", o);
+      html += row3("實際賣", u);
+      const avail = act ? act.avail : o;
+      if (avail && u) html += `<tr class="sum"><td>差額(${act ? "可用" : "叫"}−賣)</td>${diffCell(Math.round(avail.leg - u.leg))}${diffCell(Math.round(avail.fil - u.fil))}${diffCell(Math.round(avail.wing - u.wing))}</tr>`;
       html += `</tbody></table>`;
       // 供應來源：這天的貨來自哪一張叫貨單
       const sr = rec.supplyRef, so = sr ? orderForDay(sr.od) : null;
       if (sr) { const st = so ? orderStatus(so) : null; html += `<div class="ck-srcline">📦 這天的貨來自 <b>${mdw(sr.od)} 訂購</b>${st ? `(${STATUS_LABEL[st]})` : ""}<button type="button" class="ck-srcbtn" id="detailGoOrder">看這批 ›</button></div>`; }
       const kg = rec.orderKg;
-      if (kg) html += `<div class="ck-kgline">📦 當天訂購公斤：${PARTS3.map((pp) => `${PART_EMO[pp]} ${kg[pp]}`).join("　")}(公斤)</div>`;
+      if (kg) html += `<div class="ck-kgline">📦 這批訂購公斤(整張單)：${PARTS3.map((pp) => `${PART_EMO[pp]} ${kg[pp]}`).join("　")}(公斤)</div>`;
       if (!o) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未訂購。</div>`;
-      else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對。</div>`;
-      else html += `<div class="hint" style="margin:-2px 2px 12px">差額＝訂購量−實際賣：正＝有剩(可能浪費)、負＝不夠。</div>`;
+      else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對。${act && act.multi ? "實際叫貨已依各使用日需求比例分攤。" : ""}</div>`;
+      else html += `<div class="hint" style="margin:-2px 2px 12px">${act ? `差額＝實際叫貨${act.hasStock ? "＋扣掉的庫存" : ""}−實際賣${act.multi ? "(整張單的叫貨依各使用日需求比例分攤)" : ""}` : "差額＝訂購量−實際賣"}：正＝有剩、負＝不夠。</div>`;
     }
     if (hasSales) html += `<div class="cmp-h">當日銷售明細(換算消耗)</div>` + itemTable(rec.sales, rec.parts, rec.map);
     else if (isBiz) html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
@@ -1535,7 +1570,7 @@
     $("chkAccList").querySelectorAll("button[data-cad]").forEach((b) => b.onclick = () => openChkAccDetail(b.dataset.cad));
   }
   function openChkAccDetail(k) {
-    const p = predict(k, k), act = chickenActual(k), rec = predDays[k] || {}, ord = rec.order, st = stockDays[k];
+    const p = predict(k, k), act = chickenActual(k), rec = predDays[k] || {}, oa = rec.order ? orderActualFor(k, rec) : null, ord = oa ? oa.alloc : rec.order, st = stockDays[k];
     $("chkAccDetTitle").textContent = fmtFull(k);
     const row = (label, o, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${label}</td>${PARTS3.map((pt) => o ? `<td>${Math.round(Number(o[pt]) || 0)}</td>` : `<td class="ck-muted">—</td>`).join("")}</tr>`;
     const diffRow = (label, a, b) => `<tr class="sum"><td>${label}</td>${PARTS3.map((pt) => (a && b) ? diffCell(Math.round((Number(a[pt]) || 0) - (Number(b[pt]) || 0))) : `<td class="ck-muted">—</td>`).join("")}</tr>`;
@@ -1543,13 +1578,14 @@
     html += `<table class="ck-items"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>
       ${row(`${METHOD_LABEL[estMethod] || ""}基準`, p.n ? p.avg : null)}
       ${row(`🔮 推估(×${bufferFactor})`, p.n ? p.rec : null)}
-      ${row("📦 實際訂購", ord || null)}
+      ${row(oa ? "📦 實際叫貨(公斤換算)" : "📦 實際訂購", ord || null)}
+      ${oa && oa.hasStock ? row("＋扣掉的庫存", oa.stock) : ""}
       ${row("🍗 實際用", act)}
       ${row("打烊剩餘", hasChickenRec(st) ? st : null)}
       ${diffRow("差額(估−用)", p.n ? p.rec : null, act)}
-      ${ord ? diffRow("差額(訂−用)", ord, act) : ""}
+      ${ord ? diffRow(oa ? "差額(可用−用)" : "差額(訂−用)", oa ? oa.avail : ord, act) : ""}
       </tbody></table>
-      <div class="hint" style="margin:8px 2px">差額正＝多、負＝不夠。「推估」用目前設定回推；「實際訂購」是當時存下的訂購量${ord ? "" : "(這天沒有訂購紀錄)"}。</div>`;
+      <div class="hint" style="margin:8px 2px">差額正＝多、負＝不夠。「推估」用目前設定回推；${oa ? `「實際叫貨」是當時訂購公斤換算的隻數${oa.multi ? "(依各使用日需求比例分攤)" : ""}，可用＝實際叫貨${oa.hasStock ? "＋扣掉的庫存" : ""}` : `「實際訂購」是當時存下的訂購量${ord ? "" : "(這天沒有訂購紀錄)"}`}。</div>`;
     $("chkAccDetBody").innerHTML = html;
     show("chkAccDetBackdrop");
   }
@@ -1746,7 +1782,7 @@
     $("ordConfirmBtn").onclick = () => saveOrderForm(true);
     $("ordDeleteBtn").onclick = deleteOrderForm;
     // ② 公斤手動改 → 記為覆寫(不再自動蓋掉)
-    ["orderKgleg", "orderKgfil", "orderKgwing"].forEach((id) => $(id).addEventListener("input", () => { if (orderForm) orderForm.kg = { leg: Number($("orderKgleg").value) || 0, fil: Number($("orderKgfil").value) || 0, wing: Number($("orderKgwing").value) || 0 }; }));
+    ["orderKgleg", "orderKgfil", "orderKgwing"].forEach((id) => $(id).addEventListener("input", () => { if (orderForm) orderForm.kg = { leg: Number($("orderKgleg").value) || 0, fil: Number($("orderKgfil").value) || 0, wing: Number($("orderKgwing").value) || 0 }; renderKgPcs(); }));
     $("ckHint").onclick = () => openOrderForm(null);
     $("ckDoughBtn").onclick = openDough;
     $("ckChkAccBtn").onclick = openChkAcc;
