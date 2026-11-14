@@ -100,6 +100,26 @@
     .rec-tbl td.rd { text-align: left; font-weight: 800; color: var(--ink); } .rec-tbl td.rw { text-align: left; } .rec-tbl td.rw b { color: var(--ink); } .rec-tbl td.rt { color: var(--muted); font-size: 12.5px; }
     .rec-tbl .sep { border-left: 2px solid var(--line); }
     .rec-tbl .rl { color: #8f3521; font-weight: 800; } .rec-tbl .rf { color: #2f7d52; font-weight: 800; } .rec-tbl .rwg { color: #b7791f; font-weight: 800; } .rec-tbl .rp { color: #9a4a1a; font-weight: 800; }
+    .rec-month { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 4px 0 12px; }
+    .rec-month b { font-size: 18px; font-weight: 900; color: var(--ink); min-width: 120px; text-align: center; }
+    .rec-month .icon-btn:disabled { opacity: .35; cursor: default; }
+    .rec-cards { display: none; }
+    #recordsMsg:empty { display: none; }
+    @media (max-width:720px) {
+      .rec-wrap { display: none; } .rec-cards { display: grid; gap: 10px; }
+      .rc-card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+      .rc-h { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+      .rc-d { font-size: 17px; font-weight: 900; color: var(--ink); }
+      .rc-h .rec-edit { margin-left: auto; font-size: 14px; font-weight: 800; }
+      .rc-sec + .rc-sec { border-top: 1px dashed #ece4dd; margin-top: 8px; padding-top: 8px; }
+      .rc-who { font-size: 14px; font-weight: 800; color: #5a524c; margin-bottom: 6px; } .rc-who span { font-weight: 600; color: var(--muted); font-size: 13px; }
+      .rc-nums { display: flex; gap: 8px; flex-wrap: wrap; }
+      .rc-n { flex: 1; min-width: 56px; background: #faf7f4; border-radius: 10px; padding: 6px 4px; text-align: center; }
+      .rc-n i { display: block; font-style: normal; font-size: 12.5px; color: var(--muted); font-weight: 700; }
+      .rc-n b { font-size: 21px; font-weight: 900; color: #9a4a1a; }
+      .rc-n.rl b { color: #8f3521; } .rc-n.rf b { color: #2f7d52; } .rc-n.rwg b { color: #b7791f; }
+      .rc-none { font-size: 14px; color: var(--muted); padding: 4px 2px; }
+    }
     .rec-empty { font-size: 13.5px; color: var(--muted); padding: 24px 2px; text-align: center; }
     /* 每日提醒彈窗 */
     .rm-task { border: 1.5px solid var(--line); border-radius: 14px; padding: 13px; margin-bottom: 11px; }
@@ -694,7 +714,10 @@
       <!-- 紀錄 -->
       <section class="app-view hidden" id="viewRecords">
         <div class="view-head view-head-row"><div><h2>盤點填寫紀錄</h2><p>員工每天打烊填的剩餘量(誰、何時、填了什麼)</p></div><button class="primary-btn" id="recordsAdd">＋ 新增紀錄</button></div>
+        <div class="rec-month"><button class="icon-btn" id="recPrev" aria-label="上個月">‹</button><b id="recMonthLabel"></b><button class="icon-btn" id="recNext" aria-label="下個月">›</button></div>
+        <div class="rec-empty" id="recordsMsg"></div>
         <div class="rec-wrap"><table class="rec-tbl" id="recordsTbl"></table></div>
+        <div class="rec-cards" id="recordsCards"></div>
         <div class="view-actions"><button class="ghost-btn" id="recordsExport">⤓ 匯出 CSV</button></div>
       </section>
 

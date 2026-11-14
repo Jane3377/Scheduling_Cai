@@ -1148,24 +1148,62 @@
   // 某筆盤點是否有填該部分(只填雞肉或只填餅皮時，另一部分不能當成 0)
   const hasChickenRec = (r) => !!r && (r.leg != null || r.fil != null || r.wing != null);
   const hasDoughRec = (r) => !!r && (r.t9 != null || r.s9 != null || r.t12 != null || r.s12 != null);
+  // 紀錄頁：可切換月份；近 3 個月用即時訂閱的資料，更早的月份向雲端讀一次並暫存
+  let recYM = null, recCache = {}, recLoading = null;
+  const recLiveYMs = () => { const tm = ymOf(todayKey()); return [tm, addMonthYM(tm, -1), addMonthYM(tm, -2)]; };
+  function recMonthDays(ym) {
+    if (recLiveYMs().includes(ym)) { const o = {}; Object.keys(stockDays).forEach((k) => { if (k.slice(0, 7) === ym) o[k] = stockDays[k]; }); return o; }
+    return recCache[ym] || null;
+  }
+  const recDay = (k) => stockDays[k] || (recCache[ymOf(k)] || {})[k] || null;
+  function shiftRecMonth(n) { const cur = ymOf(todayKey()), next = addMonthYM(recYM || cur, n); if (next > cur) return; recYM = next; openRecords(); }
   function openRecords() {
-    const keys = Object.keys(stockDays).sort((a, b) => (a < b ? 1 : -1)), tbl = $("recordsTbl");
-    if (!tbl) return;
-    if (!keys.length) { tbl.innerHTML = `<tbody><tr><td class="rec-empty">目前還沒有盤點紀錄。</td></tr></tbody>`; return; }
+    const tbl = $("recordsTbl"), cards = $("recordsCards"); if (!tbl) return;
+    const cur = ymOf(todayKey()); if (!recYM) recYM = cur;
+    const [yy, mm] = recYM.split("-").map(Number);
+    $("recMonthLabel").textContent = `${yy} 年 ${mm} 月`;
+    $("recNext").disabled = recYM >= cur;
+    const data = recMonthDays(recYM);
+    if (!data) {
+      tbl.innerHTML = ""; cards.innerHTML = ""; $("recordsMsg").textContent = "讀取中…";
+      if (db && recLoading !== recYM) {
+        const ym = recYM; recLoading = ym;
+        stockRefOf(ym).get().then((snap) => { recCache[ym] = (snap.data() && snap.data().days) || {}; })
+          .catch((err) => { console.error(err); recCache[ym] = {}; alert("讀取失敗：" + (err.message || err)); })
+          .finally(() => { recLoading = null; if (recYM === ym) openRecords(); });
+      }
+      return;
+    }
+    const keys = Object.keys(data).sort((a, b) => (a < b ? 1 : -1));
+    $("recordsMsg").textContent = keys.length ? "" : "這個月沒有盤點紀錄。";
+    if (!keys.length) { tbl.innerHTML = ""; cards.innerHTML = ""; return; }
     const head = `<thead><tr class="grp"><th rowspan="2">日期</th><th rowspan="2">填寫人・時間</th><th colspan="3" class="sep">🍗 剩餘雞肉</th><th colspan="4" class="sep">🍕 剩餘餅皮</th><th rowspan="2" class="sep">更正</th></tr><tr class="sub"><th class="sep">腿</th><th>排</th><th>翅</th><th class="sep">9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead>`;
     const v = (r, key, has) => has ? (Number(r[key]) || 0) : `<span class="ck-muted">—</span>`;
-    const body = keys.map((k) => {
-      const r = stockDays[k] || {}, d = parseKey(k), hc = hasChickenRec(r), hd = hasDoughRec(r);
+    const info = keys.map((k) => {
+      const r = data[k] || {}, d = parseKey(k), hc = hasChickenRec(r), hd = hasDoughRec(r);
       const cb = recChickenBy(r), dbm = recDoughBy(r);
+      const eds = r.edits || [], nFix = eds.filter((e) => e.type !== "add").length;
+      const edTag = (eds.some((e) => e.type === "add") ? `<span class="rec-edited">回填</span>` : "") + (nFix ? `<span class="rec-edited">已更正${nFix}</span>` : "");
+      return { k, r, hc, hd, cb, dbm, edTag, date: `${d.getMonth() + 1}/${pad(d.getDate())}(${DOW[d.getDay()]})` };
+    });
+    // 表格(平板／電腦)
+    tbl.innerHTML = head + `<tbody>${info.map(({ k, r, hc, hd, cb, dbm, edTag, date }) => {
       const same = cb && dbm && cb.byName === dbm.byName && cb.at === dbm.at;
       const who = same ? `<b>${esc(cb.byName || "？")}</b><span class="rf-t">${fmtAt(cb.at)}</span>`
         : `${cb ? `<span class="rf-l">🍗 <b>${esc(cb.byName || "？")}</b> <span class="rf-t">${fmtAt(cb.at)}</span></span>` : ""}${dbm ? `<span class="rf-l">🍕 <b>${esc(dbm.byName || "？")}</b> <span class="rf-t">${fmtAt(dbm.at)}</span></span>` : ""}` || "—";
-      const eds = r.edits || [], nFix = eds.filter((e) => e.type !== "add").length;
-      const edTag = (eds.some((e) => e.type === "add") ? `<span class="rec-edited">回填</span>` : "") + (nFix ? `<span class="rec-edited">已更正${nFix}</span>` : "");
-      return `<tr><td class="rd">${d.getMonth() + 1}/${pad(d.getDate())}(${DOW[d.getDay()]})${edTag}</td><td class="rw">${who}</td><td class="sep rl">${v(r, "leg", hc)}</td><td class="rf">${v(r, "fil", hc)}</td><td class="rwg">${v(r, "wing", hc)}</td><td class="sep rp">${v(r, "t9", hd)}</td><td class="rp">${v(r, "s9", hd)}</td><td class="rp">${v(r, "t12", hd)}</td><td class="rp">${v(r, "s12", hd)}</td><td class="sep"><button type="button" class="rec-edit" data-edit="${k}">✏️</button></td></tr>`;
-    }).join("");
-    tbl.innerHTML = head + `<tbody>${body}</tbody>`;
-    tbl.querySelectorAll("button[data-edit]").forEach((b) => b.onclick = () => openStockEdit(b.dataset.edit));
+      return `<tr><td class="rd">${date}${edTag}</td><td class="rw">${who}</td><td class="sep rl">${v(r, "leg", hc)}</td><td class="rf">${v(r, "fil", hc)}</td><td class="rwg">${v(r, "wing", hc)}</td><td class="sep rp">${v(r, "t9", hd)}</td><td class="rp">${v(r, "s9", hd)}</td><td class="rp">${v(r, "t12", hd)}</td><td class="rp">${v(r, "s12", hd)}</td><td class="sep"><button type="button" class="rec-edit" data-edit="${k}">✏️</button></td></tr>`;
+    }).join("")}</tbody>`;
+    // 小卡(手機)：每天一張，雞肉／餅皮各一行
+    const num = (lab, val, cls) => `<span class="rc-n ${cls || ""}"><i>${lab}</i><b>${val}</b></span>`;
+    cards.innerHTML = info.map(({ k, r, hc, hd, cb, dbm, edTag, date }) => `
+      <div class="rc-card">
+        <div class="rc-h"><span class="rc-d">${date}</span>${edTag}<button type="button" class="rec-edit" data-edit="${k}">✏️ 更正</button></div>
+        <div class="rc-sec"><div class="rc-who">🍗 雞肉${cb ? `・${esc(cb.byName || "？")} <span>${fmtAt(cb.at)}</span>` : ""}</div>
+          ${hc ? `<div class="rc-nums">${num("腿", Number(r.leg) || 0, "rl")}${num("排", Number(r.fil) || 0, "rf")}${num("翅", Number(r.wing) || 0, "rwg")}</div>` : `<div class="rc-none">未填寫</div>`}</div>
+        <div class="rc-sec"><div class="rc-who">🍕 餅皮${dbm ? `・${esc(dbm.byName || "？")} <span>${fmtAt(dbm.at)}</span>` : ""}</div>
+          ${hd ? `<div class="rc-nums">${num("9厚", Number(r.t9) || 0)}${num("9薄", Number(r.s9) || 0)}${num("12厚", Number(r.t12) || 0)}${num("12薄", Number(r.s12) || 0)}</div>` : `<div class="rc-none">未填寫</div>`}</div>
+      </div>`).join("");
+    [tbl, cards].forEach((box) => box.querySelectorAll("button[data-edit]").forEach((b) => b.onclick = () => openStockEdit(b.dataset.edit)));
   }
   /* ---------- 管理者新增／更正盤點(PIN 閘門＝管理者權限；保留修改紀錄) ---------- */
   let stockEditKey = null, stockEditMode = "edit", stockEditRec = null, seLoadSeq = 0;
@@ -1208,7 +1246,7 @@
   }
   function openStockEdit(k) {
     stockEditMode = "edit"; $("seDateRow").classList.add("hidden");
-    seApply(k, stockDays[k] || null);
+    seApply(k, recDay(k));
     show("stockEditBackdrop");
   }
   function openStockAdd() {
@@ -1248,18 +1286,18 @@
     if (!had) { patch.byName = meta.byName; patch.at = now; }
     patch.edits = ((prev.edits) || []).concat({ at: now, byName: "管理者", type: had ? "edit" : "add", before, after });
     stockRefOf(ymOf(k)).set({ days: { [k]: patch }, updatedAt: now }, { merge: true })
-      .then(() => { hide("stockEditBackdrop"); openRecords(); })
+      .then(() => { hide("stockEditBackdrop"); const ym = ymOf(k); if (!recLiveYMs().includes(ym)) delete recCache[ym]; recYM = ym; openRecords(); })
       .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
   }
   function doRecordsExport() {
-    const keys = Object.keys(stockDays).sort();
-    if (!keys.length) { alert("目前沒有盤點紀錄可匯出。"); return; }
+    const data = recMonthDays(recYM || ymOf(todayKey())) || {}, keys = Object.keys(data).sort();
+    if (!keys.length) { alert("這個月沒有盤點紀錄可匯出。"); return; }
     const rows = [["日期", "星期", "填寫人", "填寫時間", "剩餘腿", "剩餘排", "剩餘翅", "餅皮9厚", "餅皮9薄", "餅皮12厚", "餅皮12薄"]];
-    keys.forEach((k) => { const r = stockDays[k] || {}, d = parseKey(k);
+    keys.forEach((k) => { const r = data[k] || {}, d = parseKey(k);
       const c = hasChickenRec(r), g = hasDoughRec(r), v = (key, has) => has ? (Number(r[key]) || 0) : "";   // 沒填的部分留空(不當 0)
       rows.push([k, DOW[d.getDay()], r.byName || "", r.at ? fmtAt(r.at) : "", v("leg", c), v("fil", c), v("wing", c), v("t9", g), v("s9", g), v("t12", g), v("s12", g)]);
     });
-    downloadCSV(`盤點紀錄_${todayKey()}.csv`, rows);
+    downloadCSV(`盤點紀錄_${recYM || ymOf(todayKey())}.csv`, rows);
   }
   function openCsv() { $("csvMonth").value = viewYM; show("csvBackdrop"); }
   function doCsvExport() {
@@ -1725,6 +1763,7 @@
     $("seChkOn").onchange = seSyncParts; $("seDghOn").onchange = seSyncParts;
     $("seDate").onchange = () => { const v = $("seDate").value; if (v) seLoadDate(v); };
     $("recordsAdd").onclick = openStockAdd;
+    $("recPrev").onclick = () => shiftRecMonth(-1); $("recNext").onclick = () => shiftRecMonth(1);
     $("ckExportCsvBtn").onclick = openCsv;
     $("csvDownload").onclick = doCsvExport;
     $("ckBackupBtn").onclick = openBackup;
