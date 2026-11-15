@@ -8,16 +8,22 @@
   "theme_color": "#241f1c",
   "icons": [
     {
-      "src": "icons/icon_192_chicken.png",
+      "src": "icons/icon_prep_192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon_512_chicken.png",
+      "src": "icons/icon_prep_512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "icons/icon_prep_maskable_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
