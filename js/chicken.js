@@ -1761,7 +1761,10 @@
     if (sold) {
       const diff = {}; DOUGH_TYPES.forEach((t) => diff[t] = p.rec[t] - (Number(sold[t]) || 0));
       const e2 = sizeTotals(p.rec), s2 = sizeTotals(sold), v9 = doughVerdict(e2.n9, s2.n9), v12 = doughVerdict(e2.n12, s2.n12);
+      // 當天營業額(報表已存，不另外記錄)：全店＋比薩金額與佔比，幫助判斷當天生意好壞
+      const sm = predDays[k] && predDays[k].summary, tot = sm ? Number(sm.total) || 0 : 0, pz = sm ? (Number(sm.pizza9amt) || 0) + (Number(sm.pizza12amt) || 0) : 0;
       html += `<div class="dg-sec-h">這天的實際結果 <span class="dg-rdiff ${v9.key}">9吋 ${v9.text}</span> <span class="dg-rdiff ${v12.key}">12吋 ${v12.text}</span></div>
+        ${tot > 0 ? `<div class="dg-dayrev">💰 全店營業額 <b>${money(tot)}</b>・比薩 <b>${money(pz)}</b>(佔 ${Math.round(pz / tot * 100)}%)</div>` : ""}
         <table class="ck-items"><thead><tr><th></th><th>9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead><tbody>
         <tr><td>🔮 推估<small class="ck-adj">(${frozen ? "依當天設定" : "依目前設定"})</small></td>${doughCells(p.rec)}</tr>
         <tr><td>實際賣</td>${doughCells(sold)}</tr>
