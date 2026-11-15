@@ -271,6 +271,12 @@
     .pm-hist { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
     .pm-hist-title { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
     .pm-hist-empty { font-size: 13px; color: var(--muted); padding: 4px 2px; }
+    .gd-adv { margin: 4px 0 14px; border: 1px solid var(--line); border-radius: 12px; background: #fffdfb; padding: 0 14px; }
+    .gd-adv summary { cursor: pointer; font-size: 15.5px; font-weight: 900; color: var(--brand-dark); padding: 13px 0; }
+    .gd-adv h5 { font-size: 15px; font-weight: 900; color: var(--ink); margin: 8px 0 6px; }
+    .gd-rules { margin: 0 0 12px; padding-left: 20px; font-size: 14px; line-height: 1.7; color: #4a423c; }
+    .gd-rules li { margin-bottom: 7px; } .gd-rules b { color: var(--ink); }
+    .gd-f { background: #f6f1ec; border-radius: 8px; padding: 7px 10px; margin: 5px 0 2px; font-size: 13.5px; line-height: 1.75; color: #3d3630; }
     .ps-hist-h { font-size: 13.5px; font-weight: 800; color: var(--brand-dark); margin: 14px 2px 6px; }
     .ps-hist { display: grid; gap: 6px; margin-bottom: 4px; }
     .ps-hist-row { background: #faf7f4; border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; font-size: 13.5px; color: #5a524c; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -816,6 +822,44 @@
             <div class="gd-tool"><span class="k">⚙️ 設定</span><span>雞肉推估參數、雞肉單位轉換、餅皮推估參數、雞肉批發商、匯出 CSV、備份／還原。</span></div>
           </div>
         </div>
+
+        <details class="gd-adv">
+          <summary>📐 詳細計算規則(雞肉、餅皮怎麼算)</summary>
+
+          <h5>🍗 雞肉推估</h5>
+          <ol class="gd-rules">
+            <li><b>實際用量</b>：上傳報表時，依〈雞肉單位轉換〉把每個品項的份數換成腿／排／翅(份數 × 每份幾支)，存成那天的實際用量。</li>
+            <li><b>日型</b>：六日與有營業的國定假日＝<b>假日</b>；週五＝<b>週五</b>；其他營業日(二三四)＝<b>平日</b>。公休不推估。三種日型分開算。</li>
+            <li><b>取樣</b>：從<b>下單日</b>往回「回算天數」(14～60 天)，<b>不含下單日當天</b>，挑同日型、有上傳報表的日子。下單日在未來時，用今天往回。</li>
+            <li><b>基準</b>(腿、排、翅各自算)：
+              <div class="gd-f">平均＝加總 ÷ 天數<br>中位數＝由小到大排，取中間值(偶數天取中間兩天的平均)<br>近期加權＝越新越重：最新的乘 N、次新乘 N−1…最舊乘 1，加總後 ÷ 權重總和<br>同型日最大＝取最大值</div></li>
+            <li><b>預估</b>＝基準 × 多備比例(1.00～1.30)，<b>四捨五入到整數隻</b>。</li>
+            <li><b>參數版本</b>：用<b>下單日當天有效</b>的推估參數版本計算，之後改參數不會改到過去的預估。〈推估準不準〉才用目前設定。</li>
+            <li><b>下單／到貨／使用日</b>(預設，可自己改)：批發商有上班才能下單；到貨日要店有營業、批發商有上班，且前一天批發商也有上班(前一天下單、隔天到)；使用日要店有營業，且至少在到貨隔天(醃一天)。</li>
+            <li><b>訂購數量</b>：
+              <div class="gd-f">合計需求＝各使用日需求加總<br>扣除剩餘＝下單日往回 3 個營業日內(含下單日)最新一筆有填雞肉的盤點；沒有紀錄就不扣(不當作 0)<br>最終訂購量＝合計需求 − 剩餘(最少 0)；剩餘只算在第一個使用日</div></li>
+            <li><b>公斤換算</b>：
+              <div class="gd-f">建議公斤＝隻數 × 每支克數 ÷ 1000，<b>四捨五入到整數公斤</b>(至少 1 公斤)<br>公斤換回隻數＝公斤 × 1000 ÷ 每支克數，<b>無條件捨去</b>(保守不高估)</div></li>
+            <li><b>實際叫貨</b>：多個使用日時，公斤換回的總隻數<b>依各天需求比例分攤</b>(累計後四捨五入，各天加總剛好等於總隻數)。
+              <div class="gd-f">可用＝實際叫貨 ＋ 扣掉的剩餘(只在第一個使用日)<br>差額＝可用 − 實際賣：正＝有剩、負＝不夠</div></li>
+            <li><b>推估準不準</b>：近 14 天，用<b>目前設定</b>、只用那天之前的資料回推。差額＝推估 − 實際用(四捨五入)：小於 0＝<b>估少</b>；多出超過實際用的 15%＝<b>估多</b>；其餘＝<b>差不多</b>。腿、排、翅分開判斷。</li>
+          </ol>
+
+          <h5>🍕 餅皮推估</h5>
+          <ol class="gd-rules">
+            <li><b>賣出與製作</b>：賣出＝報表裡 9吋／12吋 厚片、薄片的數量。製作量＝賣出 ＋ 打烊剩餘；沒填剩餘的日子不算製作量。</li>
+            <li><b>平均賣出</b>：那天之前最近 N 個<b>同星期</b>(N＝〈參考近幾次同星期〉，1～8，預設 2)；有營業的國定假日比照週日。四種餅皮各自平均，<b>四捨五入</b>。</li>
+            <li><b>平日</b>：建議量＝平均賣出。</li>
+            <li><b>六日／國定假日</b>：另外用最低營業額反推「最少要備」，四種餅皮<b>各自取兩者較大的</b>：
+              <div class="gd-f">比薩營業額＝最低營業額 × 比薩佔全店%<br>9吋營業額＝比薩營業額 × 9吋佔比薩%；12吋營業額＝其餘<br>9吋個數＝9吋營業額 ÷ 9吋均價；12吋個數＝12吋營業額 ÷ 12吋均價(先不取整)<br>9吋厚＝9吋個數 × 9吋厚片%、9吋薄＝9吋個數 × (100% − 厚片%)，各自<b>四捨五入</b>；12吋同理</div></li>
+            <li><b>自動比例</b>：那天往回 4 週(不含當天)的<b>六日＋有營業的國定假日</b>報表，全部金額、個數<b>加總後再相除</b>(加權平均)；比例四捨五入到整數 %，均價四捨五入到整數元。少於 4 天有報表時，改用存檔的數字。
+              <div class="gd-f">比薩佔全店＝(9吋金額 ＋ 12吋金額) ÷ 全店營業額<br>9吋佔比薩＝9吋金額 ÷ 比薩金額<br>均價＝金額 ÷ 個數<br>厚片比例＝厚片賣出 ÷ (厚片 ＋ 薄片)</div>
+              在〈餅皮推估參數 → 進階〉取消勾選「自動」，該項就改用你填的數字。</li>
+            <li><b>預估比薩營業額</b>(只在六日／假日顯示)＝9吋個數 × 9吋均價 ＋ 12吋個數 × 12吋均價；換算全店＝比薩營業額 ÷ 比薩佔比，四捨五入。</li>
+            <li><b>參數版本</b>：過去的日子用<b>那天有效</b>的比薩參數版本(第一次修改前＝系統預設值)，平均賣出和自動比例也從那天往回算，所以不會變。今天以後用最新設定。</li>
+            <li><b>推估準不準</b>：近 14 天，用<b>目前設定</b>回推；9吋、12吋(厚＋薄合計)分開判斷，規則同雞肉(小於 0＝估少；超過賣出的 15%＝估多)。</li>
+          </ol>
+        </details>
 
         <div class="gd-tip">🍗 腿(紅)　🥩 排(綠)　🪽 翅(黃)<br>資料會<b>自動雲端同步</b>，換手機或平板都看得到；出現〈✓ 已同步〉就表示存好了。</div>
         <div class="modal-actions"><button class="primary-btn" data-close="guideBackdrop">知道了</button></div>
