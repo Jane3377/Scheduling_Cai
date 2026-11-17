@@ -195,6 +195,8 @@
     .os-row .os-c { width: 56px; flex: 0 0 auto; text-align: center; font-weight: 800; }
     .os-row.os-sum { border-top: 2px solid #e7cdbf; padding-top: 10px; } .os-row.os-sum .os-k { font-weight: 900; color: var(--ink); }
     .os-row.os-stk .os-k, .os-row.os-stk .os-c { color: #8a7f77; }
+    .ord-sum .os-row:first-child { border-top: 2px solid #e7cdbf; padding-top: 10px; }
+    .os-sd { display: block; font-size: 12px; font-weight: 600; color: #8a7f77; margin-top: 1px; }
     .os-ck { font-weight: 700; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; } .os-ck input { width: 17px; height: 17px; }
     .os-row.os-net .os-k { color: var(--brand-dark); font-weight: 900; } .os-row.os-net .os-c { font-size: 17px; font-weight: 900; }
     .ord-stocknote { font-size: 11.5px; color: var(--muted); text-align: right; margin-top: 3px; }
@@ -795,10 +797,10 @@
           <h4>🍗 雞肉訂購單怎麼看</h4>
           <div class="gd-tools">
             <div class="gd-tool"><span class="k">① 訂購資訊</span><span>下單日、批發商、到貨日、使用日。到貨日、使用日會照批發商的公休與臨時休市自動帶入，也可以自己改。</span></div>
-            <div class="gd-tool"><span class="k">② 各使用日需求</span><span>每個使用日要用多少隻，預設是系統預估，可以自己改。展開可看預估的依據，以及「參考：上次 11/12(四) 炸烤的實際叫貨」。</span></div>
-            <div class="gd-tool"><span class="k">③ 訂購數量確認</span><span>合計需求 − 打烊剩餘 ＝ 最終訂購量。下單日當天已填打烊剩餘(打烊後下單)就扣當天的，否則扣前一個營業日的(例如「扣除 11/15 剩餘」)；沒有紀錄就不扣。過了 20:00 還沒填當天剩餘時不扣，會提醒先填。</span></div>
-            <div class="gd-tool"><span class="k">④ 實際訂購(公斤)</span><span>批發商用公斤叫貨，系統自動把隻數換成整數公斤(例如 腿(D5) 4 公斤)，可以微調，下面會顯示約等於幾隻。</span></div>
+            <div class="gd-tool"><span class="k">② 需求與要訂(隻)</span><span>每個使用日要用多少隻，預設是系統預估，可以自己改；展開可看預估的依據，以及「參考：上次 11/12(四) 炸烤的實際叫貨」。下面接著算：合計需求(使用日 2 天以上才顯示) − 扣剩餘 ＝ 要訂。剩餘只在第一個使用日扣，可取消勾選。下單日當天已填打烊剩餘(打烊後下單)就扣當天的，否則扣前一個營業日的(例如「扣剩餘・11/15(日) 打烊剩餘」)；沒有紀錄就不扣。過了 20:00 還沒填當天剩餘時不扣，會提醒先填。</span></div>
+            <div class="gd-tool"><span class="k">③ 實際訂購(公斤)</span><span>批發商用公斤叫貨，系統自動把隻數換成整數公斤(例如 腿(D5) 4 公斤)，可以微調，下面會顯示約等於幾隻。</span></div>
             <div class="gd-tool"><span class="k">員工頁訂購</span><span>排班後台把員工的備料角色設成「雞肉」或「管理者」，員工專區就會出現「🛒 訂購雞肉」：顯示今天起 2 個可下單日，今天的單只能改公斤再送出；下次的只能預覽。今天批發商休市時會請他聯絡管理者。送出後兩邊都鎖定，後台看得到訂購人。</span></div>
+            <div class="gd-tool"><span class="k">直接開頁籤的網址</span><span>員工專區網址後面加 <b>?go=stock</b>(今日打烊剩餘)、<b>?go=dough</b>(餅皮推估)、<b>?go=chicken</b>(訂購雞肉)，登入後會直接跳到那一頁，可做成 QR code 貼在店裡。權限照舊：沒有餅皮／雞肉權限的人會停在我的班表。</span></div>
             <div class="gd-tool"><span class="k">確認後鎖定</span><span>按「確認已訂購」後只能看、不能改；真的要重開，可在最下方刪除。</span></div>
           </div>
         </div>
@@ -849,7 +851,7 @@
             <li><b>參數版本</b>：用<b>下單日當天有效</b>的推估參數版本計算，之後改參數不會改到過去的預估。〈推估準不準〉才用目前設定。</li>
             <li><b>下單／到貨／使用日</b>(預設，可自己改)：批發商有上班才能下單；到貨日要店有營業、批發商有上班，且前一天批發商也有上班(前一天下單、隔天到)；使用日要店有營業，且至少在到貨隔天(醃一天)。</li>
             <li><b>訂購數量</b>：
-              <div class="gd-f">合計需求＝各使用日需求加總<br>扣除剩餘＝下單日當天有打烊剩餘就用當天(打烊後下單)；否則用前一個營業日的打烊剩餘(開店前／營業中下單，或下單日店休)<br>下單日是今天、已過 20:00 但還沒填當天剩餘 → 不扣，提醒先填<br>該用的那天沒有紀錄 → 不扣(不當作 0)，另外列出最近一筆的日期參考<br>最終訂購量＝合計需求 − 剩餘(最少 0)</div></li>
+              <div class="gd-f">合計需求＝各使用日需求加總<br>扣剩餘＝下單日當天有打烊剩餘就用當天(打烊後下單)；否則用前一個營業日的打烊剩餘(開店前／營業中下單，或下單日店休)<br>下單日是今天、已過 20:00 但還沒填當天剩餘 → 不扣，提醒先填<br>該用的那天沒有紀錄 → 不扣(不當作 0)，另外列出最近一筆的日期參考<br>要訂＝合計需求 − 剩餘(最少 0)</div></li>
             <li><b>公斤換算</b>：
               <div class="gd-f">建議公斤＝隻數 × 每支克數 ÷ 1000，<b>四捨五入到整數公斤</b>(至少 1 公斤)<br>公斤換回隻數＝公斤 × 1000 ÷ 每支克數，<b>無條件捨去</b>(保守不高估)</div></li>
             <li><b>日期明細的順序</b>(跟訂購的想法一樣)：預估要用 → 扣掉的剩餘 → 應訂 → 實際叫貨 → 可用量 → 實際賣 → 差額。
@@ -917,19 +919,15 @@
         </section>
 
         <section class="ord-sec">
-          <div class="ord-sec-h"><b class="ord-step">②</b> 各使用日需求</div>
+          <div class="ord-sec-h"><b class="ord-step">②</b> 需求與要訂(隻)</div>
           <div class="od-head"><span class="od-hd">使用日</span><span>🍗腿(隻)</span><span>🥩排(隻)</span><span>🪽翅(隻)</span></div>
           <div id="ordRows"></div>
-        </section>
-
-        <section class="ord-sec">
-          <div class="ord-sec-h"><b class="ord-step">③</b> 訂購數量確認</div>
           <div class="ord-sum" id="ordSumTbl"></div>
           <div class="ord-stocknote" id="ordStockNote"></div>
         </section>
 
         <section class="ord-sec">
-          <div class="ord-sec-h"><b class="ord-step">④</b> 實際訂購(公斤)</div>
+          <div class="ord-sec-h"><b class="ord-step">③</b> 實際訂購(公斤)</div>
           <div class="ck-num3">
             <label class="ord-cell kg"><span>🍗 <b id="lblKgleg">D5</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgleg" /><small class="kg-pcs" id="kgPcsleg"></small></label>
             <label class="ord-cell kg"><span>🥩 <b id="lblKgfil">TS4</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgfil" /><small class="kg-pcs" id="kgPcsfil"></small></label>

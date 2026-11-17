@@ -187,6 +187,16 @@ function logout(){
   staffEmployeeId=null;sessionStorage.removeItem("smartSchedulerStaffId");
   byId("staffPortal").classList.add("hidden");byId("staffLoginCard").classList.remove("hidden");byId("staffNoInput").value="";const pi=byId("staffPinInput");if(pi)pi.value=""
 }
+// 網址參數直接跳頁籤：index.html?go=stock(今日打烊剩餘)／dough(餅皮推估)／chicken(訂購雞肉)
+// 登入後才跳(只跳一次)；沒有權限的頁籤(按鈕隱藏)就停在我的班表
+let staffGoTab=(()=>{try{const g=new URLSearchParams(location.search).get("go");return ["stock","dough","chicken","availability","mySchedule"].includes(g)?g:null;}catch(e){return null;}})();
+function applyStaffGo(){
+  if(!staffGoTab)return;
+  const g=staffGoTab;staffGoTab=null;
+  try{const u=new URL(location.href);u.searchParams.delete("go");history.replaceState(null,"",u.pathname+u.search+u.hash);}catch(e){}
+  const b=document.querySelector(`.staff-tab[data-staff-tab="${g}"]`);
+  if(b&&!b.hidden){b.click();try{b.scrollIntoView({block:"nearest",inline:"center"});}catch(e){}}
+}
 function renderStaff(){
   staffEnsureMonths();
   if(!staffEmployeeId)return;
@@ -220,6 +230,7 @@ function renderStaff(){
     }
   }
 
+  applyStaffGo();
   const today=toDateKey(new Date());
   // 顯示前後約三個月的班表
   const lo=new Date();lo.setMonth(lo.getMonth()-3);const loKey=toDateKey(lo);
@@ -688,12 +699,12 @@ function ocOrderDetail(o,ctx){
   const uses=(o.useDays||[]).slice().sort(),pd=o.perDay||{},ds=o.deductStock,kg=o.orderKg||{},net=o.totalPieces||null;
   const pcs={};CC.PARTS3.forEach(p=>pcs[p]=(o.kgPieces&&o.kgPieces[p]!=null)?o.kgPieces[p]:CC.kgToPieces(kg[p],p,ctx));
   const sum={};CC.PARTS3.forEach(p=>sum[p]=uses.reduce((t,u)=>t+(Number((pd[u]||{})[p])||0),0));
-  const sd=ds&&ds.date?ds.date.slice(5).replace("-","/").replace(/^0/,""):"";
+  const sd=ds&&ds.date?CC.mdw(ds.date):"";
   const cells=(f)=>CC.PARTS3.map(p=>`<td>${f(p)}</td>`).join("");
   return `<details class="oc-how"><summary>看訂購內容</summary>
     <table class="oc-tbl"><thead><tr><th></th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>
       ${uses.map(u=>`<tr><td>${CC.mdw(u)} 需求</td>${cells(p=>(pd[u]||{})[p]!=null?pd[u][p]:"—")}</tr>`).join("")}
-      <tr><td>合計需求</td>${cells(p=>sum[p])}</tr>
+      ${uses.length>1?`<tr><td>合計需求</td>${cells(p=>sum[p])}</tr>`:""}
       <tr><td>扣剩餘<small>${ds?(sd?`${sd} 打烊剩餘`:"已扣剩餘"):"沒有扣剩餘"}</small></td>${cells(p=>ds?"−"+(ds[p]||0):"—")}</tr>
       ${net?`<tr><td>要訂(隻)</td>${cells(p=>net[p])}</tr>`:""}
       <tr class="sum"><td>實際叫貨<small>公斤換算(無條件捨去)</small></td>${cells(p=>`${kg[p]||0} 公斤<small>≈ ${pcs[p]} 隻</small>`)}</tr>
@@ -704,7 +715,7 @@ function ocPreviewDetail(pl){
   return `<details class="oc-how"><summary>看怎麼來的</summary>
     <table class="oc-tbl"><thead><tr><th></th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>
       ${pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=CC.predWhy(p);return `<tr><td>${CC.mdw(u)} ${p.group||""}<small>${why}</small></td>${CC.PARTS3.map(x=>`<td>${r[x]}</td>`).join("")}</tr>`;}).join("")}
-      <tr class="sum"><td>合計預估(隻)</td>${CC.PARTS3.map(x=>`<td>${pl.sum[x]}</td>`).join("")}</tr>
+      ${pl.uses.length>1?`<tr class="sum"><td>合計預估(隻)</td>${CC.PARTS3.map(x=>`<td>${pl.sum[x]}</td>`).join("")}</tr>`:""}
     </tbody></table></details>`;
 }
 // 近 2 個可下單日：今天(可送出／已訂購／休市)＋之後的下單日(預覽或已訂購)
@@ -742,7 +753,7 @@ function renderChickenStaff(){
       ${ocPreviewDetail(pl)}
       <div class="oc-note">下單當天才能送出(會扣當天最新的打烊剩餘)。</div></div>`;
     // 今天：可送出
-    const kg=chickenKgEdit[c.k]||pl.kg, sd=pl.stock?pl.stock.date.slice(5).replace("-","/").replace(/^0/,""):"";
+    const kg=chickenKgEdit[c.k]||pl.kg, sd=pl.stock?CC.mdw(pl.stock.date):"";
     const rows=pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=CC.predWhy(p);
       // 上次同日型的實際叫貨(只顯示參考)
       const last=CC.lastSameType(u,ctx),lv=last&&last.actual;
@@ -752,7 +763,7 @@ function renderChickenStaff(){
       <div class="oc-sub">${c.sup.name}<br>${ocDeliverLine(pl.del,pl.uses)}</div>${ocNeed(pl.net,"要訂")}
       <details class="oc-how"><summary>看怎麼來的</summary>
         <table class="oc-tbl"><thead><tr><th></th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>${rows}
-          <tr><td>合計需求</td>${CC.PARTS3.map(x=>`<td>${pl.sum[x]}</td>`).join("")}</tr>
+          ${pl.uses.length>1?`<tr><td>合計需求</td>${CC.PARTS3.map(x=>`<td>${pl.sum[x]}</td>`).join("")}</tr>`:""}
           <tr><td>扣剩餘<small>${pl.stock?`${sd} 打烊剩餘`:"沒有可扣的紀錄，不扣"}</small></td>${CC.PARTS3.map(x=>`<td>${pl.stock?"−"+pl.stock[x]:"—"}</td>`).join("")}</tr>
           <tr class="sum"><td>要訂(隻)</td>${CC.PARTS3.map(x=>`<td>${pl.net[x]}</td>`).join("")}</tr></tbody></table>
         <div class="oc-note">公斤＝隻數 × 每支克數 ÷ 1000，四捨五入；可依實際叫貨調整下方公斤。</div></details>

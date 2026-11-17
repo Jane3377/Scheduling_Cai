@@ -673,7 +673,7 @@
     box.querySelectorAll("input[data-pd]").forEach((inp) => inp.oninput = () => { const u = inp.dataset.pd; (f.perDay[u] = f.perDay[u] || { leg: 0, fil: 0, wing: 0 })[inp.dataset.k] = Number(inp.value) || 0; f.kg = null; renderOrderSum(); });
     box.querySelectorAll("button[data-fill]").forEach((b) => b.onclick = () => { const [kind, u] = b.dataset.fill.split(":"); const p = predForOrder(u, f.orderDay), last = lastSameTypeOrder(u); const src = kind === "sug" ? (p.rec || {}) : (last ? (last.actual || last.demand) : {}); f.perDay[u] = { leg: src.leg || 0, fil: src.fil || 0, wing: src.wing || 0 }; f.kg = null; renderOrderRows(); renderOrderSum(); });
   }
-  // ④ 每格公斤下方即時顯示「≈ N 隻」，與最終訂購量不同時標出多/少幾隻
+  // ③ 每格公斤下方即時顯示「≈ N 隻」，與要訂隻數不同時標出多/少幾隻
   function renderKgPcs() {
     if (!orderForm) return;
     const { net } = orderTotals();
@@ -685,13 +685,14 @@
   }
   function renderOrderSum() {
     const f = orderForm, { sum, net } = orderTotals(), s = currentStock(f.orderDay);
-    let html = `<div class="os-row os-sum"><span class="os-k">合計需求(隻)</span><span class="os-c ck-leg">${sum.leg}</span><span class="os-c ck-fil">${sum.fil}</span><span class="os-c ck-wing">${sum.wing}</span></div>`;
-    if (s) html += `<div class="os-row os-stk"><span class="os-k"><label class="os-ck"><input type="checkbox" id="ordDeduct"${f.deductStock ? " checked" : ""}${f.locked ? " disabled" : ""}> 扣除 ${s.date.slice(5).replace("-", "/").replace(/^0/, "")} 剩餘</label></span>` + (f.deductStock ? `<span class="os-c">−${s.leg}</span><span class="os-c">−${s.fil}</span><span class="os-c">−${s.wing}</span>` : `<span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span>`) + `</div>`;
-    else html += `<div class="os-row os-stk os-nostk"><span class="os-k">扣除剩餘(無紀錄)</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span></div>`;
-    html += `<div class="os-row os-net"><span class="os-k">最終訂購量(隻)</span><span class="os-c ck-leg">${net.leg}</span><span class="os-c ck-fil">${net.fil}</span><span class="os-c ck-wing">${net.wing}</span></div>`;
+    // 使用日只有 1 天 → 合計需求＝那天需求，不重複顯示
+    let html = f.useDays.length > 1 ? `<div class="os-row os-sum"><span class="os-k">合計需求</span><span class="os-c ck-leg">${sum.leg}</span><span class="os-c ck-fil">${sum.fil}</span><span class="os-c ck-wing">${sum.wing}</span></div>` : "";
+    if (s) html += `<div class="os-row os-stk"><span class="os-k"><label class="os-ck"><input type="checkbox" id="ordDeduct"${f.deductStock ? " checked" : ""}${f.locked ? " disabled" : ""}> 扣剩餘<small class="os-sd">${mdw(s.date)} 打烊剩餘</small></label></span>` + (f.deductStock ? `<span class="os-c">−${s.leg}</span><span class="os-c">−${s.fil}</span><span class="os-c">−${s.wing}</span>` : `<span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span>`) + `</div>`;
+    else html += `<div class="os-row os-stk os-nostk"><span class="os-k">扣剩餘<small class="os-sd">沒有可扣的紀錄，不扣</small></span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span><span class="os-c ck-muted">—</span></div>`;
+    html += `<div class="os-row os-net"><span class="os-k">要訂(隻)</span><span class="os-c ck-leg">${net.leg}</span><span class="os-c ck-fil">${net.fil}</span><span class="os-c ck-wing">${net.wing}</span></div>`;
     $("ordSumTbl").innerHTML = html;
     const dc = $("ordDeduct"); if (dc) dc.onchange = () => { f.deductStock = dc.checked; f.kg = null; renderOrderSum(); };
-    $("ordStockNote").textContent = s ? (f.deductStock ? `${mdw(s.date)} 打烊盤點的剩餘，只在「第一個使用日」扣；可取消勾選` : "") : `⚠ ${CC.stockNoneMsg(CC.stockInfo(f.orderDay, chkCtx()))}`;
+    $("ordStockNote").textContent = s ? "" : `⚠ ${CC.stockNoneMsg(CC.stockInfo(f.orderDay, chkCtx()))}`;
     if (!f.kg) PARTS3.forEach((p) => { $(`orderKg${p}`).value = net[p] > 0 ? kgSuggest(net[p], p) : 0; });
     else PARTS3.forEach((p) => { $(`orderKg${p}`).value = f.kg[p] != null ? f.kg[p] : 0; });
     renderKgPcs();
@@ -1121,16 +1122,16 @@
     if (st.needOrder) {
       const c = reminderOrderCalc();
       // 與訂購單一致：寫出扣的是哪天的打烊剩餘；沒有可扣的紀錄就說明原因、不扣
-      const sd = c.stockDate ? c.stockDate.slice(5).replace("-", "/").replace(/^0/, "") : "";
-      const stockRow = c.stock ? `<div class="rc-row stk"><span class="rc-k">扣 ${sd} 剩餘</span><span class="rc-v"><i>腿</i>−${c.stock.leg} <i>排</i>−${c.stock.fil} <i>翅</i>−${c.stock.wing}</span></div>`
+      const sd = c.stockDate ? mdw(c.stockDate) : "";
+      const stockRow = c.stock ? `<div class="rc-row stk"><span class="rc-k">扣剩餘 ${sd}</span><span class="rc-v"><i>腿</i>−${c.stock.leg} <i>排</i>−${c.stock.fil} <i>翅</i>−${c.stock.wing}</span></div>`
         : `<div class="rc-row stk"><span class="rc-k">扣剩餘</span><span class="rc-v" style="color:#8a5a10;font-size:13px">${CC.stockNoneMsg(CC.stockInfo(todayKey(), chkCtx()))}</span></div>`;
       html += `<div class="rm-task order">
         <div class="rm-th"><span class="rm-tt">今天要訂購</span><span class="rm-pill wait">待訂購</span></div>
         <div class="rm-sub">${deliverLine(c.del, c.uses, true)}</div>
         <div class="rm-calc">
-          <div class="rc-row"><span class="rc-k">估要用(隻)</span><span class="rc-v">${numsHTML(c.sum)}</span></div>
+          <div class="rc-row"><span class="rc-k">需求(隻)</span><span class="rc-v">${numsHTML(c.sum)}</span></div>
           ${stockRow}
-          <div class="rc-row need"><span class="rc-k">要叫(隻)</span><span class="rc-v">${numsHTML(c.net)}</span></div>
+          <div class="rc-row need"><span class="rc-k">要訂(隻)</span><span class="rc-v">${numsHTML(c.net)}</span></div>
           <div class="rc-row kg"><span class="rc-k">≈ 公斤</span><span class="rc-v">${PARTS3.map((p) => `${partLabel(p)} <b>${c.kg[p]}</b>`).join("・")}</span></div>
         </div>
         <button type="button" class="rm-btn" id="remindOrderBtn">查看每天明細・確認訂購 ›</button>

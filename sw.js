@@ -1,5 +1,5 @@
 // 網路優先策略：先抓最新，離線才回退快取。每次調整資源時請一併更新 CACHE 版本字串。
-const CACHE = "smart-scheduler-v188";
+const CACHE = "smart-scheduler-v189";
 const ASSETS = ["./", "./index.html", "./admin26.html", "./chicken.html", "./css/main.css", "./js/admin.js", "./js/staff.js", "./js/cloud.js", "./js/chicken.js", "./js/dough-core.js", "./js/chicken-core.js", "./js/update.js", "./js/firebase-config.js", "./manifest.json", "./manifest-chicken.json", "./icons/icon-192.svg", "./icons/icon-512.svg", "./icons/icon_prep_192.png", "./icons/icon_prep_512.png", "./icons/icon_prep_maskable_512.png", "./icons/icon_prep_apple_180.png"];
 
 self.addEventListener("install", e => {
@@ -24,6 +24,6 @@ self.addEventListener("fetch", e => {
   e.respondWith(
     fetch(e.request, { cache: "no-cache" })
       .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {}); return res; })
-      .catch(() => caches.match(e.request))
+      .catch(() => caches.match(e.request, { ignoreSearch: e.request.mode === "navigate" }))
   );
 });
