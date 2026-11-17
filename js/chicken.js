@@ -1134,20 +1134,22 @@
     const el = $("ckHint"); if (!el) return;
     const today = todayKey(), uses = coveredUseDays(today);
     if (!uses.length) { el.innerHTML = `🛈 今天不是下單日(批發商休或不需訂購)；點這裡仍可手動訂購 ›`; return; }
-    const k = uses[0], d = parseKey(k), p = predForOrder(k, today);
-    const more = uses.length > 1 ? `(另含 ${uses.slice(1).map((x) => mdw(x)).join("、")})` : "";
-    const head = `🔮 推估建議：今天下單 → 使用 ${d.getMonth() + 1}/${pad(d.getDate())}(${DOW[d.getDay()]}${p.group ? "·" + p.group : ""})${more}`;
+    // 文字：訂購建議：今天訂購 11/19(四 平日)雞肉，腿 38 排 47 翅 42
+    const k = uses[0], p = predForOrder(k, today);
+    const dayTxt = (x) => { const dd = parseKey(x), g = dayGroup(x); return `${dd.getMonth() + 1}/${pad(dd.getDate())}(${DOW[dd.getDay()]}${g ? " " + g : ""})`; };
+    const head = `🔮 訂購建議：今天訂購 ${uses.map(dayTxt).join("、")} 雞肉`;
     if (!p.group) { el.innerHTML = `${head} ›`; return; }
-    if (!p.n) { el.innerHTML = `${head} 資料累積中 ›`; return; }
+    if (!p.n) { el.innerHTML = `${head}，資料累積中 ›`; return; }
+    const nums = (o) => `<b class="ck-leg">腿 ${o.leg}</b>　<b class="ck-fil">排 ${o.fil}</b>　<b class="ck-wing">翅 ${o.wing}</b>`;
     if (uses.length > 1) {
       // 多使用日：直接給本批合計(扣庫存後要叫)，不用自己加總
       const sum = { leg: 0, fil: 0, wing: 0 };
       uses.forEach((u) => { const pu = predForOrder(u, todayKey()); if (pu.n && pu.rec) { sum.leg += pu.rec.leg; sum.fil += pu.rec.fil; sum.wing += pu.rec.wing; } });
       const s = currentStock();
       const t = s ? { leg: Math.max(0, sum.leg - s.leg), fil: Math.max(0, sum.fil - s.fil), wing: Math.max(0, sum.wing - s.wing) } : sum;
-      el.innerHTML = `${head}　<b>本批合計要叫</b> <b class="ck-leg">腿 ${t.leg}</b>　<b class="ck-fil">排 ${t.fil}</b>　<b class="ck-wing">翅 ${t.wing}</b>${s ? "(已扣庫存)" : ""} ›`;
+      el.innerHTML = `${head}，合計 ${nums(t)}${s ? `(已扣 ${s.date.slice(5).replace("-", "/").replace(/^0/, "")} 剩餘)` : ""} ›`;
     } else {
-      el.innerHTML = `${head} <b class="ck-leg">腿 ${p.rec.leg}</b>　<b class="ck-fil">排 ${p.rec.fil}</b>　<b class="ck-wing">翅 ${p.rec.wing}</b> ›`;
+      el.innerHTML = `${head}，${nums(p.rec)} ›`;
     }
   }
 
