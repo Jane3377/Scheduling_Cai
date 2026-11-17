@@ -643,3 +643,4 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .oc-lock{background:#f3faf5;border:1px solid #cfe6d7;border-radius:12px;padding:11px 13px;font-size:15px;color:#2f5d43;line-height:1.6;margin-top:12px}.oc-lock b{color:#1f4a33}
 .oc-stopbox{background:#fff8e6;border:1px solid #f1dca8;border-radius:12px;padding:12px 13px;font-size:15.5px;color:#7a5410;line-height:1.6;margin-top:10px}
 .oc-kgrow{display:flex;gap:14px;flex-wrap:wrap;font-size:15px;color:#5a524c;margin-top:4px}.oc-kgrow b{color:var(--ink);font-size:17px}
+.oc-kgv{font-size:28px;font-weight:900;padding:10px 4px;border:1.5px solid #ecd9cb;border-radius:14px;background:#faf7f4;color:var(--ink)}

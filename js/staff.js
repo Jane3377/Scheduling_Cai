@@ -681,6 +681,8 @@ function initChicken(){subscribeDough();subscribeStock();subscribeChickenOrders(
 const ocTime=ms=>{if(!ms)return"";const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
 const ocDeliverLine=(del,uses)=>`<b>${CC.mdw(del)}</b> 到貨醃製，供 <b>${uses.map(CC.mdw).join("、")}</b> 炸烤使用`;
 const ocNeed=(o,lab)=>`<div class="oc-need">${CC.PARTS3.map(p=>`<span><i>${CC.PART_NAME[p]} ${lab}</i><b class="oc-c-${p}">${o[p]}<small>隻</small></b></span>`).join("")}</div>`;
+// 已訂購的單實際叫貨隻數(公斤換算；存檔時已記下就用存的)
+function ocOrderPcs(o,ctx){const kg=o.orderKg||{},r={};CC.PARTS3.forEach(p=>r[p]=(o.kgPieces&&o.kgPieces[p]!=null)?o.kgPieces[p]:CC.kgToPieces(kg[p],p,ctx));return r;}
 // 已訂購的單：展開看每天需求、扣剩餘、要訂、實際叫貨(公斤與換算隻數)
 function ocOrderDetail(o,ctx){
   const uses=(o.useDays||[]).slice().sort(),pd=o.perDay||{},ds=o.deductStock,kg=o.orderKg||{},net=o.totalPieces||null;
@@ -729,8 +731,10 @@ function renderChickenStaff(){
       const lock=o.status!=="ordered"?`🔒 後台有尚未確認的訂購單，請洽管理者。`:staff?`🔒 <b>${by.name||"員工"}</b> ${ocTime(o.orderedAt)} 已送出訂購<br>如需修改，請洽管理者。`:`🔒 已由<b>後台管理者</b>訂購${o.orderedAt?`(${ocTime(o.orderedAt)})`:""}`;
       return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill done">已訂購</span></div>
         <div class="oc-sub">${o.supplierName||""}<br>${ocDeliverLine(o.deliveryDay,o.useDays||[])}</div>
-        <div class="oc-kgrow">${CC.PARTS3.map(p=>`<span>${CC.purCode(p,ctx)} <b>${kg[p]||0}</b> 公斤</span>`).join("")}</div>
+        ${ocNeed(ocOrderPcs(o,ctx),"已訂")}
         ${ocOrderDetail(o,ctx)}
+        <div class="oc-lab">實際訂購(公斤)</div>
+        <div class="oc-kg">${CC.PARTS3.map(p=>`<label><span>${{leg:"🍗",fil:"🥩",wing:"🪽"}[p]} ${CC.purCode(p,ctx)}</span><div class="oc-kgv">${kg[p]||0}</div><small>≈ ${ocOrderPcs(o,ctx)[p]} 隻</small></label>`).join("")}</div>
         <div class="oc-lock">${lock}</div></div>`;}
     const pl=c.plan;
     if(c.type==="preview")return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill pre">預覽</span></div>
