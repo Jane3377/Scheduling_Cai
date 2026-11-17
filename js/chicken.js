@@ -101,29 +101,15 @@
     return toKey(d);
   }
   /* ---------- 叫貨時程引擎(批發商休息 ＋ 店家營業 推算下單／到貨／使用) ---------- */
-  // 批發商是否上班：非每週固定休、非臨時休市日
-  function supplierOpen(k) {
-    if ((supplierOff.weekdays || []).includes(parseKey(k).getDay())) return false;
-    if ((supplierOff.dates || []).some((x) => x.date === k)) return false;
-    return true;
-  }
-  const prevDay = (k) => { const d = parseKey(k); d.setDate(d.getDate() - 1); return toKey(d); };
-  // 有效到貨日：店家營業、批發商上班，且「前一天批發商也上班」(嚴格 D+1：前一天才能下單)
-  function validDelivery(k) { return !isClosed(k) && supplierOpen(k) && supplierOpen(prevDay(k)); }
-  // 某使用日的「到貨日」＝該日之前、最近一個「有效到貨日」(至少留 1 天醃製)
-  function deliveryDayFor(useKey) {
-    const d = parseKey(useKey);
-    for (let i = 0; i < 21; i++) { d.setDate(d.getDate() - 1); const k = toKey(d); if (validDelivery(k)) return k; }
-    return null;
-  }
-  // 某使用日的「下單日」＝到貨日的前一天(嚴格 D 下單、D+1 到貨)
-  function orderDayFor(useKey) { const del = deliveryDayFor(useKey); return del ? prevDay(del) : null; }
-  // 某下單日會涵蓋哪些使用日(往後掃，使用日的下單日剛好等於它)
-  function coveredUseDays(orderKey) {
-    const out = [], d = parseKey(orderKey);
-    for (let i = 1; i <= 10; i++) { d.setDate(d.getDate() + 1); const k = toKey(d); if (isClosed(k)) continue; if (orderDayFor(k) === orderKey) out.push(k); }
-    return out;
-  }
+  // 雞肉計算都在 js/chicken-core.js(後台、員工頁共用)；這裡只把目前的資料包成 ctx 交給它
+  const CC = window.ChickenCore;
+  const chkCtx = () => ({ reports: predDays, stock: stockDays, today: todayKey(), isClosed, natHoliday, off: supplierOff, pred: curPred(), predHistory, purchase });
+  const supplierOpen = (k) => CC.supplierOpen(k, chkCtx());
+  const prevDay = CC.prevDay;
+  const validDelivery = (k) => CC.validDelivery(k, chkCtx());
+  const deliveryDayFor = (useKey) => CC.deliveryDayFor(useKey, chkCtx());
+  const orderDayFor = (useKey) => CC.orderDayFor(useKey, chkCtx());
+  const coveredUseDays = (orderKey) => CC.coveredUseDays(orderKey, chkCtx());
   // 從今天起，最近一個下單日所要備的第一個使用日(記錄叫貨預設用)
   function nextCoveredUse() {
     const d = parseKey(todayKey());
@@ -152,65 +138,18 @@
   const fmtBuf = (v) => (Math.round(v * 10) / 10).toFixed(1);
   const fmtPct = (v) => Math.round((Number(v) - 1) * 100); // 多備比例：1.2 → 20
   /* ---------- 採購換算(隻 ↔ 公斤) ---------- */
-  const purG = (part) => (purchase[part] && Number(purchase[part].g)) || DEFAULT_PURCHASE[part].g;
-  const purCode = (part) => (purchase[part] && purchase[part].code) || DEFAULT_PURCHASE[part].code;
-  // 隻 → 建議公斤(四捨五入；需求>0 時至少 1 公斤，避免算成 0)
-  const kgSuggest = (pieces, part) => { const p = Number(pieces) || 0; if (p <= 0) return 0; return Math.max(1, Math.round((p * purG(part)) / 1000)); };
-  // 公斤 → 隻(無條件捨去，保守不高估庫存)
-  const kgToPieces = (kg, part) => { const k = Number(kg) || 0, g = purG(part); return k <= 0 || g <= 0 ? 0 : Math.floor((k * 1000) / g); };
-  // 日型分組：公休(null，不推估) / 假日(六日＋國定) / 週五 / 平日(其餘)
-  function dayGroup(k) {
-    if (isClosed(k)) return null;
-    if (natHoliday(k)) return "假日";
-    const dow = parseKey(k).getDay();
-    if (dow === 0 || dow === 6) return "假日";
-    if (dow === 5) return "週五";
-    return "平日";
-  }
-  /* 推估方式(各部位獨立；傳入陣列為「舊→新」排序)：
-     - 平均：算術平均
-     - 中位數：取中間值(不受偶發爆量/超冷清影響)
-     - 近期加權：最新權重最高，每往前一次少一級(最新 N、次新 N−1…最舊 1)的加權平均
-     - 同型日最大：取最高值(保守、幾乎不缺貨) */
-  const estMean = (a) => a.reduce((s, x) => s + x, 0) / a.length;
-  const estMedian = (a) => { const s = a.slice().sort((x, y) => x - y), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-  const estWeighted = (a) => { let sw = 0, sv = 0; a.forEach((x, i) => { const w = i + 1; sw += w; sv += w * x; }); return sw ? sv / sw : 0; };
-  const estMax = (a) => a.reduce((m, x) => Math.max(m, x), 0);
-  const ESTIMATORS = { avg: estMean, median: estMedian, weighted: estWeighted, max: estMax };
-  // 推估某日叫貨量：同日型、回算視窗內「有上傳消耗」的日子，依推估方式計算 × 緩衝
-  // asOf(選填)：站在這天「之前」推估(回頭驗證用，只用 asOf 前一天以前、回算天數內的資料)；不給＝以今天為準
-  // P(選填)：推估參數 {bufferFactor, predWindow, estMethod}；不給＝目前設定(用於「依當時版本」計算)
-  function predict(targetKey, asOf, P) {
-    const g = dayGroup(targetKey);
-    if (!g) return { group: null };
-    const pw = P ? P.predWindow : predWindow, bf = P ? P.bufferFactor : bufferFactor, em = P ? P.estMethod : estMethod;
-    const ref = asOf || todayKey(), endK = asOf ? prevDay(asOf) : ref, start = dateMinus(ref, pw);
-    const samples = [];
-    Object.keys(predDays).forEach((k) => {
-      if (k > endK || k < start) return;            // 僅取回算視窗內的實際日
-      if (dayGroup(k) !== g) return;                   // 同日型
-      const rec = predDays[k];
-      if (!(rec && rec.parts && rec.sales && Object.keys(rec.sales).length)) return; // 需有實際消耗
-      samples.push({ date: k, parts: rec.parts });
-    });
-    const n = samples.length;
-    if (!n) return { group: g, n: 0 };
-    samples.sort((a, b) => (a.date < b.date ? -1 : 1));  // 舊 → 新
-    const fn = ESTIMATORS[em] || estMean;
-    const base = {}; PARTS3.forEach((p) => { base[p] = fn(samples.map((s) => Number(s.parts[p]) || 0)); });
-    const rec = { leg: Math.round(base.leg * bf), fil: Math.round(base.fil * bf), wing: Math.round(base.wing * bf) };
-    return { group: g, n, buf: bf, method: em, window: pw, avg: { leg: Math.round(base.leg), fil: Math.round(base.fil), wing: Math.round(base.wing) }, rec };
-  }
+  const purG = (part) => CC.purG(part, chkCtx());
+  const purCode = (part) => CC.purCode(part, chkCtx());
+  const kgSuggest = (pieces, part) => CC.kgSuggest(pieces, part, chkCtx());
+  const kgToPieces = (kg, part) => CC.kgToPieces(kg, part, chkCtx());
+  // 日型分組與推估(公式見 chicken-core.js)；asOf/P 用法同核心
+  const dayGroup = (k) => CC.dayGroup(k, chkCtx());
+  const predict = (targetKey, asOf, P) => CC.predict(targetKey, asOf || null, P || null, chkCtx());
 
   // 雞肉推估參數版本：predHistory [{date, pred}]，date "" ＝最初版本(第一次修改前的設定)；沒有紀錄＝一直是目前設定
   const curPred = () => ({ bufferFactor, predWindow, estMethod });
-  function predAt(k) {
-    if (!predHistory.length) return curPred();
-    let v = predHistory[0];
-    predHistory.forEach((x) => { if ((x.date || "") <= k) v = x; });
-    return v.pred;
-  }
-  const predLabel = (P) => `${METHOD_LABEL[P.estMethod] || P.estMethod}・近 ${P.predWindow} 天・多備 ×${P.bufferFactor}`;
+  const predAt = (k) => CC.predAt(k, chkCtx());
+  const predLabel = CC.predLabel;
   // 某使用日「當時的預估」：以下單日(有訂購單用它的下單日，否則推算的下單日)當天有效的參數版本、
   // 只用下單日之前的資料計算 → 結果固定，等於當時在訂購單看到的；下單日在未來則用目前設定
   function predictAsOrdered(k, rec) {
@@ -220,7 +159,7 @@
   }
   // 訂購用的預估：下單日(今天或過去)→ 用下單日有效的參數版本、只用下單日之前的資料；未來下單日 → 目前設定。
   // 訂購單、首頁建議、日期明細都用同一個規則，數字才會一致
-  function predForOrder(u, od) { return (od && od <= todayKey()) ? predict(u, od, predAt(od)) : predict(u); }
+  const predForOrder = (u, od) => CC.predForOrder(u, od, chkCtx());
 
   /* ---------- 部位換算 ---------- */
   const emptyParts = () => ({ leg: 0, fil: 0, wing: 0 });
@@ -947,21 +886,9 @@
   }
   // 目前庫存＝今天(含)以前、最近一筆盤點(往下一個營業日累積顯示)
   // 最近 n 個營業日(含今天，若今天營業)：新→舊
-  function recentBizDays(n, fromKey) {
-    const out = [], d = parseKey(fromKey || todayKey());
-    for (let i = 0; i < 90 && out.length < n; i++) { const k = toKey(d); if (!isClosed(k)) out.push(k); d.setDate(d.getDate() - 1); }
-    return out;
-  }
-  // 目前庫存＝以 refDay(預設今天；訂購單用該單的下單日)往回「近 3 個營業日內」最新的剩餘雞肉紀錄；
-  // 超過 3 營業日的舊紀錄不採用(回傳 null，不當成 0)
-  function currentStock(refDay) {
-    const t = refDay || todayKey(), win = recentBizDays(3, t);
-    const cutoff = win.length ? win[win.length - 1] : t;   // 3 個營業日前(含)
-    const keys = Object.keys(stockDays).filter((k) => k <= t && k >= cutoff && hasChickenRec(stockDays[k])).sort();
-    if (!keys.length) return null;
-    const k = keys[keys.length - 1], r = stockDays[k];
-    return { date: k, leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0, byName: r.byName || "" };
-  }
+  const recentBizDays = (n, fromKey) => CC.recentBizDays(n, fromKey, chkCtx());
+  // 目前庫存＝以 refDay(預設今天；訂購單用該單的下單日)往回「近 3 個營業日內」最新的剩餘雞肉紀錄；沒有 → null(不當 0)
+  const currentStock = (refDay) => CC.currentStock(refDay, chkCtx());
   const STOCK_NONE_MSG = "未紀錄近 3 個營業日剩餘雞肉";
   const configRef = () => db.collection(COLL).doc("poultry_config");
   function applyConfig(d) {
