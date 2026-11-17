@@ -641,7 +641,7 @@
     return d === 0 ? "週日" : d === 6 ? "週六" : d === 5 ? "週五" : "平日";
   }
   function refLine(tag, pill, o, fillKey, unit) {
-    return `<div class="oref-row"><span class="oref-tag">${tag}${pill ? (unit ? `<small class="oref-why">${pill}</small>` : `<span class="oref-pill">${pill}</span>`) : ""}</span><span class="oref-n">${unit ? numsPcsHTML(o) : numsHTML(o)}</span><button type="button" class="oref-fill" data-fill="${fillKey}">帶入</button></div>`;
+    return `<div class="oref-row"><span class="oref-tag">${tag}${pill ? (unit ? `<small class="oref-why">${pill}</small>` : `<span class="oref-pill">${pill}</span>`) : ""}</span><span class="oref-n">${unit ? numsPcsHTML(o) : numsHTML(o)}</span></div>`;   // 只供參考，不再提供「帶入」(需求預設已是預估值)
   }
   function renderOrderRows() {
     const f = orderForm, box = $("ordRows"); if (!box) return;
@@ -653,10 +653,8 @@
         let rows = "";
         if (p.n && p.rec) rows += refLine("📊 預估", CC.predWhy(p), p.rec, `sug:${u}`, true);
         else rows += `<div class="oref-empty">📊 預估：${dayTypeLabel(u)}・資料累積中</div>`;
-        if (last) {
-          const sub = `${last.actual ? `需求 ${last.demand.leg}／${last.demand.fil}／${last.demand.wing}` : "實際叫貨未記錄，顯示需求"}${last.sold ? `・實際賣 ${last.sold.leg}／${last.sold.fil}／${last.sold.wing}` : ""}`;
-          rows += refLine(`🕑 上次 ${mdw(last.date)} ${last.actual ? "實際叫貨" : "需求"}`, sub, last.actual || last.demand, `last:${u}`, true);
-        }
+        // 參考：上次同日型那天炸烤的實際叫貨(與員工頁同一句；沒有實際叫貨紀錄就不顯示)
+        if (last && last.actual) rows += refLine(`🕑 參考：上次 ${mdw(last.date)} 炸烤的實際叫貨`, "", last.actual, "", true);
         exp = `<div class="oref">${rows}</div>`;
       }
       const dis = f.locked ? " disabled" : "";

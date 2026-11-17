@@ -745,8 +745,8 @@ function renderChickenStaff(){
     const kg=chickenKgEdit[c.k]||pl.kg, sd=pl.stock?pl.stock.date.slice(5).replace("-","/").replace(/^0/,""):"";
     const rows=pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=CC.predWhy(p);
       // 上次同日型的實際叫貨(只顯示參考)
-      const last=CC.lastSameType(u,ctx),lv=last&&(last.actual||last.demand);
-      const lastRow=lv?`<tr class="oc-last"><td>上次 ${CC.mdw(last.date)} ${last.actual?"實際叫貨":"需求"}</td>${CC.PARTS3.map(x=>`<td>${lv[x]}</td>`).join("")}</tr>`:"";
+      const last=CC.lastSameType(u,ctx),lv=last&&last.actual;
+      const lastRow=lv?`<tr class="oc-last"><td>參考：上次 ${CC.mdw(last.date)} 炸烤的實際叫貨</td>${CC.PARTS3.map(x=>`<td>${lv[x]}</td>`).join("")}</tr>`:"";
       return `<tr><td>${CC.mdw(u)} ${p.group||""}<small>${why}</small></td>${CC.PARTS3.map(x=>`<td>${r[x]}</td>`).join("")}</tr>${lastRow}`;}).join("");
     return `<div class="oc-card" data-od="${c.k}"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill wait">待訂購</span></div>
       <div class="oc-sub">${c.sup.name}<br>${ocDeliverLine(pl.del,pl.uses)}</div>${ocNeed(pl.net,"要訂")}

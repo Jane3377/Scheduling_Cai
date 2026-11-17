@@ -57,7 +57,7 @@
     .will-save .ws-line b { font-weight: 900; }
     .will-save .ws-note { font-size: 11.5px; color: #6f8a79; margin-top: 5px; }
     .ord-mini { font-size: 11.5px; font-weight: 600; color: var(--muted); margin-left: 4px; }
-    /* 參考區：系統建議(預設推估方式)＋上次同型日，各一顆「帶入」 */
+    /* 參考區：系統預估(依據)＋上次同日型的實際叫貨，只供參考 */
     .sug { border: 1px solid var(--line); border-radius: 12px; background: #faf7f4; padding: 10px 13px; margin: 14px 0 0; }
     .sug-title { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
     .sug-empty { font-size: 13px; color: var(--muted); padding: 6px 2px; }
@@ -795,7 +795,7 @@
           <h4>🍗 雞肉訂購單怎麼看</h4>
           <div class="gd-tools">
             <div class="gd-tool"><span class="k">① 訂購資訊</span><span>下單日、批發商、到貨日、使用日。到貨日、使用日會照批發商的公休與臨時休市自動帶入，也可以自己改。</span></div>
-            <div class="gd-tool"><span class="k">② 各使用日需求</span><span>每個使用日要用多少隻。可按「帶入」用平均銷售，或參考上次同日型的量。</span></div>
+            <div class="gd-tool"><span class="k">② 各使用日需求</span><span>每個使用日要用多少隻，預設是系統預估，可以自己改。展開可看預估的依據，以及「參考：上次 11/12(四) 炸烤的實際叫貨」。</span></div>
             <div class="gd-tool"><span class="k">③ 訂購數量確認</span><span>合計需求 − 打烊剩餘 ＝ 最終訂購量。下單日當天已填打烊剩餘(打烊後下單)就扣當天的，否則扣前一個營業日的(例如「扣除 11/15 剩餘」)；沒有紀錄就不扣。過了 20:00 還沒填當天剩餘時不扣，會提醒先填。</span></div>
             <div class="gd-tool"><span class="k">④ 實際訂購(公斤)</span><span>批發商用公斤叫貨，系統自動把隻數換成整數公斤(例如 腿(D5) 4 公斤)，可以微調，下面會顯示約等於幾隻。</span></div>
             <div class="gd-tool"><span class="k">員工頁訂購</span><span>排班後台把員工的備料角色設成「雞肉」或「管理者」，員工專區就會出現「🛒 訂購雞肉」：顯示今天起 2 個可下單日，今天的單只能改公斤再送出；下次的只能預覽。今天批發商休市時會請他聯絡管理者。送出後兩邊都鎖定，後台看得到訂購人。</span></div>
