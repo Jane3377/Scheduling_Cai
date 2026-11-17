@@ -681,6 +681,30 @@ function initChicken(){subscribeDough();subscribeStock();subscribeChickenOrders(
 const ocTime=ms=>{if(!ms)return"";const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
 const ocDeliverLine=(del,uses)=>`<b>${CC.mdw(del)}</b> 到貨醃製，供 <b>${uses.map(CC.mdw).join("、")}</b> 炸烤使用`;
 const ocNeed=(o,lab)=>`<div class="oc-need">${CC.PARTS3.map(p=>`<span><i>${CC.PART_NAME[p]} ${lab}</i><b class="oc-c-${p}">${o[p]}<small>隻</small></b></span>`).join("")}</div>`;
+// 已訂購的單：展開看每天需求、扣剩餘、要訂、實際叫貨(公斤與換算隻數)
+function ocOrderDetail(o,ctx){
+  const uses=(o.useDays||[]).slice().sort(),pd=o.perDay||{},ds=o.deductStock,kg=o.orderKg||{},net=o.totalPieces||null;
+  const pcs={};CC.PARTS3.forEach(p=>pcs[p]=(o.kgPieces&&o.kgPieces[p]!=null)?o.kgPieces[p]:CC.kgToPieces(kg[p],p,ctx));
+  const sum={};CC.PARTS3.forEach(p=>sum[p]=uses.reduce((t,u)=>t+(Number((pd[u]||{})[p])||0),0));
+  const sd=ds&&ds.date?ds.date.slice(5).replace("-","/").replace(/^0/,""):"";
+  const cells=(f)=>CC.PARTS3.map(p=>`<td>${f(p)}</td>`).join("");
+  return `<details class="oc-how"><summary>看訂購內容</summary>
+    <table class="oc-tbl"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>
+      ${uses.map(u=>`<tr><td>${CC.mdw(u)} 需求</td>${cells(p=>(pd[u]||{})[p]!=null?pd[u][p]:"—")}</tr>`).join("")}
+      <tr><td>合計需求</td>${cells(p=>sum[p])}</tr>
+      <tr><td>扣剩餘<small>${ds?(sd?`${sd} 打烊剩餘`:"已扣剩餘"):"沒有扣剩餘"}</small></td>${cells(p=>ds?"−"+(ds[p]||0):"—")}</tr>
+      ${net?`<tr><td>要訂(隻)</td>${cells(p=>net[p])}</tr>`:""}
+      <tr class="sum"><td>實際叫貨<small>公斤換算(無條件捨去)</small></td>${cells(p=>`${kg[p]||0} 公斤<small>≈ ${pcs[p]} 隻</small>`)}</tr>
+    </tbody></table></details>`;
+}
+// 預覽卡片：每個使用日的預估依據
+function ocPreviewDetail(pl){
+  return `<details class="oc-how"><summary>看怎麼來的</summary>
+    <table class="oc-tbl"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>
+      ${pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=p.n?`近 ${p.window} 天 ${p.n} 個${p.group}${CC.METHOD_LABEL[p.method]||""} ×${p.buf}`:"資料不足";return `<tr><td>${CC.mdw(u)} ${p.group||""}<small>${why}</small></td>${CC.PARTS3.map(x=>`<td>${r[x]}</td>`).join("")}</tr>`;}).join("")}
+      <tr class="sum"><td>合計預估(隻)</td>${CC.PARTS3.map(x=>`<td>${pl.sum[x]}</td>`).join("")}</tr>
+    </tbody></table></details>`;
+}
 // 近 2 個可下單日：今天(可送出／已訂購／休市)＋之後的下單日(預覽或已訂購)
 function chickenCards(){
   const ctx=chickenCtx(),T=ctx.today,sup=chickenDefSup(),off=ctx.off,cards=[];
@@ -706,10 +730,12 @@ function renderChickenStaff(){
       return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill done">已訂購</span></div>
         <div class="oc-sub">${o.supplierName||""}<br>${ocDeliverLine(o.deliveryDay,o.useDays||[])}</div>
         <div class="oc-kgrow">${CC.PARTS3.map(p=>`<span>${CC.purCode(p,ctx)} <b>${kg[p]||0}</b> 公斤</span>`).join("")}</div>
+        ${ocOrderDetail(o,ctx)}
         <div class="oc-lock">${lock}</div></div>`;}
     const pl=c.plan;
     if(c.type==="preview")return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill pre">預覽</span></div>
       <div class="oc-sub">${c.sup.name}<br>${ocDeliverLine(pl.del,pl.uses)}</div>${ocNeed(pl.sum,"預估")}
+      ${ocPreviewDetail(pl)}
       <div class="oc-note">下單當天才能送出(會扣當天最新的打烊剩餘)。</div></div>`;
     // 今天：可送出
     const kg=chickenKgEdit[c.k]||pl.kg, sd=pl.stock?pl.stock.date.slice(5).replace("-","/").replace(/^0/,""):"";
