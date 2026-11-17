@@ -936,7 +936,9 @@
     [tm, addMonthYM(tm, -1), addMonthYM(tm, -2)].forEach((ym) => {
       const u = stockRefOf(ym).onSnapshot((snap) => {
         const d = snap.data(), days = (d && d.days) || {};
+        Object.keys(stockDays).forEach((k) => { if (k.slice(0, 7) === ym && !(k in days)) delete stockDays[k]; });   // 被刪除的紀錄也要移除
         Object.keys(days).forEach((k) => { stockDays[k] = days[k]; });
+        if ($("viewRecords") && !$("viewRecords").classList.contains("hidden")) openRecords();
         renderStockTop();
         if (orderOpen()) renderOrderForm();
       }, (err) => console.error("stock snapshot", err));
@@ -1305,6 +1307,7 @@
     note.textContent = (add && any) ? `${mdw(k)} 已經有紀錄，儲存會變成「更正」(保留修改紀錄)。${closedTxt}` : closedTxt;
     note.classList.toggle("hidden", !note.textContent);
     $("seSave").textContent = any ? "儲存更正" : "新增紀錄";
+    $("seDelete").classList.toggle("hidden", !any);   // 已有紀錄才能刪
     seSyncParts(); renderStockEditHist(r);
   }
   function seSyncParts() {
@@ -1345,6 +1348,16 @@
     let html = `<div class="se-orig">原始填寫：${cb ? `🍗 ${esc(cb.byName || "？")} ${fmtAt(cb.at)}　` : ""}${dbm ? `🍕 ${esc(dbm.byName || "？")} ${fmtAt(dbm.at)}` : ""}${(!cb && !dbm) ? "—" : ""}</div>`;
     if (ed.length) html += `<div class="se-hist-h">修改紀錄(${ed.length})</div>` + ed.slice().reverse().map((e) => `<div class="se-hist-row">${fmtAt(e.at)}　<b>${esc(e.byName || "管理者")}</b>${e.type === "add" ? " 新增" : ""}　🍗 ${nv(e.after, ["leg", "fil", "wing"])}・🍕 ${nv(e.after, ["t9", "s9", "t12", "s12"])}</div>`).join("");
     box.innerHTML = html;
+  }
+  // 刪除整筆盤點紀錄(雞肉＋餅皮、填寫人與修改紀錄一起刪)，需再確認；刪除後無法復原
+  function deleteStockRec() {
+    const k = stockEditKey, r = stockEditRec; if (!k || !r || !db) return;
+    const parts = [hasChickenRec(r) ? "雞肉" : "", hasDoughRec(r) ? "餅皮" : ""].filter(Boolean).join("、") || "—";
+    if (!confirm(`確定刪除 ${mdw(k)} 的盤點紀錄？\n\n會一起刪除：${parts}剩餘、填寫人與修改紀錄。\n刪除後無法復原。${k === todayKey() ? "\n(刪除今天的紀錄後，員工可以重新填寫。)" : ""}`)) return;
+    const DEL = firebase.firestore.FieldValue.delete();
+    stockRefOf(ymOf(k)).set({ days: { [k]: DEL }, updatedAt: Date.now() }, { merge: true })
+      .then(() => { delete stockDays[k]; const ym = ymOf(k); if (!recLiveYMs().includes(ym)) delete recCache[ym]; hide("stockEditBackdrop"); recYM = ym; openRecords(); })
+      .catch((err) => { console.error(err); alert("刪除失敗：" + (err.message || err)); });
   }
   function saveStockEdit() {
     const k = stockEditKey; if (!k) { hide("stockEditBackdrop"); return; }
@@ -1857,6 +1870,7 @@
     document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => switchView(b.dataset.view));
     $("recordsExport").onclick = doRecordsExport;
     $("seSave").onclick = saveStockEdit;
+    $("seDelete").onclick = deleteStockRec;
     $("seChkOn").onchange = seSyncParts; $("seDghOn").onchange = seSyncParts;
     $("seDate").onchange = () => { const v = $("seDate").value; if (v) seLoadDate(v); };
     $("recordsAdd").onclick = openStockAdd;

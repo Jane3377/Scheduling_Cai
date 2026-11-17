@@ -540,6 +540,7 @@ function subscribeStock(){
   if(stockSubbed.has(m))return;stockSubbed.add(m);
   c.doc("poultry_stock_"+m).onSnapshot(snap=>{
     const days=(snap.data()&&snap.data().days)||{};
+    Object.keys(stockDays).forEach(dk=>{if(dk.slice(0,7)===m&&!(dk in days))delete stockDays[dk];}); // 後台刪除的紀錄也要移除
     Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);
     if(byId("stockPanel")&&byId("stockPanel").classList.contains("active"))renderStockCards();
   },err=>console.warn("stock snapshot",err));
@@ -614,7 +615,7 @@ function subscribeDough(){
     }
     // 過去月份的剩餘盤點也需要(算製作量用)；當月由 subscribeStock 處理
     if(!stockSubbed.has(mk)){stockSubbed.add(mk);
-      c.doc("poultry_stock_"+mk).onSnapshot(snap=>{const days=(snap.data()&&snap.data().days)||{};Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);if(byId("doughPanel")&&byId("doughPanel").classList.contains("active"))renderDoughStaff();},err=>console.warn("stock month",err));
+      c.doc("poultry_stock_"+mk).onSnapshot(snap=>{const days=(snap.data()&&snap.data().days)||{};Object.keys(stockDays).forEach(dk=>{if(dk.slice(0,7)===mk&&!(dk in days))delete stockDays[dk];});Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);if(byId("doughPanel")&&byId("doughPanel").classList.contains("active"))renderDoughStaff();},err=>console.warn("stock month",err));
     }
   }
 }
