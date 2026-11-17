@@ -420,7 +420,7 @@
     });
     const t = parts || emptyParts();
     rows += `<tr class="sum"><td>合計</td><td>—</td><td>${t.leg}</td><td>${t.fil}</td><td>${t.wing}</td></tr>`;
-    return `<table class="ck-items"><thead><tr><th>品項</th><th>數量</th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<table class="ck-items"><thead><tr><th>品項</th><th>數量(份)</th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   // 上傳後顯示的全店摘要(營業額＋比薩數量＋餅皮四類)
@@ -493,6 +493,8 @@
   const deliverLine = (del, uses, bold) => { const b = (x) => bold ? `<b>${x}</b>` : x; return `${b(mdw(del))} 到貨醃製，供 ${b(uses.map(mdw).join("、") || "—")} 炸烤使用`; };
   // 誰訂的：員工頁送出 → 員工名；後台確認 → 後台管理者
   const orderedByText = (o) => { if (!o) return ""; const by = o.orderedBy; const t = o.orderedAt ? fmtAt(o.orderedAt) : ""; return (by && by.via === "staff") ? `${by.name || "員工"} ${t} 從員工頁訂購` : `後台管理者${t ? " " + t : ""} 訂購`; };
+  const numsPcsHTML = (o) => `<i>腿</i><b class="ck-leg">${o.leg}</b><i>隻</i> <i>排</i><b class="ck-fil">${o.fil}</b><i>隻</i> <i>翅</i><b class="ck-wing">${o.wing}</b><i>隻</i>`;
+  const partLabel = (p) => CC.partLabel(p, chkCtx());
   const numsHTML = (o) => `<i>腿</i><b class="ck-leg">${o.leg}</b> <i>排</i><b class="ck-fil">${o.fil}</b> <i>翅</i><b class="ck-wing">${o.wing}</b>`;
   const addDays = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return toKey(d); };
   // 已取消「存草稿」：新單一律直接確認；draft 只剩舊資料(以前存的草稿)，標「未確認」，可確認或刪除
@@ -593,7 +595,7 @@
     }
     renderOrderForm(); show("orderBackdrop");
   }
-  function renderKgLabels() { PARTS3.forEach((p) => { const el = $(`lblKg${p}`); if (el) el.textContent = purCode(p); }); }
+  function renderKgLabels() { PARTS3.forEach((p) => { const el = $(`lblKg${p}`); if (el) el.textContent = partLabel(p); }); }
   function renderStock() {
     const el = $("stockLine"); if (!el) return;
     const s = currentStock();
@@ -649,8 +651,8 @@
     const d = parseKey(k).getDay();
     return d === 0 ? "週日" : d === 6 ? "週六" : d === 5 ? "週五" : "平日";
   }
-  function refLine(tag, pill, o, fillKey) {
-    return `<div class="oref-row"><span class="oref-tag">${tag}${pill ? `<span class="oref-pill">${pill}</span>` : ""}</span><span class="oref-n">${numsHTML(o)}</span><button type="button" class="oref-fill" data-fill="${fillKey}">帶入</button></div>`;
+  function refLine(tag, pill, o, fillKey, unit) {
+    return `<div class="oref-row"><span class="oref-tag">${tag}${pill ? (unit ? `<small class="oref-why">${pill}</small>` : `<span class="oref-pill">${pill}</span>`) : ""}</span><span class="oref-n">${unit ? numsPcsHTML(o) : numsHTML(o)}</span><button type="button" class="oref-fill" data-fill="${fillKey}">帶入</button></div>`;
   }
   function renderOrderRows() {
     const f = orderForm, box = $("ordRows"); if (!box) return;
@@ -660,8 +662,8 @@
       let exp = "";
       if (open) {
         let rows = "";
-        if (p.n && p.rec) rows += refLine("📊 平均銷售", dayTypeLabel(u), p.rec, `sug:${u}`);
-        else rows += `<div class="oref-empty">📊 平均銷售：${dayTypeLabel(u)}・資料累積中</div>`;
+        if (p.n && p.rec) rows += refLine("📊 預估", CC.predWhy(p), p.rec, `sug:${u}`, true);
+        else rows += `<div class="oref-empty">📊 預估：${dayTypeLabel(u)}・資料累積中</div>`;
         if (last) rows += refLine(`🕑 上次 ${mdw(last.date)}`, "", last.order, `last:${u}`);
         exp = `<div class="oref">${rows}</div>`;
       }
@@ -776,10 +778,10 @@
     if (nat) html += `<div class="ck-holi-line">📌 國定假日：${nat}</div>`;
     if (isBiz && (est || o || u)) {
       html += `<div class="cmp-h">預估 vs 訂購 vs 實際賣</div>`;
-      html += `<table class="ck-items" style="margin-bottom:6px"><thead><tr><th></th><th>🍗 腿</th><th>🥩 排</th><th>🪽 翅</th></tr></thead><tbody>`;
+      html += `<table class="ck-items" style="margin-bottom:6px"><thead><tr><th></th><th>🍗 腿(隻)</th><th>🥩 排(隻)</th><th>🪽 翅(隻)</th></tr></thead><tbody>`;
       const act = o ? orderActualFor(k, rec) : null;
       const row3 = (label, obj) => `<tr><td>${label}</td>${cell(obj, "leg")}${cell(obj, "fil")}${cell(obj, "wing")}</tr>`;
-      html += row3(pa.frozen ? `預估<small class="ck-adj">(${mdw(pa.od)} 下單時・${predLabel(pa.P)})</small>` : "預估", est);
+      html += row3(`預估 ${mdw(k)} ${p.group || ""}<small class="ck-adj">${CC.predWhy(p)}${pa.frozen ? `(${mdw(pa.od)} 下單時)` : ""}</small>`, est);
       if (act) {
         const dm = act.demand, same = est && PARTS3.every((pp) => Math.round(Number(dm[pp]) || 0) === Math.round(Number(est[pp]) || 0));
         if (!same) html += row3(`訂購需求<small class="ck-adj">(訂購時填的，與預估不同)</small>`, dm);
@@ -799,7 +801,7 @@
       const sr = rec.supplyRef, so = sr ? orderForDay(sr.od) : null;
       if (sr) { const st = so ? orderStatus(so) : null; html += `<div class="ck-srcline">📦 這天的貨來自 <b>${mdw(sr.od)} 訂購</b>${st ? `(${STATUS_LABEL[st]})` : ""}${so && so.status === "ordered" ? `<small class="ck-by">${orderedByText(so)}</small>` : ""}<button type="button" class="ck-srcbtn" id="detailGoOrder">看這批 ›</button></div>`; }
       const kg = rec.orderKg;
-      if (kg) html += `<div class="ck-kgline">📦 這批訂購公斤(整張單)：${PARTS3.map((pp) => `${PART_EMO[pp]} ${kg[pp]}`).join("　")}(公斤)</div>`;
+      if (kg) html += `<div class="ck-kgline">📦 這批訂購(整張單)：${PARTS3.map((pp) => `${PART_EMO[pp]} ${partLabel(pp)} <b>${kg[pp]}</b> 公斤`).join("・")}</div>`;
       if (!o) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未訂購。</div>`;
       else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對。${act && act.multi ? "實際叫貨已依各使用日應訂比例分攤。" : ""}</div>`;
       else html += `<div class="hint" style="margin:-2px 2px 12px">${act ? `差額＝${act.hasStock ? "可用量" : "實際叫貨"}−實際賣${act.multi ? "(整張單的叫貨依各使用日應訂比例分攤)" : ""}` : "差額＝訂購量−實際賣"}：正＝有剩、負＝不夠。</div>`;
@@ -839,7 +841,7 @@
       const kg = todayOrd.orderKg || {};
       html += `<button type="button" class="today-card" data-home="order">
         <div class="tc-h"><span class="tc-ic">🍗</span><div class="tc-t"><b>訂購雞肉・已訂購</b><small>${deliverLine(todayOrd.deliveryDay, todayOrd.useDays || [])}</small></div><span class="tc-ar">›</span></div>
-        <div class="tc-by">🔒 ${orderedByText(todayOrd)}・${PARTS3.map((p) => `${purCode(p)} ${kg[p] || 0}`).join("　")} 公斤</div>
+        <div class="tc-by">🔒 ${orderedByText(todayOrd)}・${PARTS3.map((p) => `${partLabel(p)} ${kg[p] || 0} 公斤`).join("・")}</div>
       </button>`;
     } else if (coveredUseDays(todayKey()).length) {
       const c = reminderOrderCalc();
@@ -1094,7 +1096,7 @@
     const head = `🔮 訂購建議：今天訂購 ${uses.map(dayTxt).join("、")} 雞肉`;
     if (!p.group) { el.innerHTML = `${head} ›`; return; }
     if (!p.n) { el.innerHTML = `${head}，資料累積中 ›`; return; }
-    const nums = (o) => `<b class="ck-leg">腿 ${o.leg}</b>　<b class="ck-fil">排 ${o.fil}</b>　<b class="ck-wing">翅 ${o.wing}</b>`;
+    const nums = (o) => `<b class="ck-leg">腿 ${o.leg} 隻</b>　<b class="ck-fil">排 ${o.fil} 隻</b>　<b class="ck-wing">翅 ${o.wing} 隻</b>`;
     if (uses.length > 1) {
       // 多使用日：直接給本批合計(扣庫存後要叫)，不用自己加總
       const sum = { leg: 0, fil: 0, wing: 0 };
@@ -1147,7 +1149,7 @@
           <div class="rc-row"><span class="rc-k">估要用(隻)</span><span class="rc-v">${numsHTML(c.sum)}</span></div>
           ${stockRow}
           <div class="rc-row need"><span class="rc-k">要叫(隻)</span><span class="rc-v">${numsHTML(c.net)}</span></div>
-          <div class="rc-row kg"><span class="rc-k">≈ 公斤</span><span class="rc-v">D5 <b>${c.kg.leg}</b>　TS4 <b>${c.kg.fil}</b>　W6 <b>${c.kg.wing}</b></span></div>
+          <div class="rc-row kg"><span class="rc-k">≈ 公斤</span><span class="rc-v">${PARTS3.map((p) => `${partLabel(p)} <b>${c.kg[p]}</b>`).join("・")}</span></div>
         </div>
         <button type="button" class="rm-btn" id="remindOrderBtn">查看每天明細・確認訂購 ›</button>
       </div>`;
@@ -1553,7 +1555,7 @@
     if (act > 0 && diff > act * CHK_OVER_PCT / 100) return { key: "over", text: "估多", diff };
     return { key: "ok", text: "差不多", diff };
   }
-  const chkSetting = () => `以目前設定回推：${METHOD_LABEL[estMethod] || estMethod}・近 ${predWindow} 天・多備 ×${bufferFactor}`;
+  const chkSetting = () => `以目前設定回推：${predLabel(curPred())}`;
   const signed = (n) => (n > 0 ? "+" : "") + n;
   function chkAccRows() {
     const t = todayKey(), from = dateMinus(t, 13);
@@ -1590,8 +1592,8 @@
     const row = (label, o, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${label}</td>${PARTS3.map((pt) => o ? `<td>${Math.round(Number(o[pt]) || 0)}</td>` : `<td class="ck-muted">—</td>`).join("")}</tr>`;
     const diffRow = (label, a, b) => `<tr class="sum"><td>${label}</td>${PARTS3.map((pt) => (a && b) ? diffCell(Math.round((Number(a[pt]) || 0) - (Number(b[pt]) || 0))) : `<td class="ck-muted">—</td>`).join("")}</tr>`;
     let html = `<div class="dg-det-sub">${chkSetting()}<br>${p.group ? `日型：${p.group}` : ""}${p.n ? `・參考 ${p.n} 個同日型的日子(這天之前的近 ${predWindow} 天)` : "・此日型資料不足"}</div>`;
-    html += `<table class="ck-items"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>
-      ${row(`${METHOD_LABEL[estMethod] || ""}基準`, p.n ? p.avg : null)}
+    html += `<table class="ck-items"><thead><tr><th></th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>
+      ${row(`基準<small class="ck-adj">${CC.predWhy(p).replace(/・多備 ×[\d.]+$/, "")}</small>`, p.n ? p.avg : null)}
       ${row(`🔮 推估(×${bufferFactor})`, p.n ? p.rec : null)}
       ${row(oa ? "📦 實際叫貨(公斤換算)" : "📦 實際訂購", ord || null)}
       ${oa && oa.hasStock ? row("＋扣掉的剩餘", oa.used) : ""}

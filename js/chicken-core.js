@@ -100,7 +100,11 @@
   }
   // 訂購用的預估：下單日(今天或過去)→ 當天版本、只用下單日之前的資料；未來下單日 → 目前設定
   function predForOrder(u, od, ctx) { return (od && od <= ctx.today) ? predict(u, od, predAt(od, ctx), ctx) : predict(u, null, null, ctx); }
-  const predLabel = (P) => `${METHOD_LABEL[P.estMethod] || P.estMethod}・近 ${P.predWindow} 天・多備 ×${P.bufferFactor}`;
+  // 統一文字：參數「近 14 天・近期加權・多備 ×1」；某次預估的依據「近 14 天・6 個平日・近期加權・多備 ×1」
+  const predLabel = (P) => `近 ${P.predWindow} 天・${METHOD_LABEL[P.estMethod] || P.estMethod}・多備 ×${P.bufferFactor}`;
+  const predWhy = (p) => (p && p.n) ? `近 ${p.window} 天・${p.n} 個${p.group}・${METHOD_LABEL[p.method] || p.method}・多備 ×${p.buf}` : "資料累積中";
+  // 部位＋批發代號：腿(D5)
+  const partLabel = (part, ctx) => `${PART_NAME[part]}(${purCode(part, ctx)})`;
 
   /* ---------- 下單／到貨／使用日 ---------- */
   function supplierOpen(k, ctx) {
@@ -180,6 +184,6 @@
   }
 
   root.ChickenCore = { PARTS3, PART_NAME, DEFAULT_PURCHASE, WINDOW_OPTIONS, EST_METHODS, METHOD_LABEL, DEFAULT_SUPPLIERS, mdw, parseKey, toKey, addDays, prevDay,
-    normalizeConfig, supplierOffOf, purG, purCode, kgSuggest, kgToPieces, dayGroup, ESTIMATORS, predict, predAt, predForOrder, predLabel,
+    normalizeConfig, supplierOffOf, purG, purCode, partLabel, predWhy, kgSuggest, kgToPieces, dayGroup, ESTIMATORS, predict, predAt, predForOrder, predLabel,
     supplierOpen, validDelivery, deliveryDayFor, orderDayFor, coveredUseDays, orderDefaults, isTempOff, hasChickenRec, recentBizDays, prevBizDay, stockInfo, currentStock, stockNoneMsg, CLOSE_HOUR, orderPlan };
 })(window);

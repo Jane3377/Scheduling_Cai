@@ -152,6 +152,8 @@
     .ck-po.st-arr { color: #1f7a46; background: #e3f3ea; } .ck-po.st-sent { color: #2a5aa0; background: #e6eefa; } .ck-po.st-wait { color: #9a4a1a; background: #fbe9db; }
     .ck-po.ck-posugg { color: #9a4a1a; background: #fff; border: 1.5px dashed #e0a884; }
     #ordHeadSub.ord-warn { color: #8a5a10; font-weight: 800; }
+    .oref-row .oref-tag { flex: 1 1 0; min-width: 0; white-space: normal; }
+    .oref-why { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted); margin-top: 2px; }
     .ord-deliver { font-size: 14.5px; color: #5a524c; background: #faf7f4; border-radius: 10px; padding: 8px 11px; margin-top: 4px; line-height: 1.6; } .ord-deliver b { color: var(--ink); }
     .tc-nums b small { font-size: 13px; font-weight: 800; color: var(--muted); margin-left: 2px; }
     .tc-by { font-size: 14px; font-weight: 700; color: #2f5d43; background: #f3faf5; border: 1px solid #cfe6d7; border-radius: 10px; padding: 8px 11px; margin-top: 8px; }
@@ -791,7 +793,7 @@
             <div class="gd-tool"><span class="k">① 訂購資訊</span><span>下單日、批發商、到貨日、使用日。到貨日、使用日會照批發商的公休與臨時休市自動帶入，也可以自己改。</span></div>
             <div class="gd-tool"><span class="k">② 各使用日需求</span><span>每個使用日要用多少隻。可按「帶入」用平均銷售，或參考上次同日型的量。</span></div>
             <div class="gd-tool"><span class="k">③ 訂購數量確認</span><span>合計需求 − 打烊剩餘 ＝ 最終訂購量。下單日當天已填打烊剩餘(打烊後下單)就扣當天的，否則扣前一個營業日的(例如「扣除 11/15 剩餘」)；沒有紀錄就不扣。過了 20:00 還沒填當天剩餘時不扣，會提醒先填。</span></div>
-            <div class="gd-tool"><span class="k">④ 重量換算</span><span>批發商用公斤叫貨，系統自動把隻數換成整數公斤，可以微調。</span></div>
+            <div class="gd-tool"><span class="k">④ 實際訂購(公斤)</span><span>批發商用公斤叫貨，系統自動把隻數換成整數公斤(例如 腿(D5) 4 公斤)，可以微調，下面會顯示約等於幾隻。</span></div>
             <div class="gd-tool"><span class="k">員工頁訂購</span><span>排班後台把員工的備料角色設成「雞肉」或「管理者」，員工專區就會出現「🛒 訂購雞肉」：顯示今天起 2 個可下單日，今天的單只能改公斤再送出；下次的只能預覽。今天批發商休市時會請他聯絡管理者。送出後兩邊都鎖定，後台看得到訂購人。</span></div>
             <div class="gd-tool"><span class="k">確認後鎖定</span><span>按「確認已訂購」後只能看、不能改；真的要重開，可在最下方刪除。</span></div>
           </div>
@@ -912,7 +914,7 @@
 
         <section class="ord-sec">
           <div class="ord-sec-h"><b class="ord-step">②</b> 各使用日需求</div>
-          <div class="od-head"><span class="od-hd">使用日</span><span>🍗腿</span><span>🥩排</span><span>🪽翅</span></div>
+          <div class="od-head"><span class="od-hd">使用日</span><span>🍗腿(隻)</span><span>🥩排(隻)</span><span>🪽翅(隻)</span></div>
           <div id="ordRows"></div>
         </section>
 
@@ -923,7 +925,7 @@
         </section>
 
         <section class="ord-sec">
-          <div class="ord-sec-h"><b class="ord-step">④</b> 重量換算</div>
+          <div class="ord-sec-h"><b class="ord-step">④</b> 實際訂購(公斤)</div>
           <div class="ck-num3">
             <label class="ord-cell kg"><span>🍗 <b id="lblKgleg">D5</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgleg" /><small class="kg-pcs" id="kgPcsleg"></small></label>
             <label class="ord-cell kg"><span>🥩 <b id="lblKgfil">TS4</b></span><input class="input" type="number" inputmode="numeric" min="0" placeholder="0" id="orderKgfil" /><small class="kg-pcs" id="kgPcsfil"></small></label>

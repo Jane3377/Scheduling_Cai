@@ -691,7 +691,7 @@ function ocOrderDetail(o,ctx){
   const sd=ds&&ds.date?ds.date.slice(5).replace("-","/").replace(/^0/,""):"";
   const cells=(f)=>CC.PARTS3.map(p=>`<td>${f(p)}</td>`).join("");
   return `<details class="oc-how"><summary>看訂購內容</summary>
-    <table class="oc-tbl"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>
+    <table class="oc-tbl"><thead><tr><th></th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>
       ${uses.map(u=>`<tr><td>${CC.mdw(u)} 需求</td>${cells(p=>(pd[u]||{})[p]!=null?pd[u][p]:"—")}</tr>`).join("")}
       <tr><td>合計需求</td>${cells(p=>sum[p])}</tr>
       <tr><td>扣剩餘<small>${ds?(sd?`${sd} 打烊剩餘`:"已扣剩餘"):"沒有扣剩餘"}</small></td>${cells(p=>ds?"−"+(ds[p]||0):"—")}</tr>
@@ -702,8 +702,8 @@ function ocOrderDetail(o,ctx){
 // 預覽卡片：每個使用日的預估依據
 function ocPreviewDetail(pl){
   return `<details class="oc-how"><summary>看怎麼來的</summary>
-    <table class="oc-tbl"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>
-      ${pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=p.n?`近 ${p.window} 天 ${p.n} 個${p.group}${CC.METHOD_LABEL[p.method]||""} ×${p.buf}`:"資料不足";return `<tr><td>${CC.mdw(u)} ${p.group||""}<small>${why}</small></td>${CC.PARTS3.map(x=>`<td>${r[x]}</td>`).join("")}</tr>`;}).join("")}
+    <table class="oc-tbl"><thead><tr><th></th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>
+      ${pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=CC.predWhy(p);return `<tr><td>${CC.mdw(u)} ${p.group||""}<small>${why}</small></td>${CC.PARTS3.map(x=>`<td>${r[x]}</td>`).join("")}</tr>`;}).join("")}
       <tr class="sum"><td>合計預估(隻)</td>${CC.PARTS3.map(x=>`<td>${pl.sum[x]}</td>`).join("")}</tr>
     </tbody></table></details>`;
 }
@@ -734,7 +734,7 @@ function renderChickenStaff(){
         ${ocNeed(ocOrderPcs(o,ctx),"已訂")}
         ${ocOrderDetail(o,ctx)}
         <div class="oc-lab">實際訂購(公斤)</div>
-        <div class="oc-kg">${CC.PARTS3.map(p=>`<label><span>${{leg:"🍗",fil:"🥩",wing:"🪽"}[p]} ${CC.purCode(p,ctx)}</span><div class="oc-kgv">${kg[p]||0}</div><small>≈ ${ocOrderPcs(o,ctx)[p]} 隻</small></label>`).join("")}</div>
+        <div class="oc-kg">${CC.PARTS3.map(p=>`<label><span>${{leg:"🍗",fil:"🥩",wing:"🪽"}[p]} ${CC.partLabel(p,ctx)}</span><div class="oc-kgv">${kg[p]||0}</div><small>≈ ${ocOrderPcs(o,ctx)[p]} 隻</small></label>`).join("")}</div>
         <div class="oc-lock">${lock}</div></div>`;}
     const pl=c.plan;
     if(c.type==="preview")return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill pre">預覽</span></div>
@@ -743,19 +743,19 @@ function renderChickenStaff(){
       <div class="oc-note">下單當天才能送出(會扣當天最新的打烊剩餘)。</div></div>`;
     // 今天：可送出
     const kg=chickenKgEdit[c.k]||pl.kg, sd=pl.stock?pl.stock.date.slice(5).replace("-","/").replace(/^0/,""):"";
-    const rows=pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=p.n?`近 ${p.window} 天 ${p.n} 個${p.group}${CC.METHOD_LABEL[p.method]||""} ×${p.buf}`:"資料不足";
+    const rows=pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=CC.predWhy(p);
       return `<tr><td>${CC.mdw(u)} ${p.group||""}<small>${why}</small></td>${CC.PARTS3.map(x=>`<td>${r[x]}</td>`).join("")}</tr>`;}).join("");
     return `<div class="oc-card" data-od="${c.k}"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill wait">待訂購</span></div>
       <div class="oc-sub">${c.sup.name}<br>${ocDeliverLine(pl.del,pl.uses)}</div>${ocNeed(pl.net,"要訂")}
       <details class="oc-how"><summary>看怎麼來的</summary>
-        <table class="oc-tbl"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>${rows}
+        <table class="oc-tbl"><thead><tr><th></th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>${rows}
           <tr><td>合計需求</td>${CC.PARTS3.map(x=>`<td>${pl.sum[x]}</td>`).join("")}</tr>
           <tr><td>扣剩餘<small>${pl.stock?`${sd} 打烊剩餘`:"沒有可扣的紀錄，不扣"}</small></td>${CC.PARTS3.map(x=>`<td>${pl.stock?"−"+pl.stock[x]:"—"}</td>`).join("")}</tr>
           <tr class="sum"><td>要訂(隻)</td>${CC.PARTS3.map(x=>`<td>${pl.net[x]}</td>`).join("")}</tr></tbody></table>
         <div class="oc-note">公斤＝隻數 × 每支克數 ÷ 1000，四捨五入；可依實際叫貨調整下方公斤。</div></details>
       ${pl.stock?"":`<div class="oc-stopbox">⚠ ${CC.stockNoneMsg(pl.stockInfo)}${pl.stockInfo&&pl.stockInfo.status==="needToday"?"":"<br>請確認店內實際剩餘再調整公斤。"}</div>`}
       <div class="oc-lab">實際訂購(公斤)・只要改這裡</div>
-      <div class="oc-kg">${CC.PARTS3.map(p=>`<label><span>${{leg:"🍗",fil:"🥩",wing:"🪽"}[p]} ${CC.purCode(p,ctx)}</span><input type="number" inputmode="numeric" min="0" data-kg="${p}" value="${kg[p]}"><small data-pcs="${p}"></small></label>`).join("")}</div>
+      <div class="oc-kg">${CC.PARTS3.map(p=>`<label><span>${{leg:"🍗",fil:"🥩",wing:"🪽"}[p]} ${CC.partLabel(p,ctx)}</span><input type="number" inputmode="numeric" min="0" data-kg="${p}" value="${kg[p]}"><small data-pcs="${p}"></small></label>`).join("")}</div>
       <button class="oc-btn" data-submit="${c.k}">確認送出訂購</button></div>`;
   }).join("");
   // 今天的卡片：公斤即時換算隻數；送出
@@ -774,7 +774,7 @@ async function submitChickenOrder(od,pl){
   const e=staffEmployeeId&&employee(staffEmployeeId);if(!e)return;
   const ctx=chickenCtx(),sup=chickenDefSup(),kg=chickenKgEdit[od]||pl.kg;   // 沒改過＝系統建議公斤
   if(CC.PARTS3.every(p=>!kg[p])){toast("公斤數都是 0，請確認後再送出。","error");return;}
-  const msg=`確定送出 ${CC.mdw(od)} 的雞肉訂購？\n\n${sup.name}・${CC.mdw(pl.del)} 到貨\n${CC.PARTS3.map(p=>`${CC.purCode(p,ctx)} ${kg[p]} 公斤`).join("、")}\n\n送出後不能修改，如需修改請洽管理者。`;
+  const msg=`確定送出 ${CC.mdw(od)} 的雞肉訂購？\n\n${sup.name}・${CC.mdw(pl.del)} 到貨\n${CC.PARTS3.map(p=>`${CC.partLabel(p,ctx)} ${kg[p]} 公斤`).join("、")}\n\n送出後不能修改，如需修改請洽管理者。`;
   if(!confirm(msg))return;
   chickenSubmitting=true;
   const ym=ymOfKey(od),ref=c.doc("poultry_order_"+ym);
