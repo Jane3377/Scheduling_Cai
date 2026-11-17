@@ -158,6 +158,8 @@
     .tc-nums b small { font-size: 13px; font-weight: 800; color: var(--muted); margin-left: 2px; }
     .tc-by { font-size: 14px; font-weight: 700; color: #2f5d43; background: #f3faf5; border: 1px solid #cfe6d7; border-radius: 10px; padding: 8px 11px; margin-top: 8px; }
     .ck-by { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .ck-bf-banner { background: #eef4ff; border: 1px solid #c9d8f2; color: #2a4a80; border-radius: 12px; padding: 10px 13px; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+    .ck-ordcell .ck-pocan.ck-bf { color: #2a4a80; }
     .ck-supoff { display: block; font-size: 10px; font-weight: 800; color: #8a5a10; background: #fff3d6; border-radius: 6px; padding: 1px 3px; margin-top: 3px; width: fit-content; max-width: 100%; overflow: hidden; white-space: nowrap; letter-spacing: -0.3px; }
     @media (min-width:721px) { .ck-supoff { font-size: 13px; padding: 2px 6px; letter-spacing: 0; } .ck-ordcell .ck-pocan { font-size: 12.5px; } }
     .employee-cal-day.ck-rest.ck-ordcell { cursor: pointer; }
@@ -712,6 +714,7 @@
           <button type="button" class="ck-cat on" data-cat="chicken"><span class="cat-ic">🍗</span><span class="cat-tx"><b>雞肉管理</b><small>使用月曆・訂購月曆</small></span></button>
           <button type="button" class="ck-cat" data-cat="dough"><span class="cat-ic">🍕</span><span class="cat-tx"><b>餅皮管理</b><small>餅皮月曆</small></span></button>
         </div>
+        <div class="ck-bf-banner hidden" id="ckBackfillBanner">🧪 回填模式開啟中：訂購月曆可替過去的日子開訂購單。測試完請到「設定」關閉。</div>
         <button type="button" class="ck-hint" id="ckHint">🔮 訂購建議</button>
         <button type="button" class="ck-hint ck-hint-acc" id="ckChkAccBtn">📊 雞肉推估準不準：近 14 天估算 vs 實際 ›</button>
         <button type="button" class="ck-hint ck-hint-dough" id="ckDoughBtn">🍕 餅皮推估：接下來幾天要備多少 ›</button>
@@ -761,6 +764,7 @@
           <button type="button" class="set-item" id="ckBackupBtn"><span class="si-ic">💾</span><span class="si-tx"><b>備份／還原</b><small>整包匯出匯入</small></span><span class="si-ar">›</span></button>
         </div>
         <div class="set-group">
+          <button type="button" class="set-item" id="ckBackfillBtn"><span class="si-ic">🧪</span><span class="si-tx"><b>🧪 回填過去的訂購單：關閉</b><small>測試／補登用；只在這台裝置有效，用完請關閉</small></span><span class="si-ar">›</span></button>
           <button type="button" class="set-item" id="ckGuideBtn"><span class="si-ic">📖</span><span class="si-tx"><b>使用說明</b></span><span class="si-ar">›</span></button>
         </div>
       </section>

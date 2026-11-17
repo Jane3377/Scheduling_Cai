@@ -321,6 +321,17 @@
     else { if (k === todayKey()) cls += " ck-today"; inner = numHtml; }
     return `<button type="button" class="${cls}" data-date="${k}" ${disabled}>${inner}</button>`;
   }
+  // 回填模式(測試用，只存在這台裝置)：開啟時可替過去的日子開訂購單；設定頁可隨時關閉
+  let allowBackfill = (() => { try { return localStorage.getItem("ckAllowBackfill") === "1"; } catch (e) { return false; } })();
+  function setBackfill(on) {
+    allowBackfill = !!on;
+    try { if (allowBackfill) localStorage.setItem("ckAllowBackfill", "1"); else localStorage.removeItem("ckAllowBackfill"); } catch (e) {}
+    renderBackfillUI(); render();
+  }
+  function renderBackfillUI() {
+    const b = $("ckBackfillBtn"); if (b) b.querySelector("b").textContent = `🧪 回填過去的訂購單：${allowBackfill ? "開啟中" : "關閉"}`;
+    const bn = $("ckBackfillBanner"); if (bn) bn.classList.toggle("hidden", !allowBackfill);
+  }
   // 預設批發商的臨時休市日(每週固定休不顯示在月曆)
   function supTempOff(k) { return (supplierOff.dates || []).find((x) => x.date === k) || null; }
   // 訂購月曆：下單日照批發商上班推算(店家公休也可能是下單日，例如週一)；批發商臨時休市顯示 🚚休市(可改訂他家)；
@@ -334,12 +345,13 @@
     const sup = defSupplier(), offTxt = off ? `${sup ? sup.name : "批發商"}休市${off.note ? "・" + off.note : ""}` : "";
     const offTag = off ? `<span class="ck-supoff" title="${esc(offTxt)}">🚚休市</span>` : "";
     const closedTag = closed ? `<span class="ck-tag">${closedLabel(k)}</span>` : "";
-    if (!o && !future) {
+    if (!o && !future && !(allowBackfill && (covered || !closed))) {
       if (closed) return `<div class="employee-cal-day ck-rest">${numHtml}${closedTag}${offTag}</div>`;
       return `<button type="button" class="employee-cal-day ck-ordcell${k === t ? " ck-today" : ""}" data-date="${k}" disabled>${numHtml}${offTag}</button>`;
     }
     let cls = "employee-cal-day ck-ordcell" + (closed ? " ck-rest" : ""), inner = numHtml + closedTag + offTag;
     if (o) { const st = orderStatus(o); inner += `<span class="ck-po ${STATUS_CLS[st]}">${esc(o.supplierName || "廠商")}<i>${STATUS_LABEL[st]}</i></span>`; }
+    else if (!future) inner += `<span class="ck-pocan ck-bf">🧪回填</span>`;   // 回填模式：過去的日子
     else if (covered) {
       if (k === t) { cls += " ck-today"; inner += `<span class="ck-po ck-posugg">建議下單</span>`; }
       else inner += `<span class="ck-pocan">可下單</span>`;
@@ -697,6 +709,7 @@
     const ordYm = ymOf(f.orderDay), prev = orderForDay(f.orderDay);
     const order = { supplier: f.supplier, supplierName: sup.name, orderDay: f.orderDay, deliveryDay: f.deliveryDay, useDays: f.useDays.slice(), perDay: perDay, deductStock: (f.deductStock && stockRec) ? { leg: stockRec.leg, fil: stockRec.fil, wing: stockRec.wing, date: stockRec.date } : null, totalPieces: net, orderKg: kg, kgPieces: Object.fromEntries(PARTS3.map((p) => [p, kgToPieces(kg[p], p)])), status: confirmed ? "ordered" : "draft", createdAt: (prev && prev.createdAt) || Date.now(), updatedAt: Date.now() };
     if (confirmed) { order.orderedAt = Date.now(); order.orderedBy = { name: "後台管理者", via: "admin" }; }
+    if (f.orderDay < todayKey()) order.backfill = true;   // 回填模式補建的過去訂購單
     const DEL = firebase.firestore.FieldValue.delete();
     const writes = [{ ref: orderRefOf(ordYm), data: { orders: { [f.orderDay]: order }, updatedAt: Date.now() } }];
     const dayPatch = {}, put = (ym, day, obj) => { (dayPatch[ym] = dayPatch[ym] || {})[day] = obj; };
@@ -792,7 +805,7 @@
     const go = $("detailGoOrder"); if (go) go.onclick = () => { hide("detailBackdrop"); const sr = rec.supplyRef; openOrderForm(sr ? sr.od : (orderDayFor(k) || k)); };
     // 「訂購雞肉」只在今天以後的日子出現；這天的下單日已過、又沒有訂購單時也不顯示(來不及訂)
     const sr = rec.supplyRef, odFor = sr ? sr.od : (orderDayFor(k) || k), t = todayKey();
-    const canOrder = k >= t && (!!sr || odFor >= t);
+    const canOrder = (k >= t && (!!sr || odFor >= t)) || (allowBackfill && !!odFor);
     $("detailEditOrder").classList.toggle("hidden", !canOrder);
     $("detailEditOrder").onclick = () => { hide("detailBackdrop"); openOrderForm(odFor); };
     show("detailBackdrop");
@@ -1810,6 +1823,11 @@
     $("backupImport").onclick = () => $("backupFile").click();
     $("backupFile").addEventListener("change", (e) => onBackupFile(e.target.files[0]));
     $("ckGuideBtn").onclick = () => show("guideBackdrop");
+    $("ckBackfillBtn").onclick = () => {
+      if (allowBackfill) { setBackfill(false); return; }
+      if (confirm("開啟回填模式？\n\n開啟後可在訂購月曆替「過去的日子」開訂購單(測試或補登用)。\n只在這台裝置有效，測試完請回到這裡關閉。")) setBackfill(true);
+    };
+    renderBackfillUI();
     $("ckPartsBtn").onclick = openParts;
     $("partsReset").onclick = resetParts;
     $("partsSave").onclick = saveParts;
