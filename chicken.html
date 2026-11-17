@@ -559,6 +559,7 @@
     .tc-nums span { flex: 1; background: #faf6f2; border: 1px solid #efe1d6; border-radius: 11px; padding: 9px 4px; text-align: center; }
     .tc-nums i { font-style: normal; color: var(--muted); font-size: 12px; margin-right: 3px; }
     .tc-nums b { font-size: 23px; font-weight: 900; }
+    .tc-nums4 { gap: 8px; } .tc-nums4 span { padding: 8px 2px; } .tc-nums4 i { display: block; margin: 0 0 2px; font-size: 12.5px; font-weight: 700; } .tc-nums4 b.dg-c { color: #9a4a1a; }
     .tc-dough { margin-top: 12px; background: #faf6f2; border: 1px solid #efe1d6; border-radius: 11px; padding: 11px 13px; font-size: 15px; font-weight: 700; color: #5a524c; }
     .tc-dough b { color: #9a4a1a; font-size: 18px; font-weight: 900; margin: 0 2px; }
     .home-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
@@ -718,8 +719,8 @@
         </div>
         <div class="ck-bf-banner hidden" id="ckBackfillBanner">🧪 回填模式開啟中：訂購月曆可替過去的日子開訂購單。測試完請到「設定」關閉。</div>
         <button type="button" class="ck-hint" id="ckHint">🔮 訂購建議</button>
-        <button type="button" class="ck-hint ck-hint-acc" id="ckChkAccBtn">📊 雞肉推估準不準：近 14 天估算 vs 實際 ›</button>
-        <button type="button" class="ck-hint ck-hint-dough" id="ckDoughBtn">🍕 餅皮推估：接下來幾天要備多少 ›</button>
+        <button type="button" class="ck-hint ck-hint-acc" id="ckChkAccBtn">📊 雞肉推估準確度：用目前參數回看近 14 天 ›</button>
+        <button type="button" class="ck-hint ck-hint-dough" id="ckDoughBtn">🍕 餅皮推估準確度：用目前參數回看近 14 天 ›</button>
         <section class="panel" style="margin-top:14px">
           <div class="ck-calswitch" id="ckCalSwitch">
             <button type="button" class="on" data-mode="use">🗓 使用月曆</button>
@@ -790,7 +791,7 @@
           <h4>🗓️ 每天這樣做</h4>
           <div class="gd-step"><span class="gd-num">1</span><span class="tx"><b>打烊後上傳銷售報表</b>：在〈首頁〉按「⬆ 上傳報表」，上傳大麥系統下載的「餐點銷售狀況」Excel。系統會自動換算當天用掉的 🍗腿／🥩排／🪽翅，以及賣出的餅皮。</span></div>
           <div class="gd-step"><span class="gd-num">2</span><span class="tx"><b>員工填打烊剩餘</b>：員工在班表系統的「今日打烊剩餘」填雞肉、餅皮剩多少(兩項分開送出)。有人漏填，管理者可在〈紀錄〉回填。</span></div>
-          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>看今日建議、訂購雞肉</b>：〈首頁〉的「今日建議」會告訴你今天要不要訂雞肉、餅皮要做多少。按「🛒 訂購雞肉」開訂購單，數字可以改，確認後存起來。也可以由員工在班表系統的「🛒 訂購雞肉」送出(只能改公斤)，後台會同步鎖定並記錄是誰訂的。</span></div>
+          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>看今日建議、訂購雞肉</b>：〈首頁〉的「今日建議」會告訴你今天要不要訂雞肉、餅皮要備多少(今天公休就顯示下一個營業日，點卡片可看推估依據)。按「🛒 訂購雞肉」開訂購單，數字可以改，確認後存起來。也可以由員工在班表系統的「🛒 訂購雞肉」送出(只能改公斤)，後台會同步鎖定並記錄是誰訂的。</span></div>
         </div>
 
         <div class="gd-sec">
@@ -810,7 +811,7 @@
           <div class="gd-tools">
             <div class="gd-tool"><span class="k">雞肉</span><span>平日(二三四)／週五／假日(六日＋國定)分開，取「回算天數」內同日型實際用掉的量，用平均等方法算，再乘上多備比例。都在〈設定 → 雞肉推估參數〉。</span></div>
             <div class="gd-tool"><span class="k">餅皮</span><span>取近幾次同星期的平均賣出量(預設 2 次)。六日／假日另外用「最低營業額」反推最少要備，兩者取多的。都在〈設定 → 餅皮推估參數〉。</span></div>
-            <div class="gd-tool"><span class="k">推估準不準</span><span>〈月曆〉上方的「📊 雞肉推估準不準」和「🍕 餅皮推估」，可以看近 14 天推估和實際的差距，用來決定要不要調參數。</span></div>
+            <div class="gd-tool"><span class="k">推估準確度</span><span>〈月曆〉上方的「📊 雞肉推估準確度」和「🍕 餅皮推估準確度」，用<b>目前的參數設定</b>回推近 14 天，和實際比較，用來評估要不要調參數。每天要備多少請看首頁卡片，或月曆點那一天。</span></div>
           </div>
         </div>
 
@@ -831,7 +832,7 @@
           <h4>🧭 各頁在哪裡</h4>
           <div class="gd-tools">
             <div class="gd-tool"><span class="k">🏠 首頁</span><span>今日建議、訂購雞肉、上傳報表。</span></div>
-            <div class="gd-tool"><span class="k">📅 月曆</span><span>雞肉使用／訂購月曆、餅皮月曆、推估準不準。</span></div>
+            <div class="gd-tool"><span class="k">📅 月曆</span><span>雞肉使用／訂購月曆、餅皮月曆、推估準確度。</span></div>
             <div class="gd-tool"><span class="k">📋 紀錄</span><span>員工打烊剩餘的填寫紀錄，可切換月份、新增(回填)、更正，會保留修改紀錄。</span></div>
             <div class="gd-tool"><span class="k">⚙️ 設定</span><span>雞肉推估參數、雞肉單位轉換、餅皮推估參數、雞肉批發商、匯出 CSV、備份／還原。</span></div>
           </div>
@@ -848,7 +849,7 @@
             <li><b>基準</b>(腿、排、翅各自算)：
               <div class="gd-f">平均＝加總 ÷ 天數<br>中位數＝由小到大排，取中間值(偶數天取中間兩天的平均)<br>近期加權＝越新越重：最新的乘 N、次新乘 N−1…最舊乘 1，加總後 ÷ 權重總和<br>同型日最大＝取最大值</div></li>
             <li><b>預估</b>＝基準 × 多備比例(1.00～1.30)，<b>四捨五入到整數隻</b>。</li>
-            <li><b>參數版本</b>：用<b>下單日當天有效</b>的推估參數版本計算，之後改參數不會改到過去的預估。〈推估準不準〉才用目前設定。</li>
+            <li><b>參數版本</b>：用<b>下單日當天有效</b>的推估參數版本計算，之後改參數不會改到過去的預估。〈推估準確度〉才用目前設定。</li>
             <li><b>下單／到貨／使用日</b>(預設，可自己改)：批發商有上班才能下單；到貨日要店有營業、批發商有上班，且前一天批發商也有上班(前一天下單、隔天到)；使用日要店有營業，且至少在到貨隔天(醃一天)。</li>
             <li><b>訂購數量</b>：
               <div class="gd-f">合計需求＝各使用日需求加總<br>扣剩餘＝下單日當天有打烊剩餘就用當天(打烊後下單)；否則用前一個營業日的打烊剩餘(開店前／營業中下單，或下單日店休)<br>下單日是今天、已過 20:00 但還沒填當天剩餘 → 不扣，提醒先填<br>該用的那天沒有紀錄 → 不扣(不當作 0)，另外列出最近一筆的日期參考<br>要訂＝合計需求 − 剩餘(最少 0)</div></li>
@@ -856,7 +857,7 @@
               <div class="gd-f">建議公斤＝隻數 × 每支克數 ÷ 1000，<b>四捨五入到整數公斤</b>(至少 1 公斤)<br>公斤換回隻數＝公斤 × 1000 ÷ 每支克數，<b>無條件捨去</b>(保守不高估)</div></li>
             <li><b>日期明細的順序</b>(跟訂購的想法一樣)：預估要用 → 扣掉的剩餘 → 應訂 → 實際叫貨 → 可用量 → 實際賣 → 差額。
               <div class="gd-f">扣掉的剩餘：依日期先用，第一個使用日先扣，不夠才扣下一天<br>應訂＝需求 − 扣掉的剩餘<br>實際叫貨＝公斤換回的總隻數，多個使用日時<b>依各天應訂比例分攤</b>(累計後四捨五入，各天加總剛好等於總隻數)<br>可用量＝實際叫貨 ＋ 扣掉的剩餘<br>差額＝可用量 − 實際賣：正＝有剩、負＝不夠</div></li>
-            <li><b>推估準不準</b>：近 14 天，用<b>目前設定</b>、只用那天之前的資料回推。差額＝推估 − 實際用(四捨五入)：小於 0＝<b>估少</b>；多出超過實際用的 15%＝<b>估多</b>；其餘＝<b>差不多</b>。腿、排、翅分開判斷。</li>
+            <li><b>推估準確度</b>：近 14 天，用<b>目前設定</b>、只用那天之前的資料回推。差額＝推估 − 實際用(四捨五入)：小於 0＝<b>估少</b>；多出超過實際用的 15%＝<b>估多</b>；其餘＝<b>差不多</b>。腿、排、翅分開判斷。</li>
           </ol>
 
           <h5>🍕 餅皮推估</h5>
@@ -871,7 +872,7 @@
               在〈餅皮推估參數 → 進階〉取消勾選「自動」，該項就改用你填的數字。</li>
             <li><b>預估比薩營業額</b>(只在六日／假日顯示)＝9吋個數 × 9吋均價 ＋ 12吋個數 × 12吋均價；換算全店＝比薩營業額 ÷ 比薩佔比，四捨五入。</li>
             <li><b>參數版本</b>：過去的日子用<b>那天有效</b>的比薩參數版本(第一次修改前＝系統預設值)，平均賣出和自動比例也從那天往回算，所以不會變。今天以後用最新設定。</li>
-            <li><b>推估準不準</b>：近 14 天，用<b>目前設定</b>回推；9吋、12吋(厚＋薄合計)分開判斷，規則同雞肉(小於 0＝估少；超過賣出的 15%＝估多)。</li>
+            <li><b>推估準確度</b>：近 14 天，用<b>目前設定</b>回推；9吋、12吋(厚＋薄合計)分開判斷，規則同雞肉(小於 0＝估少；超過賣出的 15%＝估多)。</li>
           </ol>
         </details>
 
@@ -1079,11 +1080,9 @@
   <!-- 餅皮推估檢視彈窗(管理者) -->
   <div id="doughBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(560px,100%)">
-      <div class="modal-head"><div><h3>🍕 餅皮推估</h3><p>接下來 2 個營業日要備多少・近 14 天準不準</p></div><button class="icon-btn" data-close="doughBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3>🍕 餅皮推估準確度</h3><p>用目前的參數設定，回推近 14 天的推估和實際比較</p></div><button class="icon-btn" data-close="doughBackdrop">✕</button></div>
       <div class="modal-body" id="doughBody">
-        <div class="dg-sec-h">接下來要備(點看推估依據)</div>
-        <div id="doughUpcoming" class="dg-up-list"></div>
-        <div class="dg-sec-h" style="margin-top:18px">近 14 天推估準不準(9吋／12吋分開看，點看明細)</div>
+        <div class="dg-sec-h">近 14 天(9吋／12吋分開看，點日期看明細)</div>
         <div id="doughAcc"></div>
         <div id="doughRecent" class="dg-recent"></div>
         <div class="modal-actions"><button class="primary-btn" data-close="doughBackdrop">關閉</button></div>
@@ -1092,10 +1091,10 @@
   </div>
 
   <!-- 餅皮某天明細(推估/製作/實際賣/剩餘/差額) -->
-  <!-- 雞肉推估準不準(管理者) -->
+  <!-- 雞肉推估準確度(管理者) -->
   <div id="chkAccBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(560px,100%)">
-      <div class="modal-head"><div><h3>📊 雞肉推估準不準</h3><p id="chkAccSetting"></p></div><button class="icon-btn" data-close="chkAccBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3>📊 雞肉推估準確度</h3><p id="chkAccSetting"></p></div><button class="icon-btn" data-close="chkAccBackdrop">✕</button></div>
       <div class="modal-body">
         <div class="dg-sec-h">近 14 天(腿／排／翅分開看)</div>
         <div id="chkAccSum"></div>

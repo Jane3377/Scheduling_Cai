@@ -823,7 +823,7 @@
     else if (v === "calendar") render();
     try { window.scrollTo(0, 0); } catch (e) {}
   }
-  /* ---------- 首頁：今日建議(訂購雞肉＋餅皮製作) ---------- */
+  /* ---------- 首頁：今日建議(訂購雞肉＋餅皮推估) ---------- */
   function renderHome() {
     const box = $("homeCards"); if (!box) return;
     let html = "";
@@ -844,19 +844,19 @@
     } else {
       html += `<div class="today-card muted"><div class="tc-h"><span class="tc-ic">🍗</span><div class="tc-t"><b>訂購雞肉</b><small>今天不是下單日</small></div></div></div>`;
     }
-    // 餅皮製作(今天)
-    const today = todayKey(), pd = predictDough(today);
-    if (pd.group) {
-      html += `<button type="button" class="today-card" data-home="dough">
-        <div class="tc-h"><span class="tc-ic">🍕</span><div class="tc-t"><b>餅皮製作</b><small>${mdw(today)}</small></div><span class="tc-ar">›</span></div>
-        <div class="tc-dough">9吋 厚<b>${pd.rec.t9}</b>／薄<b>${pd.rec.s9}</b> · 12吋 厚<b>${pd.rec.t12}</b>／薄<b>${pd.rec.s12}</b></div>
+    // 餅皮推估：今天營業→今天；今天公休→下一個營業日
+    const today = todayKey(), dk = nextOpenDays(today, 1)[0], pd = dk ? predictDough(dk) : null;
+    if (pd && pd.group) {
+      html += `<button type="button" class="today-card" data-home="dough" data-dk="${dk}">
+        <div class="tc-h"><span class="tc-ic">🍕</span><div class="tc-t"><b>餅皮推估</b><small>${mdw(dk)} ${pd.group}${dk !== today ? "・今天公休" : ""}</small></div><span class="tc-ar">›</span></div>
+        <div class="tc-nums tc-nums4">${DOUGH_TYPES.map((t) => `<span><i>${DOUGH_LABEL[t]}</i><b class="dg-c">${pd.rec[t]}<small>個</small></b></span>`).join("")}</div>
       </button>`;
     } else {
-      html += `<div class="today-card muted"><div class="tc-h"><span class="tc-ic">🍕</span><div class="tc-t"><b>餅皮製作</b><small>今天公休</small></div></div></div>`;
+      html += `<div class="today-card muted"><div class="tc-h"><span class="tc-ic">🍕</span><div class="tc-t"><b>餅皮推估</b><small>近期沒有營業日</small></div></div></div>`;
     }
     box.innerHTML = html;
     const o = box.querySelector('[data-home="order"]'); if (o) o.onclick = () => openOrderForm(todayKey());
-    const d = box.querySelector('[data-home="dough"]'); if (d) d.onclick = () => openDough();
+    const d = box.querySelector('[data-home="dough"]'); if (d) d.onclick = () => openDoughDetail(d.dataset.dk);
   }
   function tryUnlock() {
     const ref = settings.adminPin || "1234";
@@ -1528,7 +1528,7 @@
     show("pmVerBackdrop");
   }
 
-  /* ---------- 雞肉推估準不準(以目前設定回推：系統推估 vs 實際用；不另存資料) ---------- */
+  /* ---------- 雞肉推估準確度(以目前設定回推：系統推估 vs 實際用；不另存資料) ---------- */
   const CHK_OVER_PCT = 15;
   const CHK_NAME = { leg: "腿", fil: "排", wing: "翅" };
   function chickenActual(k) { const r = predDays[k]; return (r && r.parts && r.sales && Object.keys(r.sales).length) ? r.parts : null; }
@@ -1631,17 +1631,6 @@
   const sizeTotals = (o) => o ? { n9: (Number(o.t9) || 0) + (Number(o.s9) || 0), n12: (Number(o.t12) || 0) + (Number(o.s12) || 0) } : null;
   function openDough() { renderDough(); show("doughBackdrop"); }
   function renderDough() {
-    const up = nextOpenDays(todayKey(), 2);
-    $("doughUpcoming").innerHTML = up.map((k) => {
-      const p = predictDough(k), anyFloor = p.src && DOUGH_TYPES.some((t) => p.src[t] === "floor");
-      const basis = !p.n ? `同星期資料累積中${p.floor ? "・暫用最低營業額反推" : ""}`
-        : `依近 ${p.n} 個${p.sampleName}平均銷售${anyFloor ? "・已套最低營業額底線" : ""}${p.isWeekend ? `・預估比薩營業額約 $${doughPizzaRev(p.rec).rev.toLocaleString()}` : ""}`;
-      return `<button type="button" class="dg-up" data-dgd="${k}">
-        <div class="dg-up-h">${mdw(k)}<span class="dg-tag${p.isWeekend ? " wk" : ""}">${p.label}</span><span class="dg-up-more">看依據 ›</span></div>
-        <div class="dg-up-nums">${DOUGH_TYPES.map((t) => `<span${p.src[t] === "floor" ? ` class="fl"` : ""}><i>${DOUGH_LABEL[t]}</i><b>${p.rec[t]}</b></span>`).join("")}</div>
-        <div class="dg-up-note">${basis}</div>
-      </button>`;
-    }).join("");
     const recent = recentDoughDays(14);
     if (!recent.length) { $("doughAcc").innerHTML = ""; $("doughRecent").innerHTML = `<div class="rec-empty">近 14 天還沒有餅皮銷售資料；請先上傳含餅皮的銷售報表。</div>`; }
     else {
@@ -1668,11 +1657,11 @@
         return `<button type="button" class="dg-rrow ca-row${short ? " has-short" : ""}" data-dgd="${r.k}"><span class="dg-rd">${mdw(r.k)}</span><span class="ca-ps">${chips}</span></button>`;
       }).join("");
     }
-    $("doughUpcoming").querySelectorAll("button[data-dgd]").forEach((b) => b.onclick = () => openDoughDetail(b.dataset.dgd));
     $("doughRecent").querySelectorAll("button[data-dgd]").forEach((b) => b.onclick = () => openDoughDetail(b.dataset.dgd, "current"));
   }
-  // mode "current"＝從「推估準不準」點進來：用目前設定回推；否則過去日子顯示當天的版本(固定)
+  // mode "current"＝從「餅皮推估準確度」點進來：用目前設定回推；否則過去日子顯示當天的版本(固定)
   function openDoughDetail(k, mode) {
+    let secN = 0; const sec = () => "①②③④⑤"[secN++];   // 依實際出現的段落編號(平日沒有營業額段，不跳號)
     const ctx = mode === "current" ? doughCtx() : doughCtxAt(k), frozen = mode !== "current" && k < todayKey();
     const cfgK = ctx.cfg, rev = (o) => DC.doughPizzaRev(o, cfgK, ctx);
     const p = DC.predictDough(k, ctx), made = doughMade(k), sold = doughSold(k), left = doughLeft(k);
@@ -1685,7 +1674,7 @@
       <div class="dg-sug-n"><span>9吋 <b>${r.n9}</b><small>厚${p.rec.t9} 薄${p.rec.s9}</small></span><span>12吋 <b>${r.n12}</b><small>厚${p.rec.t12} 薄${p.rec.s12}</small></span></div>
     </div>`;
     // ① 怎麼來的
-    html += `<div class="dg-sec-h">① 怎麼來的</div>
+    html += `<div class="dg-sec-h">${sec()} 怎麼來的</div>
       <table class="ck-items dg-basis"><thead><tr><th></th><th>9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead><tbody>
       <tr><td>近 ${p.n || p.N} 個${p.sampleName}平均銷售</td>${DOUGH_TYPES.map((t) => cell(p.avg, t, p.src[t] === "avg")).join("")}</tr>
       ${p.isWeekend ? `<tr><td>最低營業額 ${money(cfgK.minRevenue || 0)} 反推</td>${DOUGH_TYPES.map((t) => cell(p.floor, t, p.src[t] === "floor")).join("")}</tr>` : ""}
@@ -1697,7 +1686,7 @@
     // ② 預估比薩營業額＝個數×均價(均價取近 4 週假日)，對照「最低營業額×比薩佔比」；只在六日/假日顯示
     if (p.isWeekend) {
       const R = rev(p.rec), line = (x) => `9吋 ${x.n9}個×$${x.a9} ＋ 12吋 ${x.n12}個×$${x.a12}`;
-      html += `<div class="dg-sec-h">② 預估比薩營業額</div>
+      html += `<div class="dg-sec-h">${sec()} 預估比薩營業額</div>
         <div class="dg-rev"><b>${money(R.rev)}</b><span>依建議量：${line(R)}</span></div>
         <div class="dg-rev-sub">比薩約佔全店 ${R.share}%，換算全店約 <b>${money(R.store)}</b></div>`;
       if (p.isWeekend && p.floor) {
@@ -1710,7 +1699,7 @@
     }
     // ③ 參考的日子
     if (p.n) {
-      html += `<div class="dg-sec-h">③ 參考的 ${p.n} 天</div>
+      html += `<div class="dg-sec-h">${sec()} 參考的 ${p.n} 天</div>
         <table class="ck-items dg-samp"><thead><tr><th>日期</th><th>比薩營業額</th><th>賣9吋</th><th>賣12吋</th><th>剩餘</th></tr></thead><tbody>
         ${p.samples.map((x) => { const z = sizeTotals(x.sold); return `<tr><td>${mdw(x.date)}</td><td>${x.rev ? money(x.rev) : "—"}</td><td>${z.n9}</td><td>${z.n12}</td><td>${x.left ? doughTotal(x.left) : "—"}</td></tr>`; }).join("")}
         </tbody></table>`;
