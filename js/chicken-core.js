@@ -140,13 +140,30 @@
     for (let i = 0; i < 90 && out.length < n; i++) { const k = toKey(d); if (!ctx.isClosed(k)) out.push(k); d.setDate(d.getDate() - 1); }
     return out;
   }
-  // 以 refDay 往回近 3 個營業日內、最新一筆有填雞肉的盤點；沒有 → null(不當作 0)
-  function currentStock(refDay, ctx) {
-    const t = refDay || ctx.today, win = recentBizDays(3, t, ctx), cutoff = win.length ? win[win.length - 1] : t, st = ctx.stock || {};
-    const keys = Object.keys(st).filter((k) => k <= t && k >= cutoff && hasChickenRec(st[k])).sort();
-    if (!keys.length) return null;
-    const k = keys[keys.length - 1], r = st[k];
-    return { date: k, leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0, byName: r.byName || "" };
+  // 扣哪天的打烊剩餘(下單日 od)：
+  //   下單日有營業且當天已有打烊剩餘 → 用當天(打烊後下單)
+  //   下單日是今天、已過 20:00、當天還沒填 → 不扣，提醒先填(避免用到昨天、今天已賣掉的剩餘)
+  //   其餘 → 用前一個營業日的打烊剩餘(開店前/營業中下單、或下單日店休)
+  //   該用的那天沒有紀錄 → 不扣(不當作 0)，另附「最近一筆」日期供參考
+  const CLOSE_HOUR = 20;
+  function prevBizDay(k, ctx) { let d = k; for (let i = 0; i < 60; i++) { d = prevDay(d); if (!ctx.isClosed(d)) return d; } return null; }
+  function stockInfo(od, ctx) {
+    const t = od || ctx.today, st = ctx.stock || {}, has = (k) => k && hasChickenRec(st[k]);
+    const pack = (k) => { const r = st[k]; return { date: k, leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0, byName: r.byName || "" }; };
+    const latestBefore = (k) => { const ks = Object.keys(st).filter((x) => x < k && hasChickenRec(st[x])).sort(); return ks.length ? ks[ks.length - 1] : ""; };
+    const biz = !ctx.isClosed(t);
+    if (biz && has(t)) return { stock: pack(t), ref: t, status: "ok" };
+    if (biz && t === ctx.today && ctx.hour != null && ctx.hour >= CLOSE_HOUR) return { stock: null, ref: t, status: "needToday", older: latestBefore(t) };
+    const pb = prevBizDay(t, ctx);
+    if (has(pb)) return { stock: pack(pb), ref: pb, status: "ok" };
+    return { stock: null, ref: pb, status: "none", older: latestBefore(pb || t) };
+  }
+  const currentStock = (refDay, ctx) => stockInfo(refDay, ctx).stock;
+  // 沒扣剩餘時給人看的說明
+  function stockNoneMsg(info) {
+    if (!info || info.stock) return "";
+    if (info.status === "needToday") return "今天已打烊，但還沒填今天的打烊剩餘。請先到「今日打烊剩餘」填寫，系統才會扣掉。";
+    return `${info.ref ? mdw(info.ref) : "前一個營業日"} 沒有打烊剩餘紀錄，本單不扣剩餘${info.older ? `(最近一筆是 ${mdw(info.older)})` : ""}。`;
   }
 
   /* ---------- 一張訂購單的預設內容(員工頁與後台首頁共用) ---------- */
@@ -156,13 +173,13 @@
     const c = Object.assign({}, ctx, { off });
     const perDay = {}, preds = {}, sum = { leg: 0, fil: 0, wing: 0 };
     def.uds.forEach((u) => { const p = predForOrder(u, od, c); preds[u] = p; const r = (p.n && p.rec) ? p.rec : { leg: 0, fil: 0, wing: 0 }; perDay[u] = Object.assign({}, r); PARTS3.forEach((x) => sum[x] += r[x]); });
-    const stock = od <= ctx.today ? currentStock(od, c) : null;
+    const sInfo = od <= ctx.today ? stockInfo(od, c) : null, stock = sInfo ? sInfo.stock : null;
     const net = {}; PARTS3.forEach((x) => net[x] = Math.max(0, sum[x] - (stock ? stock[x] : 0)));
     const kg = {}; PARTS3.forEach((x) => kg[x] = net[x] > 0 ? kgSuggest(net[x], x, c) : 0);
-    return { od, del: def.del, uses: def.uds, perDay, preds, sum, stock, net, kg };
+    return { od, del: def.del, uses: def.uds, perDay, preds, sum, stock, stockInfo: sInfo, net, kg };
   }
 
   root.ChickenCore = { PARTS3, PART_NAME, DEFAULT_PURCHASE, WINDOW_OPTIONS, EST_METHODS, METHOD_LABEL, DEFAULT_SUPPLIERS, mdw, parseKey, toKey, addDays, prevDay,
     normalizeConfig, supplierOffOf, purG, purCode, kgSuggest, kgToPieces, dayGroup, ESTIMATORS, predict, predAt, predForOrder, predLabel,
-    supplierOpen, validDelivery, deliveryDayFor, orderDayFor, coveredUseDays, orderDefaults, isTempOff, hasChickenRec, recentBizDays, currentStock, orderPlan };
+    supplierOpen, validDelivery, deliveryDayFor, orderDayFor, coveredUseDays, orderDefaults, isTempOff, hasChickenRec, recentBizDays, prevBizDay, stockInfo, currentStock, stockNoneMsg, CLOSE_HOUR, orderPlan };
 })(window);

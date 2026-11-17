@@ -668,7 +668,7 @@ const CC=window.ChickenCore;
 let chickenOrders={}, chickenOrderSubbed=new Set(), chickenKgEdit={}, chickenSubmitting=false;
 const ymOfKey=k=>k.slice(0,7);
 function chickenDefSup(){const c=chickenCfg;return c.suppliers.find(s=>s.id===c.defaultSupplier)||c.suppliers[0];}
-function chickenCtx(){const c=chickenCfg;return{reports:doughReports,stock:stockDays,today:toDateKey(new Date()),isClosed:isClosedDay,natHoliday:natHolidayS,off:CC.supplierOffOf(chickenDefSup()),pred:c.pred,predHistory:c.predHistory,purchase:c.purchase};}
+function chickenCtx(){const c=chickenCfg;return{reports:doughReports,stock:stockDays,today:toDateKey(new Date()),hour:new Date().getHours(),isClosed:isClosedDay,natHoliday:natHolidayS,off:CC.supplierOffOf(chickenDefSup()),pred:c.pred,predHistory:c.predHistory,purchase:c.purchase};}
 function subscribeChickenOrders(){
   const c=stockCol();if(!c)return;
   const now=new Date();
@@ -750,9 +750,10 @@ function renderChickenStaff(){
       <details class="oc-how"><summary>看怎麼來的</summary>
         <table class="oc-tbl"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>${rows}
           <tr><td>合計需求</td>${CC.PARTS3.map(x=>`<td>${pl.sum[x]}</td>`).join("")}</tr>
-          <tr><td>扣剩餘<small>${pl.stock?`${sd} 打烊剩餘`:"近 3 個營業日無紀錄，不扣"}</small></td>${CC.PARTS3.map(x=>`<td>${pl.stock?"−"+pl.stock[x]:"—"}</td>`).join("")}</tr>
+          <tr><td>扣剩餘<small>${pl.stock?`${sd} 打烊剩餘`:"沒有可扣的紀錄，不扣"}</small></td>${CC.PARTS3.map(x=>`<td>${pl.stock?"−"+pl.stock[x]:"—"}</td>`).join("")}</tr>
           <tr class="sum"><td>要訂(隻)</td>${CC.PARTS3.map(x=>`<td>${pl.net[x]}</td>`).join("")}</tr></tbody></table>
         <div class="oc-note">公斤＝隻數 × 每支克數 ÷ 1000，四捨五入；可依實際叫貨調整下方公斤。</div></details>
+      ${pl.stock?"":`<div class="oc-stopbox">⚠ ${CC.stockNoneMsg(pl.stockInfo)}${pl.stockInfo&&pl.stockInfo.status==="needToday"?"":"<br>請確認店內實際剩餘再調整公斤。"}</div>`}
       <div class="oc-lab">實際訂購(公斤)・只要改這裡</div>
       <div class="oc-kg">${CC.PARTS3.map(p=>`<label><span>${{leg:"🍗",fil:"🥩",wing:"🪽"}[p]} ${CC.purCode(p,ctx)}</span><input type="number" inputmode="numeric" min="0" data-kg="${p}" value="${kg[p]}"><small data-pcs="${p}"></small></label>`).join("")}</div>
       <button class="oc-btn" data-submit="${c.k}">確認送出訂購</button></div>`;

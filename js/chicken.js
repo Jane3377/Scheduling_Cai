@@ -103,7 +103,7 @@
   /* ---------- 叫貨時程引擎(批發商休息 ＋ 店家營業 推算下單／到貨／使用) ---------- */
   // 雞肉計算都在 js/chicken-core.js(後台、員工頁共用)；這裡只把目前的資料包成 ctx 交給它
   const CC = window.ChickenCore;
-  const chkCtx = () => ({ reports: predDays, stock: stockDays, today: todayKey(), isClosed, natHoliday, off: supplierOff, pred: curPred(), predHistory, purchase });
+  const chkCtx = () => ({ reports: predDays, stock: stockDays, today: todayKey(), hour: taipeiNow().hour, isClosed, natHoliday, off: supplierOff, pred: curPred(), predHistory, purchase });
   const supplierOpen = (k) => CC.supplierOpen(k, chkCtx());
   const prevDay = CC.prevDay;
   const validDelivery = (k) => CC.validDelivery(k, chkCtx());
@@ -275,7 +275,7 @@
     const el = $("ckStockTop"); if (!el) return;
     const s = currentStock();
     el.classList.remove("hidden");
-    if (!s) { el.innerHTML = `📦 ⚠ ${STOCK_NONE_MSG}(不當作庫存 0)`; return; }
+    if (!s) { el.innerHTML = `📦 ⚠ ${CC.stockNoneMsg(CC.stockInfo(todayKey(), chkCtx()))}`; return; }
     el.innerHTML = `📦 目前庫存　<b class="ck-leg big">腿${s.leg}</b>　<b class="ck-fil big">排${s.fil}</b>　<b class="ck-wing big">翅${s.wing}</b>　<small>(${mdw(s.date)}${s.byName ? " " + s.byName : ""} 盤點)</small>`;
   }
   let calMode = "use";   // "use"＝使用月曆；"order"＝叫貨月曆
@@ -501,21 +501,30 @@
   function orderStatus(o) { if (!o) return null; if (o.status === "ordered") return (o.deliveryDay && o.deliveryDay <= todayKey()) ? "arrived" : "ordered"; return "draft"; }
   const orderRefOf = (ym) => db.collection(COLL).doc("poultry_order_" + ym);
   const orderForDay = (od) => orderDays[od] || null;
-  // 某使用日的「實際叫貨」：整張單的公斤換算隻數(存檔時記下 kgPieces；舊單用公斤回算，無條件捨去)，
-  // 依各使用日「需求」比例分攤(累計取整，各天加總剛好等於總隻數)；第一個使用日另計扣掉的庫存。找不到訂購單 → null
+  // 某使用日的「實際叫貨」與「可用量」(跟訂購的思考順序一致)：
+  //   扣掉的剩餘：下單時扣的打烊剩餘，依日期先用(第一個使用日先扣，不夠才扣下一天；多出來的算在最後一天)
+  //   應訂＝需求 − 扣掉的剩餘
+  //   實際叫貨＝整張單公斤換算的隻數(存檔時記下 kgPieces；舊單用公斤回算，無條件捨去)，依各天「應訂」比例分攤(累計取整，加總剛好等於總隻數)
+  //   可用量＝實際叫貨 ＋ 扣掉的剩餘；找不到訂購單 → null
   function orderActualFor(u, rec) {
     const sr = rec && rec.supplyRef, o = sr ? orderForDay(sr.od) : null;
     if (!o || !o.perDay || !o.perDay[u]) return null;
-    const uds = (o.useDays || []).slice().sort(), first = uds[0] === u, ds = o.deductStock || null;
-    const alloc = {}, stock = {}, avail = {};
+    const uds = (o.useDays || []).slice().sort(), ds = o.deductStock || null;
+    const used = {}, need = {}, alloc = {}, avail = {};
     PARTS3.forEach((p) => {
+      const dem = uds.map((d) => Number((o.perDay[d] || {})[p]) || 0);
+      let rem = ds ? (Number(ds[p]) || 0) : 0;
+      const us = dem.map((x) => { const t = Math.min(rem, x); rem -= t; return t; }); us[us.length - 1] += rem;
+      const nd = dem.map((x, i) => Math.max(0, x - us[i]));
       const total = (o.kgPieces && o.kgPieces[p] != null) ? (Number(o.kgPieces[p]) || 0) : kgToPieces((o.orderKg || {})[p], p);
-      const dem = uds.map((d) => Number((o.perDay[d] || {})[p]) || 0), tot = dem.reduce((a, b) => a + b, 0);
+      const w = nd.some((x) => x > 0) ? nd : (dem.some((x) => x > 0) ? dem : uds.map(() => 1)), tw = w.reduce((x, y) => x + y, 0);
       let acc = 0, prevR = 0, val = 0;
-      uds.forEach((d, i) => { acc += dem[i]; const r = tot > 0 ? Math.round(total * acc / tot) : Math.round(total * (i + 1) / uds.length); if (d === u) val = r - prevR; prevR = r; });
-      alloc[p] = val; stock[p] = (first && ds) ? (Number(ds[p]) || 0) : 0; avail[p] = alloc[p] + stock[p];
+      uds.forEach((d, i) => { acc += w[i]; const r = Math.round(total * acc / tw); if (d === u) val = r - prevR; prevR = r; });
+      const i = uds.indexOf(u);
+      used[p] = us[i]; need[p] = nd[i]; alloc[p] = val; avail[p] = val + us[i];
     });
-    return { od: sr.od, demand: o.perDay[u], alloc, stock, avail, hasStock: !!(first && ds), stockDate: (ds && ds.date) || "", multi: uds.length > 1 };
+    const hasStock = !!ds && PARTS3.some((p) => used[p] > 0);
+    return { od: sr.od, demand: o.perDay[u], used, need, alloc, avail, hasStock, stockDate: (ds && ds.date) || "", multi: uds.length > 1 };
   }
   function watchOrderMonths() {
     orderUnsubs.forEach((u) => u && u()); orderUnsubs = []; orderMonthData = {};
@@ -589,7 +598,7 @@
     const el = $("stockLine"); if (!el) return;
     const s = currentStock();
     el.classList.remove("hidden");
-    if (!s) { el.innerHTML = `📦 ⚠ ${STOCK_NONE_MSG}(本單不扣庫存)`; return; }
+    if (!s) { el.innerHTML = `📦 ⚠ ${CC.stockNoneMsg(CC.stockInfo(todayKey(), chkCtx()))}`; return; }
     el.innerHTML = `📦 目前庫存(${mdw(s.date)}${s.byName ? " " + s.byName : ""} 盤點)：<b class="ck-leg">腿${s.leg}</b> <b class="ck-fil">排${s.fil}</b> <b class="ck-wing">翅${s.wing}</b>`;
   }
   function recomputeUseDays() {
@@ -690,7 +699,7 @@
     html += `<div class="os-row os-net"><span class="os-k">最終訂購量(隻)</span><span class="os-c ck-leg">${net.leg}</span><span class="os-c ck-fil">${net.fil}</span><span class="os-c ck-wing">${net.wing}</span></div>`;
     $("ordSumTbl").innerHTML = html;
     const dc = $("ordDeduct"); if (dc) dc.onchange = () => { f.deductStock = dc.checked; f.kg = null; renderOrderSum(); };
-    $("ordStockNote").textContent = s ? (f.deductStock ? `${mdw(s.date)} 打烊盤點的剩餘，只在「第一個使用日」扣；可取消勾選` : "") : `⚠ ${STOCK_NONE_MSG}，本單不扣庫存(不當作 0)。`;
+    $("ordStockNote").textContent = s ? (f.deductStock ? `${mdw(s.date)} 打烊盤點的剩餘，只在「第一個使用日」扣；可取消勾選` : "") : `⚠ ${CC.stockNoneMsg(CC.stockInfo(f.orderDay, chkCtx()))}`;
     if (!f.kg) PARTS3.forEach((p) => { $(`orderKg${p}`).value = net[p] > 0 ? kgSuggest(net[p], p) : 0; });
     else PARTS3.forEach((p) => { $(`orderKg${p}`).value = f.kg[p] != null ? f.kg[p] : 0; });
     renderKgPcs();
@@ -774,8 +783,13 @@
       if (act) {
         const dm = act.demand, same = est && PARTS3.every((pp) => Math.round(Number(dm[pp]) || 0) === Math.round(Number(est[pp]) || 0));
         if (!same) html += row3(`訂購需求<small class="ck-adj">(訂購時填的，與預估不同)</small>`, dm);
+        if (act.hasStock) {
+          const neg = {}; PARTS3.forEach((pp) => neg[pp] = "−" + act.used[pp]);
+          html += row3(`扣掉的剩餘<small class="ck-adj">(${act.stockDate ? mdw(act.stockDate) + " 打烊" : "下單時"})</small>`, neg);
+          html += row3("應訂(隻)", act.need);
+        }
         html += row3(`實際叫貨<small class="ck-adj">(公斤換算)</small>`, act.alloc);
-        if (act.hasStock) html += row3(`＋扣掉的庫存${act.stockDate ? `<small class="ck-adj">(${mdw(act.stockDate)} 剩餘)</small>` : ""}`, act.stock);
+        if (act.hasStock) html += row3(`可用量<small class="ck-adj">(叫貨＋剩餘)</small>`, act.avail);
       } else if (o) html += row3("訂購量", o);
       html += row3("實際賣", u);
       const avail = act ? act.avail : o;
@@ -787,8 +801,8 @@
       const kg = rec.orderKg;
       if (kg) html += `<div class="ck-kgline">📦 這批訂購公斤(整張單)：${PARTS3.map((pp) => `${PART_EMO[pp]} ${kg[pp]}`).join("　")}(公斤)</div>`;
       if (!o) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未訂購。</div>`;
-      else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對。${act && act.multi ? "實際叫貨已依各使用日需求比例分攤。" : ""}</div>`;
-      else html += `<div class="hint" style="margin:-2px 2px 12px">${act ? `差額＝實際叫貨${act.hasStock ? "＋扣掉的庫存" : ""}−實際賣${act.multi ? "(整張單的叫貨依各使用日需求比例分攤)" : ""}` : "差額＝訂購量−實際賣"}：正＝有剩、負＝不夠。</div>`;
+      else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對。${act && act.multi ? "實際叫貨已依各使用日應訂比例分攤。" : ""}</div>`;
+      else html += `<div class="hint" style="margin:-2px 2px 12px">${act ? `差額＝${act.hasStock ? "可用量" : "實際叫貨"}−實際賣${act.multi ? "(整張單的叫貨依各使用日應訂比例分攤)" : ""}` : "差額＝訂購量−實際賣"}：正＝有剩、負＝不夠。</div>`;
     }
     if (hasSales) html += `<div class="cmp-h">當日銷售明細(換算消耗)</div>` + itemTable(rec.sales, rec.parts, rec.map);
     else if (isBiz) html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
@@ -899,9 +913,8 @@
   // 目前庫存＝今天(含)以前、最近一筆盤點(往下一個營業日累積顯示)
   // 最近 n 個營業日(含今天，若今天營業)：新→舊
   const recentBizDays = (n, fromKey) => CC.recentBizDays(n, fromKey, chkCtx());
-  // 目前庫存＝以 refDay(預設今天；訂購單用該單的下單日)往回「近 3 個營業日內」最新的剩餘雞肉紀錄；沒有 → null(不當 0)
+  // 扣哪天的打烊剩餘(規則見 chicken-core stockInfo)：下單日當天有紀錄用當天，否則前一個營業日；過 20:00 還沒填當天 → 不扣
   const currentStock = (refDay) => CC.currentStock(refDay, chkCtx());
-  const STOCK_NONE_MSG = "未紀錄近 3 個營業日剩餘雞肉";
   const configRef = () => db.collection(COLL).doc("poultry_config");
   function applyConfig(d) {
     bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
@@ -1123,10 +1136,10 @@
     let html = "";
     if (st.needOrder) {
       const c = reminderOrderCalc();
-      // 與訂購單一致：寫出扣的是哪天的打烊剩餘；近 3 個營業日沒有紀錄就註明不扣
+      // 與訂購單一致：寫出扣的是哪天的打烊剩餘；沒有可扣的紀錄就說明原因、不扣
       const sd = c.stockDate ? c.stockDate.slice(5).replace("-", "/").replace(/^0/, "") : "";
       const stockRow = c.stock ? `<div class="rc-row stk"><span class="rc-k">扣 ${sd} 剩餘</span><span class="rc-v"><i>腿</i>−${c.stock.leg} <i>排</i>−${c.stock.fil} <i>翅</i>−${c.stock.wing}</span></div>`
-        : `<div class="rc-row stk"><span class="rc-k">扣剩餘</span><span class="rc-v" style="color:var(--muted);font-size:13px">近 3 個營業日無紀錄，不扣</span></div>`;
+        : `<div class="rc-row stk"><span class="rc-k">扣剩餘</span><span class="rc-v" style="color:#8a5a10;font-size:13px">${CC.stockNoneMsg(CC.stockInfo(todayKey(), chkCtx()))}</span></div>`;
       html += `<div class="rm-task order">
         <div class="rm-th"><span class="rm-tt">今天要訂購</span><span class="rm-pill wait">待訂購</span></div>
         <div class="rm-sub">${deliverLine(c.del, c.uses, true)}</div>
@@ -1581,7 +1594,7 @@
       ${row(`${METHOD_LABEL[estMethod] || ""}基準`, p.n ? p.avg : null)}
       ${row(`🔮 推估(×${bufferFactor})`, p.n ? p.rec : null)}
       ${row(oa ? "📦 實際叫貨(公斤換算)" : "📦 實際訂購", ord || null)}
-      ${oa && oa.hasStock ? row("＋扣掉的庫存", oa.stock) : ""}
+      ${oa && oa.hasStock ? row("＋扣掉的剩餘", oa.used) : ""}
       ${row("🍗 實際用", act)}
       ${row("打烊剩餘", hasChickenRec(st) ? st : null)}
       ${diffRow("差額(估−用)", p.n ? p.rec : null, act)}
