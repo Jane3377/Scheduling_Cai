@@ -607,3 +607,39 @@ table.work-grid{width:100%;min-width:1120px;border-collapse:collapse;table-layou
 .stock-guard p{margin:0 0 20px;font-size:16px;line-height:1.7;color:#5a524c;white-space:pre-line}
 .stock-guard .sg-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .stock-guard .sg-actions button{padding:14px 10px;font-size:16px;font-weight:800;border-radius:13px}
+
+/* 員工頁：訂購雞肉(角色＝雞肉／管理者) */
+@media(max-width:720px){.staff-main-tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:4px}.staff-main-tabs .staff-tab{white-space:nowrap;flex:0 0 auto}}
+.oc-list{padding:4px 0 2px}
+.oc-card{border:1.5px solid #ecd9cb;border-radius:16px;background:#fffdfb;padding:15px 15px 16px;margin:0 0 14px}
+.oc-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.oc-day{font-size:19px;font-weight:900;color:var(--ink)}
+.oc-pill{margin-left:auto;font-size:13px;font-weight:800;border-radius:999px;padding:4px 12px;white-space:nowrap}
+.oc-pill.wait{color:#9a4a1a;background:#fbe3d2}.oc-pill.done{color:#fff;background:#2f7d52}.oc-pill.pre{color:#5a524c;background:#efeae4}.oc-pill.stop{color:#8a5a10;background:#fff3d6}
+.oc-sub{font-size:15px;color:#5a524c;margin:6px 0 12px;line-height:1.6}.oc-sub b{color:var(--ink)}
+.oc-need{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.oc-need span{background:#fff;border:1px solid #ecd9cb;border-radius:12px;text-align:center;padding:8px 2px}
+.oc-need i{display:block;font-style:normal;font-size:13px;color:var(--muted);font-weight:700}
+.oc-need b{font-size:26px;font-weight:900}.oc-need b small{font-size:14px;font-weight:800;margin-left:2px;color:#5a524c}
+.oc-c-leg{color:#8f3521}.oc-c-fil{color:#2f7d52}.oc-c-wing{color:#b7791f}
+.oc-lab{font-size:15px;font-weight:900;color:var(--ink);margin:16px 0 8px}
+.oc-kg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.oc-kg label{display:grid;gap:5px;text-align:center}
+.oc-kg label>span{font-size:14px;font-weight:800;color:#9a4a1a}
+.oc-kg input{width:100%;text-align:center;font-size:28px;font-weight:900;padding:12px 4px;border:2px solid #d9a689;border-radius:14px;background:#fff}
+.oc-kg small{font-size:14px;font-weight:700;color:#5a524c;min-height:40px}.oc-kg small em{display:block;font-style:normal;color:#c0392b}.oc-kg small em.more{color:#b7791f}
+.oc-btn{display:block;width:100%;margin-top:16px;border:0;border-radius:14px;background:var(--brand);color:#fff;font-size:18px;font-weight:900;padding:15px;cursor:pointer}
+.oc-btn:disabled{opacity:.55}
+.oc-how{margin-top:12px;border-top:1px dashed #ecd9cb;padding-top:8px}
+.oc-how summary{cursor:pointer;font-size:15px;font-weight:800;color:#9a4a1a;padding:4px 0;list-style:none}
+.oc-how summary::-webkit-details-marker{display:none}.oc-how summary::after{content:" ›"}.oc-how[open] summary::after{content:" ˅"}
+.oc-tbl{width:100%;min-width:0;border-collapse:collapse;table-layout:fixed;margin-top:6px}
+.oc-tbl th,.oc-tbl td{padding:8px 4px;text-align:center;font-size:15px;border-bottom:1px solid #f0ebe7}
+.oc-tbl th{font-size:13px;color:var(--muted);background:#fcfaf8}
+.oc-tbl th:first-child,.oc-tbl td:first-child{text-align:left;width:42%;font-size:14px}
+.oc-tbl tr.sum td{font-weight:900;background:#faf7f4}
+.oc-tbl small{display:block;font-size:11.5px;color:var(--muted)}
+.oc-note{font-size:13.5px;color:#6b5a4c;line-height:1.6;margin:8px 2px 0}
+.oc-lock{background:#f3faf5;border:1px solid #cfe6d7;border-radius:12px;padding:11px 13px;font-size:15px;color:#2f5d43;line-height:1.6;margin-top:12px}.oc-lock b{color:#1f4a33}
+.oc-stopbox{background:#fff8e6;border:1px solid #f1dca8;border-radius:12px;padding:12px 13px;font-size:15.5px;color:#7a5410;line-height:1.6;margin-top:10px}
+.oc-kgrow{display:flex;gap:14px;flex-wrap:wrap;font-size:15px;color:#5a524c;margin-top:4px}.oc-kgrow b{color:var(--ink);font-size:17px}

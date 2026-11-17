@@ -208,6 +208,18 @@ function renderStaff(){
     }
   }
 
+  // 訂購雞肉分頁：僅「雞肉／管理者」角色可見
+  const cTab=byId("chickenTabBtn");
+  if(cTab){
+    const showC=canChicken();
+    cTab.hidden=!showC;
+    if(showC)initChicken();
+    else if(cTab.classList.contains("active")){
+      document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));
+      byId("mySchedulePanel").classList.add("active");document.querySelector('[data-staff-tab="mySchedule"]').classList.add("active");
+    }
+  }
+
   const today=toDateKey(new Date());
   // 顯示前後約三個月的班表
   const lo=new Date();lo.setMonth(lo.getMonth()-3);const loKey=toDateKey(lo);
@@ -543,6 +555,7 @@ function subscribeStock(){
     Object.keys(stockDays).forEach(dk=>{if(dk.slice(0,7)===m&&!(dk in days))delete stockDays[dk];}); // 後台刪除的紀錄也要移除
     Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);
     if(byId("stockPanel")&&byId("stockPanel").classList.contains("active"))renderStockCards();
+    if(byId("chickenPanel")&&byId("chickenPanel").classList.contains("active"))renderChickenStaff();
   },err=>console.warn("stock snapshot",err));
 }
 function initStock(){renderStockToday();subscribeStock();renderStockCards();}
@@ -600,22 +613,27 @@ const DC=window.DoughCore, {DOUGH_TYPES,DOUGH_LABEL}=DC;
 let pizzaCfg=DC.normalizePizza(null), doughReports={}, doughSubbed=new Set(), doughConfigSubbed=false;
 function myRole(){const e=staffEmployeeId&&employee(staffEmployeeId);return (e&&e.role)||"一般";}
 function canDough(){const r=myRole();return r==="餅皮"||r==="管理者";}
+function canChicken(){const r=myRole();return r==="雞肉"||r==="管理者";}
+// 雞肉設定(批發商、推估參數、版本、公斤換算)：與後台同一份 poultry_config
+let chickenCfg=window.ChickenCore?window.ChickenCore.normalizeConfig(null):null;
+// 有新資料時，重畫正在看的餅皮／雞肉分頁
+function refreshPoultryPanels(){if(byId("stockPanel")&&byId("stockPanel").classList.contains("active"))renderStockCards();if(byId("doughPanel")&&byId("doughPanel").classList.contains("active"))renderDoughStaff();if(byId("chickenPanel")&&byId("chickenPanel").classList.contains("active"))renderChickenStaff();}
 function natHolidayS(key){return (data?.settings?.nationalHolidays||[]).find(h=>h.date===key)?.name||"";}
 function predictDoughS(targetKey){return DC.predictDough(targetKey,{reports:doughReports,stock:stockDays,cfg:pizzaCfg,today:toDateKey(new Date()),isClosed:isClosedDay,natHoliday:natHolidayS});}
 function nextOpenDaysS(n){const out=[],d=new Date();for(let i=0;i<40&&out.length<n;i++){const k=toDateKey(d);if(!isClosedDay(k))out.push(k);d.setDate(d.getDate()+1);}return out;}
 function subscribeDough(){
   const c=stockCol();if(!c)return;
   if(!doughConfigSubbed){doughConfigSubbed=true;
-    c.doc("poultry_config").onSnapshot(snap=>{const d=snap.data();pizzaCfg=DC.normalizePizza(d&&d.pizza);if(byId("doughPanel")&&byId("doughPanel").classList.contains("active"))renderDoughStaff();},err=>console.warn("pizza config",err));
+    c.doc("poultry_config").onSnapshot(snap=>{const d=snap.data();pizzaCfg=DC.normalizePizza(d&&d.pizza);if(window.ChickenCore)chickenCfg=window.ChickenCore.normalizeConfig(d);refreshPoultryPanels();},err=>console.warn("pizza config",err));
   }
   const now=new Date();
   for(let i=0;i<3;i++){const mk=ymKey(new Date(now.getFullYear(),now.getMonth()-i,1));
     if(!doughSubbed.has(mk)){doughSubbed.add(mk);
-      c.doc("poultry_"+mk).onSnapshot(snap=>{const days=(snap.data()&&snap.data().days)||{};Object.keys(days).forEach(dk=>doughReports[dk]=days[dk]);if(byId("doughPanel")&&byId("doughPanel").classList.contains("active"))renderDoughStaff();},err=>console.warn("dough report",err));
+      c.doc("poultry_"+mk).onSnapshot(snap=>{const days=(snap.data()&&snap.data().days)||{};Object.keys(days).forEach(dk=>doughReports[dk]=days[dk]);refreshPoultryPanels();},err=>console.warn("dough report",err));
     }
     // 過去月份的剩餘盤點也需要(算製作量用)；當月由 subscribeStock 處理
     if(!stockSubbed.has(mk)){stockSubbed.add(mk);
-      c.doc("poultry_stock_"+mk).onSnapshot(snap=>{const days=(snap.data()&&snap.data().days)||{};Object.keys(stockDays).forEach(dk=>{if(dk.slice(0,7)===mk&&!(dk in days))delete stockDays[dk];});Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);if(byId("doughPanel")&&byId("doughPanel").classList.contains("active"))renderDoughStaff();},err=>console.warn("stock month",err));
+      c.doc("poultry_stock_"+mk).onSnapshot(snap=>{const days=(snap.data()&&snap.data().days)||{};Object.keys(stockDays).forEach(dk=>{if(dk.slice(0,7)===mk&&!(dk in days))delete stockDays[dk];});Object.keys(days).forEach(dk=>stockDays[dk]=days[dk]);refreshPoultryPanels();},err=>console.warn("stock month",err));
     }
   }
 }
@@ -645,6 +663,102 @@ function renderDoughStaff(){
       <details class="dgs-how"><summary>看怎麼來的</summary>${how}</details></div>`;
   }).join("");
 }
+/* ---------- 訂購雞肉(角色＝雞肉／管理者)：計算在 js/chicken-core.js(與後台共用)，員工只能改公斤 ---------- */
+const CC=window.ChickenCore;
+let chickenOrders={}, chickenOrderSubbed=new Set(), chickenKgEdit={}, chickenSubmitting=false;
+const ymOfKey=k=>k.slice(0,7);
+function chickenDefSup(){const c=chickenCfg;return c.suppliers.find(s=>s.id===c.defaultSupplier)||c.suppliers[0];}
+function chickenCtx(){const c=chickenCfg;return{reports:doughReports,stock:stockDays,today:toDateKey(new Date()),isClosed:isClosedDay,natHoliday:natHolidayS,off:CC.supplierOffOf(chickenDefSup()),pred:c.pred,predHistory:c.predHistory,purchase:c.purchase};}
+function subscribeChickenOrders(){
+  const c=stockCol();if(!c)return;
+  const now=new Date();
+  [0,1].forEach(i=>{const mk=ymKey(new Date(now.getFullYear(),now.getMonth()+i,1));
+    if(chickenOrderSubbed.has(mk))return;chickenOrderSubbed.add(mk);
+    c.doc("poultry_order_"+mk).onSnapshot(snap=>{const o=(snap.data()&&snap.data().orders)||{};Object.keys(chickenOrders).forEach(k=>{if(ymOfKey(k)===mk&&!(k in o))delete chickenOrders[k];});Object.assign(chickenOrders,o);refreshPoultryPanels();},err=>console.warn("order snapshot",err));
+  });
+}
+function initChicken(){subscribeDough();subscribeStock();subscribeChickenOrders();renderChickenStaff();}
+const ocTime=ms=>{if(!ms)return"";const d=new Date(ms);return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
+const ocDeliverLine=(del,uses)=>`<b>${CC.mdw(del)}</b> 到貨醃製，供 <b>${uses.map(CC.mdw).join("、")}</b> 炸烤使用`;
+const ocNeed=(o,lab)=>`<div class="oc-need">${CC.PARTS3.map(p=>`<span><i>${CC.PART_NAME[p]} ${lab}</i><b class="oc-c-${p}">${o[p]}<small>隻</small></b></span>`).join("")}</div>`;
+// 近 2 個可下單日：今天(可送出／已訂購／休市)＋之後的下單日(預覽或已訂購)
+function chickenCards(){
+  const ctx=chickenCtx(),T=ctx.today,sup=chickenDefSup(),off=ctx.off,cards=[];
+  const ord=chickenOrders[T];
+  if(ord)cards.push({k:T,type:"locked",order:ord,today:true});
+  else if(CC.isTempOff(T,off))cards.push({k:T,type:"stop",off:CC.isTempOff(T,off),sup,today:true});
+  else{const plan=CC.orderPlan(T,off,ctx);if(plan)cards.push({k:T,type:"today",plan,sup,today:true});}
+  for(let i=1;i<=14&&cards.length<2;i++){const k=CC.addDays(T,i);
+    if(chickenOrders[k]){cards.push({k,type:"locked",order:chickenOrders[k]});continue;}
+    const plan=CC.orderPlan(k,off,ctx);if(plan)cards.push({k,type:"preview",plan,sup});}
+  return{cards,ctx};
+}
+function renderChickenStaff(){
+  const box=byId("chickenOrderList");if(!box||!CC||!chickenCfg)return;
+  const {cards,ctx}=chickenCards();
+  if(!cards.length){box.innerHTML=`<div class="empty-state">近兩週沒有可下單日。</div>`;return;}
+  box.innerHTML=cards.map(c=>{
+    const title=`${CC.mdw(c.k)} ${c.today?"今天下單":"下次下單"}`;
+    if(c.type==="stop")return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${CC.mdw(c.k)}</span><span class="oc-pill stop">🚚 休市</span></div>
+      <div class="oc-stopbox">${c.sup.name}今天休市${c.off.note?`(${c.off.note})`:""}。<br><b>今天請聯絡管理者訂購。</b></div></div>`;
+    if(c.type==="locked"){const o=c.order,by=o.orderedBy,staff=by&&by.via==="staff",kg=o.orderKg||{};
+      const lock=o.status!=="ordered"?`🔒 後台有尚未確認的訂購單，請洽管理者。`:staff?`🔒 <b>${by.name||"員工"}</b> ${ocTime(o.orderedAt)} 已送出訂購<br>如需修改，請洽管理者。`:`🔒 已由<b>後台管理者</b>訂購${o.orderedAt?`(${ocTime(o.orderedAt)})`:""}`;
+      return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill done">已訂購</span></div>
+        <div class="oc-sub">${o.supplierName||""}<br>${ocDeliverLine(o.deliveryDay,o.useDays||[])}</div>
+        <div class="oc-kgrow">${CC.PARTS3.map(p=>`<span>${CC.purCode(p,ctx)} <b>${kg[p]||0}</b> 公斤</span>`).join("")}</div>
+        <div class="oc-lock">${lock}</div></div>`;}
+    const pl=c.plan;
+    if(c.type==="preview")return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill pre">預覽</span></div>
+      <div class="oc-sub">${c.sup.name}<br>${ocDeliverLine(pl.del,pl.uses)}</div>${ocNeed(pl.sum,"預估")}
+      <div class="oc-note">下單當天才能送出(會扣當天最新的打烊剩餘)。</div></div>`;
+    // 今天：可送出
+    const kg=chickenKgEdit[c.k]||pl.kg, sd=pl.stock?pl.stock.date.slice(5).replace("-","/").replace(/^0/,""):"";
+    const rows=pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=p.n?`近 ${p.window} 天 ${p.n} 個${p.group}${CC.METHOD_LABEL[p.method]||""} ×${p.buf}`:"資料不足";
+      return `<tr><td>${CC.mdw(u)} ${p.group||""}<small>${why}</small></td>${CC.PARTS3.map(x=>`<td>${r[x]}</td>`).join("")}</tr>`;}).join("");
+    return `<div class="oc-card" data-od="${c.k}"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill wait">待訂購</span></div>
+      <div class="oc-sub">${c.sup.name}<br>${ocDeliverLine(pl.del,pl.uses)}</div>${ocNeed(pl.net,"要訂")}
+      <details class="oc-how"><summary>看怎麼來的</summary>
+        <table class="oc-tbl"><thead><tr><th></th><th>腿</th><th>排</th><th>翅</th></tr></thead><tbody>${rows}
+          <tr><td>合計需求</td>${CC.PARTS3.map(x=>`<td>${pl.sum[x]}</td>`).join("")}</tr>
+          <tr><td>扣剩餘<small>${pl.stock?`${sd} 打烊剩餘`:"近 3 個營業日無紀錄，不扣"}</small></td>${CC.PARTS3.map(x=>`<td>${pl.stock?"−"+pl.stock[x]:"—"}</td>`).join("")}</tr>
+          <tr class="sum"><td>要訂(隻)</td>${CC.PARTS3.map(x=>`<td>${pl.net[x]}</td>`).join("")}</tr></tbody></table>
+        <div class="oc-note">公斤＝隻數 × 每支克數 ÷ 1000，四捨五入；可依實際叫貨調整下方公斤。</div></details>
+      <div class="oc-lab">實際訂購(公斤)・只要改這裡</div>
+      <div class="oc-kg">${CC.PARTS3.map(p=>`<label><span>${{leg:"🍗",fil:"🥩",wing:"🪽"}[p]} ${CC.purCode(p,ctx)}</span><input type="number" inputmode="numeric" min="0" data-kg="${p}" value="${kg[p]}"><small data-pcs="${p}"></small></label>`).join("")}</div>
+      <button class="oc-btn" data-submit="${c.k}">確認送出訂購</button></div>`;
+  }).join("");
+  // 今天的卡片：公斤即時換算隻數；送出
+  const card=box.querySelector(".oc-card[data-od]");
+  if(card){const od=card.dataset.od,pl=cards.find(c=>c.k===od).plan;
+    // 只有員工實際改過公斤才記住(資料還在載入時的預設值不記，之後會自動更新成正確建議量)
+    const sync=(edited)=>{const kg={};card.querySelectorAll("input[data-kg]").forEach(i=>{kg[i.dataset.kg]=Math.max(0,Math.floor(Number(i.value)||0));});if(edited)chickenKgEdit[od]=kg;
+      CC.PARTS3.forEach(p=>{const pcs=CC.kgToPieces(kg[p],p,ctx),d=pcs-pl.net[p];card.querySelector(`[data-pcs="${p}"]`).innerHTML=`≈ ${pcs} 隻${d<0?`<em>比需求少 ${-d}</em>`:d>0?`<em class="more">比需求多 ${d}</em>`:""}`;});};
+    card.querySelectorAll("input[data-kg]").forEach(i=>i.oninput=()=>sync(true));sync(false);
+    card.querySelector("[data-submit]").onclick=()=>submitChickenOrder(od,pl);}
+}
+// 送出：再確認一次這天還沒有訂購單(避免和後台同時下單)，寫入訂購單＋各使用日紀錄，並記錄訂購人
+async function submitChickenOrder(od,pl){
+  if(chickenSubmitting)return;
+  const c=stockCol();if(!c){toast("尚未連線，請確認網路後再送出。","error");return;}
+  const e=staffEmployeeId&&employee(staffEmployeeId);if(!e)return;
+  const ctx=chickenCtx(),sup=chickenDefSup(),kg=chickenKgEdit[od]||pl.kg;   // 沒改過＝系統建議公斤
+  if(CC.PARTS3.every(p=>!kg[p])){toast("公斤數都是 0，請確認後再送出。","error");return;}
+  const msg=`確定送出 ${CC.mdw(od)} 的雞肉訂購？\n\n${sup.name}・${CC.mdw(pl.del)} 到貨\n${CC.PARTS3.map(p=>`${CC.purCode(p,ctx)} ${kg[p]} 公斤`).join("、")}\n\n送出後不能修改，如需修改請洽管理者。`;
+  if(!confirm(msg))return;
+  chickenSubmitting=true;
+  const ym=ymOfKey(od),ref=c.doc("poultry_order_"+ym);
+  try{
+    if(ref.get){const snap=await ref.get();const ex=snap.data()&&snap.data().orders&&snap.data().orders[od];if(ex){chickenOrders[od]=ex;toast("這天已經有人訂購了。","error");renderChickenStaff();return;}}
+    const now=Date.now(),kgPieces={};CC.PARTS3.forEach(p=>kgPieces[p]=CC.kgToPieces(kg[p],p,ctx));
+    const order={supplier:sup.id,supplierName:sup.name,orderDay:od,deliveryDay:pl.del,useDays:pl.uses.slice(),perDay:pl.perDay,deductStock:pl.stock?{leg:pl.stock.leg,fil:pl.stock.fil,wing:pl.stock.wing,date:pl.stock.date}:null,totalPieces:pl.net,orderKg:kg,kgPieces,status:"ordered",createdAt:now,updatedAt:now,orderedAt:now,orderedBy:{id:e.id,name:e.name,via:"staff"}};
+    const writes=[ref.set({orders:{[od]:order},updatedAt:now},{merge:true})];
+    const byYm={};pl.uses.forEach(u=>{(byYm[ymOfKey(u)]=byYm[ymOfKey(u)]||{})[u]={order:pl.perDay[u],orderKg:kg,supplyRef:{ym,od}};});
+    Object.keys(byYm).forEach(m=>writes.push(c.doc("poultry_"+m).set({days:byYm[m],updatedAt:now},{merge:true})));
+    await Promise.all(writes);
+    chickenOrders[od]=order;delete chickenKgEdit[od];toast("🛒 已送出訂購","success");renderChickenStaff();
+  }catch(err){console.error(err);toast("送出失敗："+(err&&err.message||err),"error");}
+  finally{chickenSubmitting=false;}
+}
 document.addEventListener("DOMContentLoaded",()=>{
   applyStaffBranding();
   byId("staffLoginBtn").onclick=login;
@@ -652,7 +766,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("staffPinInput")?.addEventListener("keydown",e=>{if(e.key==="Enter")login()});
   byId("staffLogoutBtn").onclick=logout;
   byId("addAllCalBtn").onclick=addAllToCalendar;
-  document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active");if(b.dataset.staffTab==="stock")enterStockTab();if(b.dataset.staffTab==="dough")initDough();});
+  document.querySelectorAll(".staff-tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".staff-tab,.staff-tab-panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");byId(b.dataset.staffTab+"Panel").classList.add("active");if(b.dataset.staffTab==="stock")enterStockTab();if(b.dataset.staffTab==="dough")initDough();if(b.dataset.staffTab==="chicken")initChicken();});
   byId("stockChickenBtn")?.addEventListener("click",()=>saveStockPart("chicken"));
   byId("stockDoughBtn")?.addEventListener("click",()=>saveStockPart("dough"));
   // 我的班表：列表／月曆切換、月份切換、當天明細小卡

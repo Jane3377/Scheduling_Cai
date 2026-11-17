@@ -152,6 +152,10 @@
     .ck-po.st-arr { color: #1f7a46; background: #e3f3ea; } .ck-po.st-sent { color: #2a5aa0; background: #e6eefa; } .ck-po.st-wait { color: #9a4a1a; background: #fbe9db; }
     .ck-po.ck-posugg { color: #9a4a1a; background: #fff; border: 1.5px dashed #e0a884; }
     #ordHeadSub.ord-warn { color: #8a5a10; font-weight: 800; }
+    .ord-deliver { font-size: 14.5px; color: #5a524c; background: #faf7f4; border-radius: 10px; padding: 8px 11px; margin-top: 4px; line-height: 1.6; } .ord-deliver b { color: var(--ink); }
+    .tc-nums b small { font-size: 13px; font-weight: 800; color: var(--muted); margin-left: 2px; }
+    .tc-by { font-size: 14px; font-weight: 700; color: #2f5d43; background: #f3faf5; border: 1px solid #cfe6d7; border-radius: 10px; padding: 8px 11px; margin-top: 8px; }
+    .ck-by { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
     .ck-supoff { display: block; font-size: 10px; font-weight: 800; color: #8a5a10; background: #fff3d6; border-radius: 6px; padding: 1px 3px; margin-top: 3px; width: fit-content; max-width: 100%; overflow: hidden; white-space: nowrap; letter-spacing: -0.3px; }
     @media (min-width:721px) { .ck-supoff { font-size: 13px; padding: 2px 6px; letter-spacing: 0; } .ck-ordcell .ck-pocan { font-size: 12.5px; } }
     .employee-cal-day.ck-rest.ck-ordcell { cursor: pointer; }
@@ -778,7 +782,7 @@
           <h4>🗓️ 每天這樣做</h4>
           <div class="gd-step"><span class="gd-num">1</span><span class="tx"><b>打烊後上傳銷售報表</b>：在〈首頁〉按「⬆ 上傳報表」，上傳大麥系統下載的「餐點銷售狀況」Excel。系統會自動換算當天用掉的 🍗腿／🥩排／🪽翅，以及賣出的餅皮。</span></div>
           <div class="gd-step"><span class="gd-num">2</span><span class="tx"><b>員工填打烊剩餘</b>：員工在班表系統的「今日打烊剩餘」填雞肉、餅皮剩多少(兩項分開送出)。有人漏填，管理者可在〈紀錄〉回填。</span></div>
-          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>看今日建議、訂購雞肉</b>：〈首頁〉的「今日建議」會告訴你今天要不要訂雞肉、餅皮要做多少。按「🛒 訂購雞肉」開訂購單，數字可以改，確認後存起來。</span></div>
+          <div class="gd-step"><span class="gd-num">3</span><span class="tx"><b>看今日建議、訂購雞肉</b>：〈首頁〉的「今日建議」會告訴你今天要不要訂雞肉、餅皮要做多少。按「🛒 訂購雞肉」開訂購單，數字可以改，確認後存起來。也可以由員工在班表系統的「🛒 訂購雞肉」送出(只能改公斤)，後台會同步鎖定並記錄是誰訂的。</span></div>
         </div>
 
         <div class="gd-sec">
@@ -788,6 +792,7 @@
             <div class="gd-tool"><span class="k">② 各使用日需求</span><span>每個使用日要用多少隻。可按「帶入」用平均銷售，或參考上次同日型的量。</span></div>
             <div class="gd-tool"><span class="k">③ 訂購數量確認</span><span>合計需求 − 打烊剩餘 ＝ 最終訂購量。剩餘只採用近 3 個營業日內最新的盤點(例如「扣除 11/13 剩餘」)，沒有紀錄就不扣。</span></div>
             <div class="gd-tool"><span class="k">④ 重量換算</span><span>批發商用公斤叫貨，系統自動把隻數換成整數公斤，可以微調。</span></div>
+            <div class="gd-tool"><span class="k">員工頁訂購</span><span>排班後台把員工的備料角色設成「雞肉」或「管理者」，員工專區就會出現「🛒 訂購雞肉」：顯示今天起 2 個可下單日，今天的單只能改公斤再送出；下次的只能預覽。今天批發商休市時會請他聯絡管理者。送出後兩邊都鎖定，後台看得到訂購人。</span></div>
             <div class="gd-tool"><span class="k">確認後鎖定</span><span>按「確認已訂購」後只能看、不能改；真的要重開，可在最下方刪除。</span></div>
           </div>
         </div>
@@ -902,6 +907,7 @@
           <div class="ord-sel"><span class="ord-k">批發商</span><div class="ord-selwrap"><select class="input" id="ordSupplier"></select></div></div>
           <div class="ord-sel"><span class="ord-k">到貨日</span><div class="ord-selwrap"><select class="input" id="ordDelivery"></select></div></div>
           <div class="ord-sel"><span class="ord-k">使用日</span><button type="button" class="ord-usebtn" id="ordUseBtn">請選使用日 ▾</button></div>
+          <div class="ord-deliver" id="ordDeliverLine"></div>
         </section>
 
         <section class="ord-sec">

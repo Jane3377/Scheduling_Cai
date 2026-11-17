@@ -53,11 +53,12 @@
         <div class="next-shift-card" id="nextShiftCard"></div>
         <div class="availability-window-banner" id="availabilityWindowBanner"></div>
 
-        <div class="staff-tabs">
+        <div class="staff-tabs staff-main-tabs">
           <button class="staff-tab active" data-staff-tab="mySchedule">我的班表</button>
           <button class="staff-tab" data-staff-tab="availability">填寫可上班時間</button>
           <button class="staff-tab" data-staff-tab="stock">今日打烊剩餘</button>
           <button class="staff-tab" data-staff-tab="dough" id="doughTabBtn" hidden>🍕 餅皮推估</button>
+          <button class="staff-tab" data-staff-tab="chicken" id="chickenTabBtn" hidden>🛒 訂購雞肉</button>
         </div>
 
         <div class="staff-tab-panel active" id="mySchedulePanel">
@@ -140,6 +141,13 @@
             <h3 id="sgTitle"></h3>
             <p id="sgMsg"></p>
             <div class="sg-actions"><button type="button" class="ghost-btn" id="sgNo">先不要</button><button type="button" class="primary-btn" id="sgYes">確定要填寫</button></div>
+          </div>
+        </div>
+
+        <div class="staff-tab-panel" id="chickenPanel">
+          <div class="panel">
+            <div class="panel-head"><div><h3>🛒 訂購雞肉</h3><p>今天起 2 個可下單日；只要確認公斤數再送出。</p></div></div>
+            <div id="chickenOrderList" class="oc-list"></div>
           </div>
         </div>
 
