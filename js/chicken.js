@@ -1162,7 +1162,7 @@
     const s = currentStock(), stock = s ? { leg: s.leg, fil: s.fil, wing: s.wing } : null;
     const net = stock ? { leg: Math.max(0, sum.leg - stock.leg), fil: Math.max(0, sum.fil - stock.fil), wing: Math.max(0, sum.wing - stock.wing) } : { leg: sum.leg, fil: sum.fil, wing: sum.wing };
     const kg = { leg: kgSuggest(net.leg, "leg"), fil: kgSuggest(net.fil, "fil"), wing: kgSuggest(net.wing, "wing") };
-    return { od, del, uses, sum, stock, net, kg };
+    return { od, del, uses, sum, stock, stockDate: s ? s.date : "", net, kg };
   }
   function reminderState() {
     const td = todayKey();
@@ -1177,7 +1177,10 @@
     let html = "";
     if (st.needOrder) {
       const c = reminderOrderCalc();
-      const stockRow = c.stock ? `<div class="rc-row stk"><span class="rc-k">扣目前庫存</span><span class="rc-v"><i>腿</i>−${c.stock.leg} <i>排</i>−${c.stock.fil} <i>翅</i>−${c.stock.wing}</span></div>` : "";
+      // 與訂購單一致：寫出扣的是哪天的打烊剩餘；近 3 個營業日沒有紀錄就註明不扣
+      const sd = c.stockDate ? c.stockDate.slice(5).replace("-", "/").replace(/^0/, "") : "";
+      const stockRow = c.stock ? `<div class="rc-row stk"><span class="rc-k">扣 ${sd} 剩餘</span><span class="rc-v"><i>腿</i>−${c.stock.leg} <i>排</i>−${c.stock.fil} <i>翅</i>−${c.stock.wing}</span></div>`
+        : `<div class="rc-row stk"><span class="rc-k">扣剩餘</span><span class="rc-v" style="color:var(--muted);font-size:13px">近 3 個營業日無紀錄，不扣</span></div>`;
       html += `<div class="rm-task order">
         <div class="rm-th"><span class="rm-tt">今天要訂購</span><span class="rm-pill wait">待訂購</span></div>
         <div class="rm-sub">${mdw(c.del)} 到貨 → 供 <b>${c.uses.map(mdw).join("・") || "—"}</b></div>
