@@ -170,6 +170,40 @@
     return `${info.ref ? mdw(info.ref) : "前一個營業日"} 沒有打烊剩餘紀錄，本單不扣剩餘${info.older ? `(最近一筆是 ${mdw(info.older)})` : ""}。`;
   }
 
+  /* ---------- 某使用日的實際叫貨／可用量(訂購單 ctx.orders：{下單日: 訂購單}) ---------- */
+  //   扣掉的剩餘依日期先用(第一天先扣，多的算最後一天)；應訂＝需求−剩餘；
+  //   實際叫貨＝整張單公斤換算隻數(kgPieces；舊單用公斤回算)，依各天應訂比例分攤(累計取整)；可用量＝叫貨＋剩餘
+  function orderActualFor(u, rec, ctx) {
+    const sr = rec && rec.supplyRef, o = sr ? (ctx.orders || {})[sr.od] : null;
+    if (!o || !o.perDay || !o.perDay[u]) return null;
+    const uds = (o.useDays || []).slice().sort(), ds = o.deductStock || null;
+    const used = {}, need = {}, alloc = {}, avail = {};
+    PARTS3.forEach((p) => {
+      const dem = uds.map((d) => Number((o.perDay[d] || {})[p]) || 0);
+      let rem = ds ? (Number(ds[p]) || 0) : 0;
+      const us = dem.map((x) => { const t = Math.min(rem, x); rem -= t; return t; }); us[us.length - 1] += rem;
+      const nd = dem.map((x, i) => Math.max(0, x - us[i]));
+      const total = (o.kgPieces && o.kgPieces[p] != null) ? (Number(o.kgPieces[p]) || 0) : kgToPieces((o.orderKg || {})[p], p, ctx);
+      const w = nd.some((x) => x > 0) ? nd : (dem.some((x) => x > 0) ? dem : uds.map(() => 1)), tw = w.reduce((x, y) => x + y, 0);
+      let acc = 0, prevR = 0, val = 0;
+      uds.forEach((d, i) => { acc += w[i]; const r = Math.round(total * acc / tw); if (d === u) val = r - prevR; prevR = r; });
+      const i = uds.indexOf(u);
+      used[p] = us[i]; need[p] = nd[i]; alloc[p] = val; avail[p] = val + us[i];
+    });
+    const hasStock = !!ds && PARTS3.some((p) => used[p] > 0);
+    return { od: sr.od, demand: o.perDay[u], used, need, alloc, avail, hasStock, stockDate: (ds && ds.date) || "", multi: uds.length > 1 };
+  }
+  // 上一個同日型、有訂購的使用日(目標日之前最近一天)：需求、實際叫貨、實際賣
+  function lastSameType(u, ctx) {
+    const g = dayGroup(u, ctx); if (!g) return null;
+    let best = "";
+    Object.keys(ctx.reports || {}).forEach((k) => { const r = ctx.reports[k]; if (k >= u || !r || !r.order) return; if (dayGroup(k, ctx) !== g) return; if (k > best) best = k; });
+    if (!best) return null;
+    const r = ctx.reports[best], act = orderActualFor(best, r, ctx);
+    const sold = (r.parts && r.sales && Object.keys(r.sales).length) ? { leg: Math.round(r.parts.leg || 0), fil: Math.round(r.parts.fil || 0), wing: Math.round(r.parts.wing || 0) } : null;
+    return { date: best, demand: r.order, actual: act ? act.alloc : null, sold };
+  }
+
   /* ---------- 一張訂購單的預設內容(員工頁與後台首頁共用) ---------- */
   // 回傳 { od, del, uses, perDay{u:{leg,fil,wing}}, preds{u:predict結果}, sum, stock, net, kg } 或 null(不是下單日)
   function orderPlan(od, off, ctx) {
@@ -185,5 +219,5 @@
 
   root.ChickenCore = { PARTS3, PART_NAME, DEFAULT_PURCHASE, WINDOW_OPTIONS, EST_METHODS, METHOD_LABEL, DEFAULT_SUPPLIERS, mdw, parseKey, toKey, addDays, prevDay,
     normalizeConfig, supplierOffOf, purG, purCode, partLabel, predWhy, kgSuggest, kgToPieces, dayGroup, ESTIMATORS, predict, predAt, predForOrder, predLabel,
-    supplierOpen, validDelivery, deliveryDayFor, orderDayFor, coveredUseDays, orderDefaults, isTempOff, hasChickenRec, recentBizDays, prevBizDay, stockInfo, currentStock, stockNoneMsg, CLOSE_HOUR, orderPlan };
+    supplierOpen, validDelivery, deliveryDayFor, orderDayFor, coveredUseDays, orderDefaults, isTempOff, hasChickenRec, recentBizDays, prevBizDay, orderActualFor, lastSameType, stockInfo, currentStock, stockNoneMsg, CLOSE_HOUR, orderPlan };
 })(window);

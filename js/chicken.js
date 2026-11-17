@@ -103,7 +103,7 @@
   /* ---------- 叫貨時程引擎(批發商休息 ＋ 店家營業 推算下單／到貨／使用) ---------- */
   // 雞肉計算都在 js/chicken-core.js(後台、員工頁共用)；這裡只把目前的資料包成 ctx 交給它
   const CC = window.ChickenCore;
-  const chkCtx = () => ({ reports: predDays, stock: stockDays, today: todayKey(), hour: taipeiNow().hour, isClosed, natHoliday, off: supplierOff, pred: curPred(), predHistory, purchase });
+  const chkCtx = () => ({ reports: predDays, stock: stockDays, today: todayKey(), hour: taipeiNow().hour, isClosed, natHoliday, off: supplierOff, pred: curPred(), predHistory, purchase, orders: orderDays });
   const supplierOpen = (k) => CC.supplierOpen(k, chkCtx());
   const prevDay = CC.prevDay;
   const validDelivery = (k) => CC.validDelivery(k, chkCtx());
@@ -503,31 +503,8 @@
   function orderStatus(o) { if (!o) return null; if (o.status === "ordered") return (o.deliveryDay && o.deliveryDay <= todayKey()) ? "arrived" : "ordered"; return "draft"; }
   const orderRefOf = (ym) => db.collection(COLL).doc("poultry_order_" + ym);
   const orderForDay = (od) => orderDays[od] || null;
-  // 某使用日的「實際叫貨」與「可用量」(跟訂購的思考順序一致)：
-  //   扣掉的剩餘：下單時扣的打烊剩餘，依日期先用(第一個使用日先扣，不夠才扣下一天；多出來的算在最後一天)
-  //   應訂＝需求 − 扣掉的剩餘
-  //   實際叫貨＝整張單公斤換算的隻數(存檔時記下 kgPieces；舊單用公斤回算，無條件捨去)，依各天「應訂」比例分攤(累計取整，加總剛好等於總隻數)
-  //   可用量＝實際叫貨 ＋ 扣掉的剩餘；找不到訂購單 → null
-  function orderActualFor(u, rec) {
-    const sr = rec && rec.supplyRef, o = sr ? orderForDay(sr.od) : null;
-    if (!o || !o.perDay || !o.perDay[u]) return null;
-    const uds = (o.useDays || []).slice().sort(), ds = o.deductStock || null;
-    const used = {}, need = {}, alloc = {}, avail = {};
-    PARTS3.forEach((p) => {
-      const dem = uds.map((d) => Number((o.perDay[d] || {})[p]) || 0);
-      let rem = ds ? (Number(ds[p]) || 0) : 0;
-      const us = dem.map((x) => { const t = Math.min(rem, x); rem -= t; return t; }); us[us.length - 1] += rem;
-      const nd = dem.map((x, i) => Math.max(0, x - us[i]));
-      const total = (o.kgPieces && o.kgPieces[p] != null) ? (Number(o.kgPieces[p]) || 0) : kgToPieces((o.orderKg || {})[p], p);
-      const w = nd.some((x) => x > 0) ? nd : (dem.some((x) => x > 0) ? dem : uds.map(() => 1)), tw = w.reduce((x, y) => x + y, 0);
-      let acc = 0, prevR = 0, val = 0;
-      uds.forEach((d, i) => { acc += w[i]; const r = Math.round(total * acc / tw); if (d === u) val = r - prevR; prevR = r; });
-      const i = uds.indexOf(u);
-      used[p] = us[i]; need[p] = nd[i]; alloc[p] = val; avail[p] = val + us[i];
-    });
-    const hasStock = !!ds && PARTS3.some((p) => used[p] > 0);
-    return { od: sr.od, demand: o.perDay[u], used, need, alloc, avail, hasStock, stockDate: (ds && ds.date) || "", multi: uds.length > 1 };
-  }
+  // 某使用日的實際叫貨／可用量(算法在 chicken-core，與員工頁共用)
+  const orderActualFor = (u, rec) => CC.orderActualFor(u, rec, chkCtx());
   function watchOrderMonths() {
     orderUnsubs.forEach((u) => u && u()); orderUnsubs = []; orderMonthData = {};
     if (!db) return;
@@ -664,7 +641,10 @@
         let rows = "";
         if (p.n && p.rec) rows += refLine("📊 預估", CC.predWhy(p), p.rec, `sug:${u}`, true);
         else rows += `<div class="oref-empty">📊 預估：${dayTypeLabel(u)}・資料累積中</div>`;
-        if (last) rows += refLine(`🕑 上次 ${mdw(last.date)}`, "", last.order, `last:${u}`);
+        if (last) {
+          const sub = `${last.actual ? `需求 ${last.demand.leg}／${last.demand.fil}／${last.demand.wing}` : "實際叫貨未記錄，顯示需求"}${last.sold ? `・實際賣 ${last.sold.leg}／${last.sold.fil}／${last.sold.wing}` : ""}`;
+          rows += refLine(`🕑 上次 ${mdw(last.date)} ${last.actual ? "實際叫貨" : "需求"}`, sub, last.actual || last.demand, `last:${u}`, true);
+        }
         exp = `<div class="oref">${rows}</div>`;
       }
       const dis = f.locked ? " disabled" : "";
@@ -681,7 +661,7 @@
     box.querySelectorAll("button[data-exp]").forEach((b) => b.onclick = () => { f.expanded = (f.expanded === b.dataset.exp) ? null : b.dataset.exp; renderOrderRows(); });
     if (f.locked) return;
     box.querySelectorAll("input[data-pd]").forEach((inp) => inp.oninput = () => { const u = inp.dataset.pd; (f.perDay[u] = f.perDay[u] || { leg: 0, fil: 0, wing: 0 })[inp.dataset.k] = Number(inp.value) || 0; f.kg = null; renderOrderSum(); });
-    box.querySelectorAll("button[data-fill]").forEach((b) => b.onclick = () => { const [kind, u] = b.dataset.fill.split(":"); const p = predForOrder(u, f.orderDay), last = lastSameTypeOrder(u); const src = kind === "sug" ? (p.rec || {}) : (last ? last.order : {}); f.perDay[u] = { leg: src.leg || 0, fil: src.fil || 0, wing: src.wing || 0 }; f.kg = null; renderOrderRows(); renderOrderSum(); });
+    box.querySelectorAll("button[data-fill]").forEach((b) => b.onclick = () => { const [kind, u] = b.dataset.fill.split(":"); const p = predForOrder(u, f.orderDay), last = lastSameTypeOrder(u); const src = kind === "sug" ? (p.rec || {}) : (last ? (last.actual || last.demand) : {}); f.perDay[u] = { leg: src.leg || 0, fil: src.fil || 0, wing: src.wing || 0 }; f.kg = null; renderOrderRows(); renderOrderSum(); });
   }
   // ④ 每格公斤下方即時顯示「≈ N 隻」，與最終訂購量不同時標出多/少幾隻
   function renderKgPcs() {
@@ -1074,18 +1054,9 @@
     render(); refreshHint(); if (orderOpen()) renderOrderForm();
     if (db) configRef().set({ suppliers: suppliers, defaultSupplier: defaultSupplier, supplierOff: supplierOff, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
   }
-  // 找「上個同型日」已記錄的叫貨(目標日之前、同日型、最近一天)
-  function lastSameTypeOrder(targetKey) {
-    const g = dayGroup(targetKey); if (!g) return null;
-    let best = null;
-    Object.keys(predDays).forEach((k) => {
-      if (k >= targetKey) return;
-      if (dayGroup(k) !== g) return;
-      const o = predDays[k] && predDays[k].order; if (!o) return;
-      if (!best || k > best.date) best = { date: k, order: o };
-    });
-    return best;
-  }
+  // 上一個同日型、有訂購的使用日(共用核心)：{date, demand, actual(實際叫貨), sold}
+  const lastSameTypeOrder = (targetKey) => CC.lastSameType(targetKey, chkCtx());
+
   function refreshHint() {
     const el = $("ckHint"); if (!el) return;
     const today = todayKey(), uses = coveredUseDays(today);

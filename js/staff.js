@@ -668,11 +668,11 @@ const CC=window.ChickenCore;
 let chickenOrders={}, chickenOrderSubbed=new Set(), chickenKgEdit={}, chickenSubmitting=false;
 const ymOfKey=k=>k.slice(0,7);
 function chickenDefSup(){const c=chickenCfg;return c.suppliers.find(s=>s.id===c.defaultSupplier)||c.suppliers[0];}
-function chickenCtx(){const c=chickenCfg;return{reports:doughReports,stock:stockDays,today:toDateKey(new Date()),hour:new Date().getHours(),isClosed:isClosedDay,natHoliday:natHolidayS,off:CC.supplierOffOf(chickenDefSup()),pred:c.pred,predHistory:c.predHistory,purchase:c.purchase};}
+function chickenCtx(){const c=chickenCfg;return{reports:doughReports,stock:stockDays,today:toDateKey(new Date()),hour:new Date().getHours(),isClosed:isClosedDay,natHoliday:natHolidayS,off:CC.supplierOffOf(chickenDefSup()),pred:c.pred,predHistory:c.predHistory,purchase:c.purchase,orders:chickenOrders};}
 function subscribeChickenOrders(){
   const c=stockCol();if(!c)return;
   const now=new Date();
-  [0,1].forEach(i=>{const mk=ymKey(new Date(now.getFullYear(),now.getMonth()+i,1));
+  [-1,0,1].forEach(i=>{const mk=ymKey(new Date(now.getFullYear(),now.getMonth()+i,1));   // 上個月也要(「上次」參考)
     if(chickenOrderSubbed.has(mk))return;chickenOrderSubbed.add(mk);
     c.doc("poultry_order_"+mk).onSnapshot(snap=>{const o=(snap.data()&&snap.data().orders)||{};Object.keys(chickenOrders).forEach(k=>{if(ymOfKey(k)===mk&&!(k in o))delete chickenOrders[k];});Object.assign(chickenOrders,o);refreshPoultryPanels();},err=>console.warn("order snapshot",err));
   });
@@ -744,7 +744,10 @@ function renderChickenStaff(){
     // 今天：可送出
     const kg=chickenKgEdit[c.k]||pl.kg, sd=pl.stock?pl.stock.date.slice(5).replace("-","/").replace(/^0/,""):"";
     const rows=pl.uses.map(u=>{const p=pl.preds[u],r=pl.perDay[u];const why=CC.predWhy(p);
-      return `<tr><td>${CC.mdw(u)} ${p.group||""}<small>${why}</small></td>${CC.PARTS3.map(x=>`<td>${r[x]}</td>`).join("")}</tr>`;}).join("");
+      // 上次同日型的實際叫貨(只顯示參考)
+      const last=CC.lastSameType(u,ctx),lv=last&&(last.actual||last.demand);
+      const lastRow=lv?`<tr class="oc-last"><td>上次 ${CC.mdw(last.date)} ${last.actual?"實際叫貨":"需求"}</td>${CC.PARTS3.map(x=>`<td>${lv[x]}</td>`).join("")}</tr>`:"";
+      return `<tr><td>${CC.mdw(u)} ${p.group||""}<small>${why}</small></td>${CC.PARTS3.map(x=>`<td>${r[x]}</td>`).join("")}</tr>${lastRow}`;}).join("");
     return `<div class="oc-card" data-od="${c.k}"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill wait">待訂購</span></div>
       <div class="oc-sub">${c.sup.name}<br>${ocDeliverLine(pl.del,pl.uses)}</div>${ocNeed(pl.net,"要訂")}
       <details class="oc-how"><summary>看怎麼來的</summary>
