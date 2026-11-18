@@ -1828,14 +1828,17 @@
     if (!db) { alert("尚未連線，無法備份。"); return; }
     const FP = firebase.firestore.FieldPath.documentId();
     db.collection(COLL).where(FP, ">=", "poultry_").where(FP, "<", "poultry`").get().then((qs) => {
-      const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {}, stock: {} };
+      // 備料後台的全部資料：每日銷售(poultry_YYYY-MM)、打烊剩餘(poultry_stock_)、訂購單(poultry_order_)、設定(poultry_config)
+      const out = { type: "poultry-backup", version: 2, exportedAt: new Date().toISOString(), config: null, months: {}, stock: {}, orders: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
         if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory, pizza: data.pizza, pizzaHistory: data.pizzaHistory, predHistory: data.predHistory, solarTerms: data.solarTerms };
         else if (id.indexOf("poultry_stock_") === 0) out.stock[id.slice("poultry_stock_".length)] = { days: data.days || {} };
-        else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
+        else if (id.indexOf("poultry_order_") === 0) out.orders[id.slice("poultry_order_".length)] = { orders: data.orders || {} };
+        else if (/^poultry_\d{4}-\d{2}$/.test(id)) out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
       triggerDownload(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }), `${settings.storeName || "備料預估"}_備料備份_${todayKey()}.json`);
+      alert(`備份已下載：銷售 ${Object.keys(out.months).length} 個月、打烊剩餘 ${Object.keys(out.stock).length} 個月、訂購單 ${Object.keys(out.orders).length} 個月${out.config ? "＋設定" : ""}。`);
     }).catch((err) => { console.error(err); alert("備份失敗：" + (err.message || err)); });
   }
   function onBackupFile(file) {
@@ -1844,8 +1847,8 @@
     reader.onload = (e) => {
       let data; try { data = JSON.parse(e.target.result); } catch (x) { alert("這不是有效的備份檔(JSON 解析失敗)。"); return; }
       if (!data || data.type !== "poultry-backup" || !data.months) { alert("這不是採購雞肉的備份檔。"); return; }
-      const n = Object.keys(data.months).length;
-      if (!confirm(`將匯入 ${n} 個月份的資料${data.config ? "＋設定" : ""}，並覆蓋目前的雞肉資料。確定匯入？`)) return;
+      const n = Object.keys(data.months).length, ns = Object.keys(data.stock || {}).length, no = Object.keys(data.orders || {}).length;
+      if (!confirm(`將匯入：銷售 ${n} 個月、打烊剩餘 ${ns} 個月、訂購單 ${no} 個月${data.config ? "＋設定" : ""}，並覆蓋目前備料後台的同月份資料。確定匯入？${data.orders ? "" : "\n(這是舊版備份，沒有訂購單)"}`)) return;
       doBackupImport(data);
     };
     reader.readAsText(file);
@@ -1857,6 +1860,7 @@
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
     if (data.stock) Object.keys(data.stock).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: stockRefOf(ym), data: { days: data.stock[ym].days || {}, updatedAt: Date.now() } }); });
+    if (data.orders) Object.keys(data.orders).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: orderRefOf(ym), data: { orders: data.orders[ym].orders || {}, updatedAt: Date.now() } }); });
     if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; if (data.config.pizza && typeof data.config.pizza === "object") c.pizza = data.config.pizza; if (Array.isArray(data.config.pizzaHistory)) c.pizzaHistory = data.config.pizzaHistory; if (Array.isArray(data.config.predHistory)) c.predHistory = data.config.predHistory; if (Array.isArray(data.config.solarTerms)) c.solarTerms = data.config.solarTerms; writes.push({ ref: configRef(), data: c }); }
     let i = 0;
     (function next() {
