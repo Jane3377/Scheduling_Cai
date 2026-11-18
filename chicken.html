@@ -161,6 +161,11 @@
     .ck-bf-banner { background: #eef4ff; border: 1px solid #c9d8f2; color: #2a4a80; border-radius: 12px; padding: 10px 13px; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
     .ck-ordcell .ck-pocan.ck-bf { color: #2a4a80; }
     .ck-supoff { display: block; font-size: 10px; font-weight: 800; color: #8a5a10; background: #fff3d6; border-radius: 6px; padding: 1px 3px; margin-top: 3px; width: fit-content; max-width: 100%; overflow: hidden; white-space: nowrap; letter-spacing: -0.3px; }
+    .pin-hint { margin-top: 14px; font-size: 13px; color: var(--muted); }
+    .ck-ro-banner { background: #eef3fb; border: 1.5px solid #c9d8ef; color: #2c4a73; border-radius: 12px; padding: 10px 14px; font-size: 15px; font-weight: 800; margin-bottom: 14px; }
+    body.ck-readonly .edit-only { display: none !important; }
+    .ck-who-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 6px; font-size: 16px; font-weight: 700; }
+    .ck-who-row small { color: var(--muted); font-weight: 600; margin-left: 6px; }
     .ck-term { display: block; font-size: 10px; font-weight: 800; color: #2f6b3a; background: #e5f2e1; border-radius: 6px; padding: 1px 3px; margin-top: 2px; width: fit-content; max-width: 100%; overflow: hidden; white-space: nowrap; }
     .ck-term .tm-ic { display: none; font-style: normal; margin-right: 2px; }
     @media (min-width:721px) { .ck-term { font-size: 12.5px; padding: 1px 6px; } .ck-term .tm-ic { display: inline; } }
@@ -682,15 +687,17 @@
   </style>
 </head>
 <body>
-  <!-- PIN 閘門(與排班後台同一組 PIN) -->
+  <!-- 登入：員工編號＋PIN(依備料後台權限)；業主備用＝員工編號留空＋排班後台 PIN -->
   <div id="pinGate" class="pin-gate">
     <div class="pin-card">
       <div class="brand-mark large-mark"><img src="icons/icon-192.svg" alt="蔡叔叔比薩屋" /></div>
       <h1>備料預估管理</h1>
-      <p>請輸入 PIN 碼進入</p>
-      <input id="pinInput" class="input big-input" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN 碼" />
+      <p>請輸入員工編號與 PIN 碼</p>
+      <input id="pinNo" class="input big-input" type="text" autocomplete="off" autocapitalize="characters" placeholder="員工編號" />
+      <input id="pinInput" class="input big-input" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN 碼" style="margin-top:10px" />
       <button id="pinSubmit" class="primary-btn full">進入</button>
       <div id="pinError" class="form-error"></div>
+      <div class="pin-hint">業主備用登入：員工編號留空，輸入業主 PIN</div>
     </div>
   </div>
 
@@ -710,13 +717,14 @@
     </div>
 
     <main class="app-main">
+      <div class="ck-ro-banner hidden" id="ckRoBanner">👁 檢視模式：可以查看所有內容，但不能修改</div>
       <!-- 首頁 -->
       <section class="app-view" id="viewHome">
         <div class="view-head"><h2>今日建議</h2></div>
         <div id="homeCards" class="home-cards"></div>
         <div class="home-actions">
-          <button class="primary-btn" id="ckOrderBtn">🛒 訂購雞肉</button>
-          <button class="forest-btn" id="ckUploadBtn">⬆ 上傳報表</button>
+          <button class="edit-only primary-btn" id="ckOrderBtn">🛒 訂購雞肉</button>
+          <button class="edit-only forest-btn" id="ckUploadBtn">⬆ 上傳報表</button>
         </div>
       </section>
 
@@ -750,7 +758,7 @@
 
       <!-- 紀錄 -->
       <section class="app-view hidden" id="viewRecords">
-        <div class="view-head view-head-row"><div><h2>盤點填寫紀錄</h2><p>員工每天打烊填的剩餘量(誰、何時、填了什麼)</p></div><button class="primary-btn" id="recordsAdd">＋ 新增紀錄</button></div>
+        <div class="view-head view-head-row"><div><h2>盤點填寫紀錄</h2><p>員工每天打烊填的剩餘量(誰、何時、填了什麼)</p></div><button class="edit-only primary-btn" id="recordsAdd">＋ 新增紀錄</button></div>
         <div class="rec-month"><button class="icon-btn" id="recPrev" aria-label="上個月">‹</button><b id="recMonthLabel"></b><button class="icon-btn" id="recNext" aria-label="下個月">›</button></div>
         <div class="rec-empty" id="recordsMsg"></div>
         <div class="rec-wrap"><table class="rec-tbl" id="recordsTbl"></table></div>
@@ -761,6 +769,7 @@
       <!-- 設定 -->
       <section class="app-view hidden" id="viewSettings">
         <div class="view-head"><h2>設定</h2></div>
+        <div class="set-group ck-who"><div class="ck-who-row"><span id="ckWho">—</span><button type="button" class="ghost-btn" id="ckLogout">登出</button></div></div>
         <div class="set-group">
           <div class="set-gh">推估與參數設定</div>
           <button type="button" class="set-item" id="ckPredBtn"><span class="si-ic">🔮</span><span class="si-tx"><b>雞肉推估參數</b><small>多備比例、回算天數、推估方式</small></span><span class="si-ar">›</span></button>
@@ -781,7 +790,7 @@
           <button type="button" class="set-item" id="ckBackupBtn"><span class="si-ic">💾</span><span class="si-tx"><b>備份／還原</b><small>整包匯出匯入</small></span><span class="si-ar">›</span></button>
         </div>
         <div class="set-group">
-          <button type="button" class="set-item" id="ckBackfillBtn"><span class="si-ic">🧪</span><span class="si-tx"><b>🧪 回填過去的訂購單：關閉</b><small>測試／補登用；只在這台裝置有效，用完請關閉</small></span><span class="si-ar">›</span></button>
+          <button type="button" class="edit-only set-item" id="ckBackfillBtn"><span class="si-ic">🧪</span><span class="si-tx"><b>🧪 回填過去的訂購單：關閉</b><small>測試／補登用；只在這台裝置有效，用完請關閉</small></span><span class="si-ar">›</span></button>
           <button type="button" class="set-item" id="ckGuideBtn"><span class="si-ic">📖</span><span class="si-tx"><b>使用說明</b></span><span class="si-ar">›</span></button>
         </div>
       </section>
@@ -845,6 +854,7 @@
         <div class="gd-sec">
           <h4>🧭 各頁在哪裡</h4>
           <div class="gd-tools">
+            <div class="gd-tool"><span class="k">🔑 登入與權限</span><span>用<b>員工編號＋PIN</b>登入(和員工專區同一組)。權限在〈排班後台 → 員工 → 編輯 → 備料後台權限〉設定：<b>管理者</b>可上傳報表、訂購、改設定；<b>檢視者</b>只能查看(畫面上方會顯示「👁 檢視模式」)；<b>無</b>則不能登入。業主備用：員工編號留空，輸入排班後台的 PIN。登出在〈設定〉最上面。</span></div>
             <div class="gd-tool"><span class="k">🏠 首頁</span><span>今日建議、訂購雞肉、上傳報表。</span></div>
             <div class="gd-tool"><span class="k">📅 月曆</span><span>雞肉使用／訂購月曆、餅皮月曆、推估準確度。月曆上綠色小標(例如「🍂秋分」)是節氣，只是標示；要標哪些節氣在〈設定 → 節氣標記〉勾選，預設是大暑、秋分、立冬、大寒。</span></div>
             <div class="gd-tool"><span class="k">📋 紀錄</span><span>員工打烊剩餘的填寫紀錄，可切換月份、新增(回填)、更正，會保留修改紀錄。</span></div>
@@ -951,8 +961,8 @@
         </section>
       </div>
       <div class="ord-foot">
-        <div class="modal-actions" id="ordActions"><button class="primary-btn" id="ordConfirmBtn">確認已訂購</button></div>
-        <button type="button" class="ord-delbtn hidden" id="ordDeleteBtn">🗑 刪除這張訂單</button>
+        <div class="modal-actions" id="ordActions"><button class="edit-only primary-btn" id="ordConfirmBtn">確認已訂購</button></div>
+        <button type="button" class="edit-only ord-delbtn hidden" id="ordDeleteBtn">🗑 刪除這張訂單</button>
         <button type="button" class="primary-btn full hidden" id="ordCloseBtn" data-close="orderBackdrop">關閉</button>
       </div>
     </div>
@@ -988,7 +998,7 @@
         </div>
         <div class="ps-hist-h">版本紀錄(回頭看過去日子的預估，會用當時的版本計算)</div>
         <div class="ps-hist" id="psHist"></div>
-        <div class="modal-actions"><button class="ghost-btn" data-close="predBackdrop">取消</button><button class="primary-btn" id="psSave">儲存設定</button></div>
+        <div class="modal-actions"><button class="ghost-btn" data-close="predBackdrop">取消</button><button class="edit-only primary-btn" id="psSave">儲存設定</button></div>
       </div>
     </div>
   </div>
@@ -999,9 +1009,9 @@
       <div class="modal-head"><div><h3>🚚 批發商設定</h3><p>可設多家，各自設公休／臨時休市；選一家為「預設」叫貨對象</p></div><button class="icon-btn" data-close="supBackdrop">✕</button></div>
       <div class="modal-body">
         <div id="supList"></div>
-        <button type="button" class="secondary-btn sup-addsup" id="supAddSupplierBtn">＋ 新增批發商</button>
+        <button type="button" class="edit-only secondary-btn sup-addsup" id="supAddSupplierBtn">＋ 新增批發商</button>
         <div class="sup-prev" id="supPrev"></div>
-        <div class="modal-actions"><button class="ghost-btn" data-close="supBackdrop">取消</button><button class="primary-btn" id="supSave">儲存設定</button></div>
+        <div class="modal-actions"><button class="ghost-btn" data-close="supBackdrop">取消</button><button class="edit-only primary-btn" id="supSave">儲存設定</button></div>
       </div>
     </div>
   </div>
@@ -1047,7 +1057,7 @@
       <div class="modal-body">
         <p class="bk-note">備份會把<b>所有月份的消耗、叫貨與設定</b>存成一個檔，可保存備用或日後匯入還原。</p>
         <button type="button" class="bk-btn" id="backupExport">⬇ 匯出備份檔(JSON)</button>
-        <button type="button" class="bk-btn" id="backupImport">⬆ 匯入備份檔…</button>
+        <button type="button" class="edit-only bk-btn" id="backupImport">⬆ 匯入備份檔…</button>
         <input type="file" id="backupFile" accept=".json,application/json" class="hidden" />
         <p class="bk-warn">⚠ 匯入會以備份檔內容覆蓋目前的雞肉資料，請確認後再匯入。</p>
       </div>
@@ -1086,7 +1096,7 @@
           <div class="pm-hist-title">版本紀錄(點可唯讀查看該版的①＋②)</div>
           <div id="pmHistList"></div>
         </div>
-        <div class="modal-actions"><button class="danger-btn" id="partsReset" style="margin-right:auto">恢復預設值</button><button class="ghost-btn" data-close="partsBackdrop">取消</button><button class="primary-btn" id="partsSave">儲存設定</button></div>
+        <div class="modal-actions"><button class="danger-btn" id="partsReset" style="margin-right:auto">恢復預設值</button><button class="ghost-btn" data-close="partsBackdrop">取消</button><button class="edit-only primary-btn" id="partsSave">儲存設定</button></div>
       </div>
     </div>
   </div>
@@ -1155,8 +1165,8 @@
           <div class="pz-row"><span class="pz-lbl">12 吋</span><input class="input" id="seT12" type="number" inputmode="numeric" min="0" /><input class="input" id="seS12" type="number" inputmode="numeric" min="0" /></div>
         </div>
         <div class="se-hist" id="seHist"></div>
-        <div class="modal-actions"><button class="ghost-btn" data-close="stockEditBackdrop">取消</button><button class="primary-btn" id="seSave">儲存更正</button></div>
-        <button type="button" class="ord-delbtn hidden" id="seDelete">🗑 刪除這筆紀錄</button>
+        <div class="modal-actions"><button class="ghost-btn" data-close="stockEditBackdrop">取消</button><button class="edit-only primary-btn" id="seSave">儲存更正</button></div>
+        <button type="button" class="edit-only ord-delbtn hidden" id="seDelete">🗑 刪除這筆紀錄</button>
       </div>
     </div>
   </div>
@@ -1169,7 +1179,7 @@
       <div class="modal-body">
         <div id="termList"></div>
         <div class="hint" style="margin-top:10px">日期依天文計算(台灣時間)，每年可能差一天，系統會自動對應；目前涵蓋 2025～2040 年。</div>
-        <div class="modal-actions"><button class="ghost-btn" data-close="termBackdrop">取消</button><button class="primary-btn" id="termSave">儲存</button></div>
+        <div class="modal-actions"><button class="ghost-btn" data-close="termBackdrop">取消</button><button class="edit-only primary-btn" id="termSave">儲存</button></div>
       </div>
     </div>
   </div>
@@ -1210,7 +1220,7 @@
           <div class="pm-hist-title">版本紀錄(點可唯讀查看該版參數)</div>
           <div id="pzHistList"></div>
         </div>
-        <div class="modal-actions"><button class="ghost-btn" data-close="pizzaBackdrop">取消</button><button class="primary-btn" id="pizzaSave">儲存設定</button></div>
+        <div class="modal-actions"><button class="ghost-btn" data-close="pizzaBackdrop">取消</button><button class="edit-only primary-btn" id="pizzaSave">儲存設定</button></div>
       </div>
     </div>
   </div>

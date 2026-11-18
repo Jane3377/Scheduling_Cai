@@ -739,7 +739,7 @@ function renderChickenStaff(){
     if(c.type==="stop")return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${CC.mdw(c.k)}</span><span class="oc-pill stop">🚚 休市</span></div>
       <div class="oc-stopbox">${c.sup.name}今天休市${c.off.note?`(${c.off.note})`:""}。<br><b>今天請聯絡管理者訂購。</b></div></div>`;
     if(c.type==="locked"){const o=c.order,by=o.orderedBy,staff=by&&by.via==="staff",kg=o.orderKg||{};
-      const lock=o.status!=="ordered"?`🔒 後台有尚未確認的訂購單，請洽管理者。`:staff?`🔒 <b>${by.name||"員工"}</b> ${ocTime(o.orderedAt)} 已送出訂購<br>如需修改，請洽管理者。`:`🔒 已由<b>後台管理者</b>訂購${o.orderedAt?`(${ocTime(o.orderedAt)})`:""}`;
+      const lock=o.status!=="ordered"?`🔒 後台有尚未確認的訂購單，請洽管理者。`:staff?`🔒 <b>${by.name||"員工"}</b> ${ocTime(o.orderedAt)} 已送出訂購<br>如需修改，請洽管理者。`:`🔒 已由<b>${by&&by.name&&by.name!=="後台管理者"?by.name+"(後台)":"後台管理者"}</b>訂購${o.orderedAt?`(${ocTime(o.orderedAt)})`:""}`;
       return `<div class="oc-card"><div class="oc-h"><span class="oc-day">${title}</span><span class="oc-pill done">已訂購</span></div>
         <div class="oc-sub">${o.supplierName||""}<br>${ocDeliverLine(o.deliveryDay,o.useDays||[])}</div>
         ${ocNeed(ocOrderPcs(o,ctx),"已訂")}

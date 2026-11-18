@@ -6,7 +6,10 @@
  *  - 資料存 Firestore 同一個 scheduler 集合、但獨立文件 poultry_YYYY-MM：
  *      { days:{ 'YYYY-MM-DD':{ sales:{品項:數量}, parts:{leg,fil,wing}, order:{leg,fil,wing}, uploadedAt, orderAt } }, updatedAt }
  *    完全不碰 scheduler/main 與 shifts_/avail_，不影響排班。
- *  - PIN 與排班後台同一組(scheduler/main.data.settings.adminPin，共用 sessionStorage)。
+ *  - 登入：員工編號＋PIN(員工資料在 scheduler/main.data.employees)，依「備料後台權限」prepAccess：
+ *      edit＝管理者(可修改)、view＝檢視者(只能看)、none＝不能登入。
+ *    業主備用：員工編號留空＋排班後台 PIN(settings.adminPin)＝管理者；排班後台已解鎖(同分頁)也視為業主。
+ *    檢視模式是畫面層級的限制(另在 Firestore 寫入前再擋一次)，不是資料庫層級的權限。
  * =================================================================== */
 (function () {
   "use strict";
@@ -37,6 +40,10 @@
   let db = null, mainRef = null, monthUnsub = null;
   const settings = { closedDays: [1], holidays: [], nationalHolidays: [], adminPin: "1234", storeName: "蔡叔叔比薩屋" };
   let mainLoaded = false;
+  // 登入者：{ id, name, access:"edit"|"view", owner:bool }；存 sessionStorage(關掉 App 就要重新登入，與原本相同)
+  let prepAuth = null, employees = [];
+  const canEdit = () => !!prepAuth && prepAuth.access === "edit";
+  function guardEdit() { if (canEdit()) return true; alert("👁 檢視模式不能修改資料。"); return false; }
   let viewYM = null;      // 目前顯示的月份 'YYYY-MM'
   let days = {};          // date → 記錄(目前顯示月份)
   let lastParse = null;   // 上傳解析暫存
@@ -448,7 +455,12 @@
     return `<div class="ck-sumline">💰 全店營業額 <b>$${(s.total || 0).toLocaleString()}</b>　🍕 9吋 <b>${p9}</b>(均價 $${avg9})・12吋 <b>${p12}</b>(均價 $${avg12})${dough}</div>`;
   }
   /* ---------- 彈窗：顯示／隱藏 ---------- */
-  function show(id) { $(id).classList.remove("hidden"); }
+  // 檢視者打開設定類彈窗：欄位全部停用(可看不可改)
+  const RO_MODALS = ["predBackdrop", "partsBackdrop", "pizzaBackdrop", "supBackdrop", "termBackdrop", "stockEditBackdrop", "backupBackdrop"];
+  function show(id) {
+    const el = $(id); el.classList.remove("hidden");
+    if (!canEdit() && RO_MODALS.includes(id)) el.querySelectorAll(".modal-body input, .modal-body select, .modal-body textarea, .modal-body .sup-del").forEach((x) => { x.disabled = true; });
+  }
   function hide(id) { $(id).classList.add("hidden"); }
 
   /* ---------- 上傳銷售 ---------- */
@@ -460,6 +472,7 @@
     window.open(url, "_blank", "noopener");
   }
   function openUpload() {
+    if (!guardEdit()) return;
     lastParse = null;
     $("ckFile").value = "";
     $("uploadResult").innerHTML = "";
@@ -492,6 +505,7 @@
   // 目前對照表是否已自訂(與預設不同)→ 只有自訂時才需要逐日存 map，省資料
   function mapIsCustom() { return PIECES.some((pc) => ["leg", "fil", "wing"].some((k) => (partMap[pc] || {})[k] !== DEFAULT_MAP[pc][k])); }
   function saveSales(res, done) {
+    if (!guardEdit()) return;
     if (!db) { done && done(); return; }
     const ym = ymOf(res.date);
     // 只有自訂對照表才存當天 map；用預設時不存(並清掉可能殘留的舊 map)
@@ -508,7 +522,7 @@
   // 到貨與使用的一句話(後台、員工頁統一)：11/18(三) 到貨醃製，供 11/19(四)、11/20(五) 炸烤使用
   const deliverLine = (del, uses, bold) => { const b = (x) => bold ? `<b>${x}</b>` : x; return `${b(mdw(del))} 到貨醃製，供 ${b(uses.map(mdw).join("、") || "—")} 炸烤使用`; };
   // 誰訂的：員工頁送出 → 員工名；後台確認 → 後台管理者
-  const orderedByText = (o) => { if (!o) return ""; const by = o.orderedBy; const t = o.orderedAt ? fmtAt(o.orderedAt) : ""; return (by && by.via === "staff") ? `${by.name || "員工"} ${t} 從員工頁訂購` : `後台管理者${t ? " " + t : ""} 訂購`; };
+  const orderedByText = (o) => { if (!o) return ""; const by = o.orderedBy; const t = o.orderedAt ? fmtAt(o.orderedAt) : ""; return (by && by.via === "staff") ? `${by.name || "員工"} ${t} 從員工頁訂購` : `${by && by.name && by.name !== "後台管理者" ? by.name + "(後台)" : "後台管理者"}${t ? " " + t : ""} 訂購`; };
   const numsPcsHTML = (o) => `<i>腿</i><b class="ck-leg">${o.leg}</b><i>隻</i> <i>排</i><b class="ck-fil">${o.fil}</b><i>隻</i> <i>翅</i><b class="ck-wing">${o.wing}</b><i>隻</i>`;
   const partLabel = (p) => CC.partLabel(p, chkCtx());
   const numsHTML = (o) => `<i>腿</i><b class="ck-leg">${o.leg}</b> <i>排</i><b class="ck-fil">${o.fil}</b> <i>翅</i><b class="ck-wing">${o.wing}</b>`;
@@ -614,7 +628,8 @@
   function renderOrderForm() {
     const f = orderForm; if (!f) return;
     const st = f.exists ? (orderStatus(orderForDay(f.orderDay)) || "draft") : "draft";
-    f.locked = f.exists && (st === "ordered" || st === "arrived");   // 已訂購/已到貨：僅供檢視
+    const ordLocked = f.exists && (st === "ordered" || st === "arrived");   // 已訂購/已到貨：僅供檢視
+    f.locked = ordLocked || !canEdit();                                      // 檢視者：一律只能看
     const chip = $("ordStatus"); if (chip) { chip.textContent = STATUS_LABEL[st]; chip.className = "ord-status " + STATUS_CLS[st]; chip.classList.toggle("hidden", !f.exists); }   // 新單不顯示狀態
     // 選的廠商這天不是它的下單日(例如臨時休市)→ 提醒到貨日、使用日只是參考，請自行確認
     const hs = $("ordHeadSub"), supObj = suppliers.find((x) => x.id === f.supplier);
@@ -629,7 +644,7 @@
     // 鎖定：停用所有輸入、換掉底部按鈕
     $("ordSupplier").disabled = f.locked; $("ordDelivery").disabled = f.locked; $("ordUseBtn").disabled = f.locked;
     PARTS3.forEach((p) => { const el = $(`orderKg${p}`); if (el) el.disabled = f.locked; });
-    const lb = $("ordLockBanner"); if (lb) { lb.classList.toggle("hidden", !f.locked); if (f.locked) lb.textContent = `🔒 已訂購(${orderedByText(orderForDay(f.orderDay))})，僅供檢視、不可修改。如需重開，可在最下方刪除。`; }
+    const lb = $("ordLockBanner"); if (lb) { lb.classList.toggle("hidden", !f.locked); if (f.locked) lb.textContent = ordLocked ? `🔒 已訂購(${orderedByText(orderForDay(f.orderDay))})，僅供檢視、不可修改。${canEdit() ? "如需重開，可在最下方刪除。" : ""}` : "👁 檢視模式：這是系統建議的訂購內容，只能查看。"; }
     const acts = $("ordActions"); if (acts) acts.classList.toggle("hidden", f.locked);
     const delBtn = $("ordDeleteBtn"); if (delBtn) { delBtn.classList.toggle("hidden", !f.exists); delBtn.classList.toggle("ord-delbtn-locked", !!f.locked); }
     const closeBtn = $("ordCloseBtn"); if (closeBtn) closeBtn.classList.toggle("hidden", !f.locked);
@@ -702,6 +717,7 @@
     renderKgPcs();
   }
   function saveOrderForm(confirmed) {
+    if (!guardEdit()) return;
     const f = orderForm; if (!f || f.locked) return;
     if (!f.useDays.length) { alert("請選擇至少一個使用日"); return; }
     if (!db) { hide("orderBackdrop"); return; }
@@ -711,7 +727,7 @@
     const perDay = {}; f.useDays.forEach((u) => { const r = f.perDay[u] || {}; perDay[u] = { leg: Number(r.leg) || 0, fil: Number(r.fil) || 0, wing: Number(r.wing) || 0 }; });
     const ordYm = ymOf(f.orderDay), prev = orderForDay(f.orderDay);
     const order = { supplier: f.supplier, supplierName: sup.name, orderDay: f.orderDay, deliveryDay: f.deliveryDay, useDays: f.useDays.slice(), perDay: perDay, deductStock: (f.deductStock && stockRec) ? { leg: stockRec.leg, fil: stockRec.fil, wing: stockRec.wing, date: stockRec.date } : null, totalPieces: net, orderKg: kg, kgPieces: Object.fromEntries(PARTS3.map((p) => [p, kgToPieces(kg[p], p)])), status: confirmed ? "ordered" : "draft", createdAt: (prev && prev.createdAt) || Date.now(), updatedAt: Date.now() };
-    if (confirmed) { order.orderedAt = Date.now(); order.orderedBy = { name: "後台管理者", via: "admin" }; }
+    if (confirmed) { order.orderedAt = Date.now(); order.orderedBy = prepAuth && !prepAuth.owner ? { id: prepAuth.id, name: prepAuth.name, via: "admin" } : { name: "後台管理者", via: "admin" }; }
     if (f.orderDay < todayKey()) order.backfill = true;   // 回填模式補建的過去訂購單
     const DEL = firebase.firestore.FieldValue.delete();
     const writes = [{ ref: orderRefOf(ordYm), data: { orders: { [f.orderDay]: order }, updatedAt: Date.now() } }];
@@ -724,6 +740,7 @@
       .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
   }
   function deleteOrderForm() {
+    if (!guardEdit()) return;
     const f = orderForm; if (!f || !db) { hide("orderBackdrop"); return; }
     const prev = orderForDay(f.orderDay); if (!prev) { hide("orderBackdrop"); return; }
     const st = orderStatus(prev) || "draft";
@@ -862,11 +879,53 @@
     const o = box.querySelector('[data-home="order"]'); if (o) o.onclick = () => openOrderForm(todayKey());
     const d = box.querySelector('[data-home="dough"]'); if (d) d.onclick = () => openDoughDetail(d.dataset.dk);
   }
-  function tryUnlock() {
-    const ref = settings.adminPin || "1234";
-    if (($("pinInput").value || "").trim() === ref) { try { sessionStorage.setItem("adminUnlocked", "1"); } catch (e) {} enterApp(); $("pinError").textContent = ""; }
-    else { $("pinError").textContent = "PIN 碼錯誤，請再試一次"; $("pinInput").value = ""; }
+  function setAuth(a) {
+    prepAuth = a;
+    try { if (a) sessionStorage.setItem("prepAuth", JSON.stringify(a)); else sessionStorage.removeItem("prepAuth"); } catch (e) {}
+    applyAccess();
   }
+  // 依權限切換畫面：檢視者隱藏所有修改按鈕、顯示「檢視模式」橫幅
+  function applyAccess() {
+    const ro = !!prepAuth && !canEdit();
+    document.body.classList.toggle("ck-readonly", ro);
+    const bn = $("ckRoBanner"); if (bn) bn.classList.toggle("hidden", !ro);
+    const w = $("ckWho"); if (w) w.innerHTML = prepAuth ? `👤 ${esc(prepAuth.name)}<small>${prepAuth.owner ? "業主・管理者" : canEdit() ? "管理者(可修改)" : "檢視者(只能看)"}</small>` : "—";
+    if (ro && allowBackfill) setBackfill(false);
+    if (orderOpen()) renderOrderForm();
+    render();
+  }
+  function tryUnlock() {
+    const no = ($("pinNo").value || "").trim().toUpperCase(), pin = ($("pinInput").value || "").trim(), err = (t) => { $("pinError").textContent = t; $("pinInput").value = ""; };
+    if (!no) {   // 業主備用：員工編號留空＋排班後台 PIN
+      if (pin !== (settings.adminPin || "1234")) return err("業主 PIN 不正確。員工請輸入員工編號。");
+      try { sessionStorage.setItem("adminUnlocked", "1"); } catch (e) {}
+      setAuth({ id: "owner", name: "業主", access: "edit", owner: true });
+    } else {
+      if (db && !mainLoaded) return err("資料載入中，請稍候再試。");
+      const e = employees.find((x) => x && x.active && String(x.employeeNo || "").toUpperCase() === no);
+      if (!e) return err("找不到此員工編號，如有疑問請洽管理者。");
+      if ((e.pin || "0000") !== pin) return err("PIN 碼不正確，如有疑問請洽管理者。");
+      const acc = e.prepAccess === "edit" || e.prepAccess === "view" ? e.prepAccess : "none";
+      if (acc === "none") return err("你沒有備料後台的權限，請洽管理者。");
+      setAuth({ id: e.id, name: e.name, access: acc, owner: false });
+    }
+    $("pinError").textContent = ""; $("pinInput").value = ""; $("pinNo").value = "";
+    enterApp();
+  }
+  function logout() {
+    setAuth(null);
+    try { sessionStorage.removeItem("adminUnlocked"); } catch (e) {}
+    hide("app"); show("pinGate");
+  }
+  // 員工資料更新時重新確認權限(被停用／改權限會立刻生效)
+  function revalidateAuth() {
+    if (!prepAuth || prepAuth.owner) return;
+    const e = employees.find((x) => x && x.id === prepAuth.id);
+    const acc = e && e.active && (e.prepAccess === "edit" || e.prepAccess === "view") ? e.prepAccess : "none";
+    if (acc === "none") { logout(); alert("你的備料後台權限已被取消，請洽管理者。"); return; }
+    if (acc !== prepAuth.access || e.name !== prepAuth.name) setAuth({ id: e.id, name: e.name, access: acc, owner: false });
+  }
+
 
   /* ---------- 月份切換 ---------- */
   function shiftMonth(n) {
@@ -967,6 +1026,7 @@
     show("termBackdrop");
   }
   function saveTermSet() {
+    if (!guardEdit()) return;
     const list = [...$("termList").querySelectorAll("input:checked")].map((i) => i.value);
     solarTermsSel = ST.normalize(list); render();
     if (!db) { hide("termBackdrop"); return; }
@@ -989,6 +1049,7 @@
     box.innerHTML = desc.map((v, i) => `<div class="ps-hist-row"><b>${v.date ? v.date.replace(/-/g, "/") + " 起" : "最初"}</b>　${predLabel(v.pred)}${i === 0 ? `<span class="now">目前</span>` : ""}</div>`).join("");
   }
   function savePredSet() {
+    if (!guardEdit()) return;
     let buf = Number($("psBuffer").value) || 1.0; if (!(buf >= 1 && buf <= 1.3)) buf = 1.0;
     const win = WINDOW_OPTIONS.includes(Number($("psWindow").value)) ? Number($("psWindow").value) : 35;
     const m = EST_METHODS.includes($("psMethod").value) ? $("psMethod").value : "avg";
@@ -1076,6 +1137,7 @@
     } finally { supplierOff = saved; }
   }
   function saveSupSet() {
+    if (!guardEdit()) return;
     supDraft.suppliers.forEach((s, i) => { if (!s.name.trim()) s.name = "廠商" + (i + 1); s.weekdays = s.weekdays.slice().sort((a, b) => a - b); });
     suppliers = supDraft.suppliers.map(cleanSupplier);
     defaultSupplier = suppliers.some((s) => s.id === supDraft.defaultId) ? supDraft.defaultId : suppliers[0].id;
@@ -1169,7 +1231,7 @@
     const ub = $("remindUploadBtn"); if (ub) ub.onclick = () => { hide("remindBackdrop"); openUpload(); };
   }
   function maybeShowReminder() {
-    if (!$("remindBackdrop")) return;
+    if (!$("remindBackdrop") || !canEdit()) return;   // 待辦提醒只給管理者
     const st = reminderState();
     if (!st.needOrder && !st.needUpload) return;
     const key = "ckRemind_" + todayKey();
@@ -1234,13 +1296,13 @@
       const same = cb && dbm && cb.byName === dbm.byName && cb.at === dbm.at;
       const who = same ? `<b>${esc(cb.byName || "？")}</b><span class="rf-t">${fmtAt(cb.at)}</span>`
         : `${cb ? `<span class="rf-l">🍗 <b>${esc(cb.byName || "？")}</b> <span class="rf-t">${fmtAt(cb.at)}</span></span>` : ""}${dbm ? `<span class="rf-l">🍕 <b>${esc(dbm.byName || "？")}</b> <span class="rf-t">${fmtAt(dbm.at)}</span></span>` : ""}` || "—";
-      return `<tr><td class="rd">${date}${edTag}</td><td class="rw">${who}</td><td class="sep rl">${v(r, "leg", hc)}</td><td class="rf">${v(r, "fil", hc)}</td><td class="rwg">${v(r, "wing", hc)}</td><td class="sep rp">${v(r, "t9", hd)}</td><td class="rp">${v(r, "s9", hd)}</td><td class="rp">${v(r, "t12", hd)}</td><td class="rp">${v(r, "s12", hd)}</td><td class="sep"><button type="button" class="rec-edit" data-edit="${k}">✏️</button></td></tr>`;
+      return `<tr><td class="rd">${date}${edTag}</td><td class="rw">${who}</td><td class="sep rl">${v(r, "leg", hc)}</td><td class="rf">${v(r, "fil", hc)}</td><td class="rwg">${v(r, "wing", hc)}</td><td class="sep rp">${v(r, "t9", hd)}</td><td class="rp">${v(r, "s9", hd)}</td><td class="rp">${v(r, "t12", hd)}</td><td class="rp">${v(r, "s12", hd)}</td><td class="sep"><button type="button" class="rec-edit edit-only" data-edit="${k}">✏️</button></td></tr>`;
     }).join("")}</tbody>`;
     // 小卡(手機)：每天一張，雞肉／餅皮各一行
     const num = (lab, val, cls) => `<span class="rc-n ${cls || ""}"><i>${lab}</i><b>${val}</b></span>`;
     cards.innerHTML = info.map(({ k, r, hc, hd, cb, dbm, edTag, date }) => `
       <div class="rc-card">
-        <div class="rc-h"><span class="rc-d">${date}</span>${edTag}<button type="button" class="rec-edit" data-edit="${k}">✏️ 更正</button></div>
+        <div class="rc-h"><span class="rc-d">${date}</span>${edTag}<button type="button" class="rec-edit edit-only" data-edit="${k}">✏️ 更正</button></div>
         <div class="rc-sec"><div class="rc-who">🍗 雞肉${cb ? `・${esc(cb.byName || "？")} <span>${fmtAt(cb.at)}</span>` : ""}</div>
           ${hc ? `<div class="rc-nums">${num("腿", Number(r.leg) || 0, "rl")}${num("排", Number(r.fil) || 0, "rf")}${num("翅", Number(r.wing) || 0, "rwg")}</div>` : `<div class="rc-none">未填寫</div>`}</div>
         <div class="rc-sec"><div class="rc-who">🍕 餅皮${dbm ? `・${esc(dbm.byName || "？")} <span>${fmtAt(dbm.at)}</span>` : ""}</div>
@@ -1310,6 +1372,7 @@
   }
   // 刪除整筆盤點紀錄(雞肉＋餅皮、填寫人與修改紀錄一起刪)，需再確認；刪除後無法復原
   function deleteStockRec() {
+    if (!guardEdit()) return;
     const k = stockEditKey, r = stockEditRec; if (!k || !r || !db) return;
     const parts = [hasChickenRec(r) ? "雞肉" : "", hasDoughRec(r) ? "餅皮" : ""].filter(Boolean).join("、") || "—";
     if (!confirm(`確定刪除 ${mdw(k)} 的盤點紀錄？\n\n會一起刪除：${parts}剩餘、填寫人與修改紀錄。\n刪除後無法復原。${k === todayKey() ? "\n(刪除今天的紀錄後，員工可以重新填寫。)" : ""}`)) return;
@@ -1319,6 +1382,7 @@
       .catch((err) => { console.error(err); alert("刪除失敗：" + (err.message || err)); });
   }
   function saveStockEdit() {
+    if (!guardEdit()) return;
     const k = stockEditKey; if (!k) { hide("stockEditBackdrop"); return; }
     if (k > todayKey()) { alert("不能新增未來日期的盤點。"); return; }
     const onC = $("seChkOn").checked, onD = $("seDghOn").checked;
@@ -1383,6 +1447,7 @@
   function openParts() { fillPartsInputs(partMap); fillPurchaseInputs(purchase); renderPmHist(); show("partsBackdrop"); }
   function resetParts() { fillPartsInputs(DEFAULT_MAP); fillPurchaseInputs(DEFAULT_PURCHASE); }
   function saveParts() {
+    if (!guardEdit()) return;
     const parts = {};
     PIECES.forEach((pc) => { parts[pc] = { leg: Number($(`pm_${pc}_leg`).value) || 0, fil: Number($(`pm_${pc}_fil`).value) || 0, wing: Number($(`pm_${pc}_wing`).value) || 0 }; });
     const purch = readPurchaseInputs();
@@ -1495,6 +1560,7 @@
   }
   function openPizza() { fillPizzaInputs(pizzaCfg); renderPzHist(); const adv = $("pzAdv"); if (adv) adv.open = false; show("pizzaBackdrop"); }
   function savePizza() {
+    if (!guardEdit()) return;
     const c = readPizzaInputs();
     if (pizzaEq(c, pizzaCfg)) { hide("pizzaBackdrop"); return; }
     if (!confirm("確定要修改比薩參數嗎？\n\n之後餅皮推估會改用新參數；\n已存的歷史數字不受影響。")) return;
@@ -1775,6 +1841,7 @@
     $("backupFile").value = "";
   }
   function doBackupImport(data) {
+    if (!guardEdit()) return;
     if (!db) { alert("尚未連線。"); return; }
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
@@ -1791,6 +1858,8 @@
   /* ---------- 啟動 ---------- */
   function wire() {
     $("pinSubmit").onclick = tryUnlock;
+    $("pinNo").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pinInput").focus(); });
+    $("ckLogout").onclick = () => { if (confirm("確定要登出？")) logout(); };
     $("pinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
     $("ckUploadBtn").onclick = openUpload;
     $("ckOrderBtn").onclick = () => openOrderForm(null);
@@ -1861,12 +1930,23 @@
   }
   function init() {
     wire();
-    try { if (sessionStorage.getItem("adminUnlocked") === "1") enterApp(); } catch (e) {}
     viewYM = ymOf(todayKey());
+    // 還原登入：同分頁已登入過(prepAuth)；或排班後台已用 PIN 解鎖(視為業主)
+    try {
+      const saved = JSON.parse(sessionStorage.getItem("prepAuth") || "null");
+      if (saved && saved.name && (saved.access === "edit" || saved.access === "view")) { prepAuth = saved; applyAccess(); enterApp(); }
+      else if (sessionStorage.getItem("adminUnlocked") === "1") { setAuth({ id: "owner", name: "業主", access: "edit", owner: true }); enterApp(); }
+    } catch (e) {}
     const haveCfg = typeof firebase !== "undefined" && typeof firebaseConfig !== "undefined" && firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId;
     if (!haveCfg || !window.firebase) { setBadge("local"); render(); return; }
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
+    // 保險：檢視者任何寫入都在送出前擋下(就算畫面漏擋也寫不進去)
+    const deny = () => Promise.reject(new Error("檢視模式不能修改資料"));
+    [[firebase.firestore.DocumentReference, ["set", "update", "delete"]], [firebase.firestore.WriteBatch, ["commit"]]].forEach(([C, ms]) => {
+      if (!C || !C.prototype) return;
+      ms.forEach((m) => { const o = C.prototype[m]; if (typeof o !== "function" || o.__ro) return; const f = function () { return canEdit() ? o.apply(this, arguments) : deny(); }; f.__ro = true; C.prototype[m] = f; });
+    });
     mainRef = db.collection(COLL).doc(MAIN);
     setBadge("connecting");
     // 先完成匿名登入，再掛上所有 Firestore 監聽。
@@ -1880,7 +1960,9 @@
         settings.nationalHolidays = s.nationalHolidays || [];
         settings.adminPin = s.adminPin || "1234";
         settings.storeName = s.storeName || settings.storeName;
+        employees = (d && d.data && Array.isArray(d.data.employees)) ? d.data.employees : [];
         mainLoaded = true;
+        revalidateAuth();
         render(); refreshHint(); if (orderOpen()) renderOrderForm();
       }, (err) => console.error("main snapshot", err));
       watchMonth(viewYM);
