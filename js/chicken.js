@@ -8,7 +8,7 @@
  *    完全不碰 scheduler/main 與 shifts_/avail_，不影響排班。
  *  - 登入：員工編號＋PIN(員工資料在 scheduler/main.data.employees)，依「備料後台權限」prepAccess：
  *      edit＝管理者(可修改)、view＝檢視者(只能看)、none＝不能登入。
- *    業主備用：員工編號留空＋排班後台 PIN(settings.adminPin)＝管理者；排班後台已解鎖(同分頁)也視為業主。
+ *    備用登入：員工編號留空＋排班後台 PIN(settings.adminPin)＝管理者(畫面不提示)；排班後台已解鎖(同分頁)也視為管理者。
  *    檢視模式是畫面層級的限制(另在 Firestore 寫入前再擋一次)，不是資料庫層級的權限。
  * =================================================================== */
 (function () {
@@ -44,8 +44,8 @@
   let prepAuth = null, employees = [];
   const canEdit = () => !!prepAuth && prepAuth.access === "edit";
   function guardEdit() { if (canEdit()) return true; alert("👁 檢視模式不能修改或匯出資料。"); return false; }
-  // 後台操作者姓名(記在盤點紀錄、訂購單)：員工登入用本人姓名；業主備用 PIN 記「業主」
-  const actorName = () => (prepAuth && !prepAuth.owner ? prepAuth.name : "業主");
+  // 後台操作者姓名(記在盤點紀錄、訂購單)：員工登入用本人姓名；備用 PIN 登入記「管理者」
+  const actorName = () => (prepAuth && !prepAuth.owner ? prepAuth.name : "管理者");
   let viewYM = null;      // 目前顯示的月份 'YYYY-MM'
   let days = {};          // date → 記錄(目前顯示月份)
   let lastParse = null;   // 上傳解析暫存
@@ -891,17 +891,19 @@
     const ro = !!prepAuth && !canEdit();
     document.body.classList.toggle("ck-readonly", ro);
     const bn = $("ckRoBanner"); if (bn) bn.classList.toggle("hidden", !ro);
-    const w = $("ckWho"); if (w) w.innerHTML = prepAuth ? `👤 ${esc(prepAuth.name)}<small>${prepAuth.owner ? "業主・管理者" : canEdit() ? "管理者(可修改)" : "檢視者(只能看)"}</small>` : "—";
+    const un = $("ckUserName"), ur = $("ckUserRole");
+    if (un) un.textContent = prepAuth ? prepAuth.name : "—";
+    if (ur) ur.textContent = prepAuth ? (prepAuth.owner ? "可修改" : canEdit() ? "管理者・可修改" : "檢視者・只能看") : "";
     if (ro && allowBackfill) setBackfill(false);
     if (orderOpen()) renderOrderForm();
     render();
   }
   function tryUnlock() {
     const no = ($("pinNo").value || "").trim().toUpperCase(), pin = ($("pinInput").value || "").trim(), err = (t) => { $("pinError").textContent = t; $("pinInput").value = ""; };
-    if (!no) {   // 業主備用：員工編號留空＋排班後台 PIN
-      if (pin !== (settings.adminPin || "1234")) return err("業主 PIN 不正確。員工請輸入員工編號。");
+    if (!no) {   // 備用登入：員工編號留空＋排班後台 PIN(畫面不顯示這個方式，記錄一律寫「管理者」)
+      if (pin !== (settings.adminPin || "1234")) return err("請輸入員工編號與 PIN 碼。");
       try { sessionStorage.setItem("adminUnlocked", "1"); } catch (e) {}
-      setAuth({ id: "owner", name: "業主", access: "edit", owner: true });
+      setAuth({ id: "owner", name: "管理者", access: "edit", owner: true });
     } else {
       if (db && !mainLoaded) return err("資料載入中，請稍候再試。");
       const e = employees.find((x) => x && x.active && String(x.employeeNo || "").toUpperCase() === no);
@@ -913,6 +915,12 @@
     }
     $("pinError").textContent = ""; $("pinInput").value = ""; $("pinNo").value = "";
     enterApp();
+    reminderChecked = false; setTimeout(tryReminder, 600);
+  }
+  // 每日待辦提醒：登入後、資料載入完才檢查一次(只跳給管理者；檢視者不跳)
+  function tryReminder() {
+    if (reminderChecked || !prepAuth || (db && !mainLoaded)) return;
+    reminderChecked = true; maybeShowReminder();
   }
   function logout() {
     setAuth(null);
@@ -1862,7 +1870,9 @@
   function wire() {
     $("pinSubmit").onclick = tryUnlock;
     $("pinNo").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pinInput").focus(); });
-    $("ckLogout").onclick = () => { if (confirm("確定要登出？")) logout(); };
+    $("ckLogout").onclick = () => { $("ckUser").classList.remove("open"); if (confirm("確定要登出？")) logout(); };
+    $("ckUserBtn").onclick = (e) => { e.stopPropagation(); $("ckUser").classList.toggle("open"); };
+    document.addEventListener("click", (e) => { const u = $("ckUser"); if (u && !u.contains(e.target)) u.classList.remove("open"); });
     $("pinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
     $("ckUploadBtn").onclick = openUpload;
     $("ckOrderBtn").onclick = () => openOrderForm(null);
@@ -1934,11 +1944,11 @@
   function init() {
     wire();
     viewYM = ymOf(todayKey());
-    // 還原登入：同分頁已登入過(prepAuth)；或排班後台已用 PIN 解鎖(視為業主)
+    // 還原登入：同分頁已登入過(prepAuth)；或排班後台已用 PIN 解鎖(視為管理者)
     try {
       const saved = JSON.parse(sessionStorage.getItem("prepAuth") || "null");
       if (saved && saved.name && (saved.access === "edit" || saved.access === "view")) { prepAuth = saved; applyAccess(); enterApp(); }
-      else if (sessionStorage.getItem("adminUnlocked") === "1") { setAuth({ id: "owner", name: "業主", access: "edit", owner: true }); enterApp(); }
+      else if (sessionStorage.getItem("adminUnlocked") === "1") { setAuth({ id: "owner", name: "管理者", access: "edit", owner: true }); enterApp(); }
     } catch (e) {}
     const haveCfg = typeof firebase !== "undefined" && typeof firebaseConfig !== "undefined" && firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId;
     if (!haveCfg || !window.firebase) { setBadge("local"); render(); return; }
@@ -1966,6 +1976,7 @@
         employees = (d && d.data && Array.isArray(d.data.employees)) ? d.data.employees : [];
         mainLoaded = true;
         revalidateAuth();
+        if (!reminderChecked) setTimeout(tryReminder, 1000);
         render(); refreshHint(); if (orderOpen()) renderOrderForm();
       }, (err) => console.error("main snapshot", err));
       watchMonth(viewYM);
@@ -1974,7 +1985,7 @@
       watchOrderMonths();
       watchConfig();
       // 資料載入後跳一次每日提醒(若有待辦、且當天未達 2 次)
-      setTimeout(() => { if (!reminderChecked) { reminderChecked = true; maybeShowReminder(); } }, 1400);
+      setTimeout(tryReminder, 1400);
     };
     if (firebase.auth) {
       firebase.auth().signInAnonymously().then(start).catch((e) => { console.warn("匿名登入失敗，仍嘗試連線：", e); start(); });

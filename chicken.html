@@ -164,8 +164,21 @@
     .pin-hint { margin-top: 14px; font-size: 13px; color: var(--muted); }
     .ck-ro-banner { background: #eef3fb; border: 1.5px solid #c9d8ef; color: #2c4a73; border-radius: 12px; padding: 10px 14px; font-size: 15px; font-weight: 800; margin-bottom: 14px; }
     body.ck-readonly .edit-only { display: none !important; }
-    .ck-who-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 6px; font-size: 16px; font-weight: 700; }
-    .ck-who-row small { color: var(--muted); font-weight: 600; margin-left: 6px; }
+    /* 目前登入者＋登出：手機在上方列右邊(點開才有登出)；平板／電腦在左側選單最下面(直接顯示登出) */
+    .ck-user { position: relative; flex: 0 0 auto; order: 3; }
+    .cu-btn { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,.1); border: 0; border-radius: 999px; padding: 6px 11px; color: #fff; font-size: 14px; cursor: pointer; max-width: 150px; }
+    .cu-btn b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
+    .cu-btn small { display: none; } .cu-caret { font-style: normal; font-size: 11px; opacity: .8; }
+    .cu-out { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: #fff; color: var(--brand-dark); border: 1.5px solid #ecdfd4; border-radius: 12px; padding: 11px 22px; font-size: 16px; font-weight: 800; box-shadow: 0 6px 18px rgba(0,0,0,.18); cursor: pointer; white-space: nowrap; z-index: 40; }
+    .ck-user.open .cu-out { display: block; }
+    @media (min-width:721px) {
+      .ck-user { order: 0; margin-top: auto; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; background: rgba(255,255,255,.07); border-radius: 12px; padding: 10px 10px 10px 12px; }
+      .app-sidebar .ck-user + .sync-badge { margin-top: 0; }
+      .cu-btn { flex-direction: column; align-items: flex-start; gap: 1px; background: none; padding: 0; cursor: default; max-width: 130px; font-size: 15px; }
+      .cu-btn .cu-ic { display: none; } .cu-btn b::before { content: "👤 "; }
+      .cu-btn small { display: block; color: var(--nav-ink); opacity: .85; font-size: 12.5px; } .cu-caret { display: none; }
+      .cu-out, .ck-user.open .cu-out { display: block; position: static; padding: 7px 12px; font-size: 14px; box-shadow: none; border-radius: 10px; }
+    }
     .ck-term { display: block; font-size: 10px; font-weight: 800; color: #2f6b3a; background: #e5f2e1; border-radius: 6px; padding: 1px 3px; margin-top: 2px; width: fit-content; max-width: 100%; overflow: hidden; white-space: nowrap; }
     .ck-term .tm-ic { display: none; font-style: normal; margin-right: 2px; }
     @media (min-width:721px) { .ck-term { font-size: 12.5px; padding: 1px 6px; } .ck-term .tm-ic { display: inline; } }
@@ -687,7 +700,7 @@
   </style>
 </head>
 <body>
-  <!-- 登入：員工編號＋PIN(依備料後台權限)；業主備用＝員工編號留空＋排班後台 PIN -->
+  <!-- 登入：員工編號＋PIN(依備料後台權限)；備用＝員工編號留空＋排班後台 PIN -->
   <div id="pinGate" class="pin-gate">
     <div class="pin-card">
       <div class="brand-mark large-mark"><img src="icons/icon-192.svg" alt="蔡叔叔比薩屋" /></div>
@@ -712,6 +725,10 @@
         <button type="button" data-view="records" class="nav-link"><span class="ni">📋</span>紀錄</button>
         <button type="button" data-view="settings" class="nav-link"><span class="ni">⚙️</span>設定</button>
       </nav>
+      <div class="ck-user" id="ckUser">
+        <button type="button" class="cu-btn" id="ckUserBtn"><span class="cu-ic">👤</span><b id="ckUserName">—</b><small id="ckUserRole"></small><i class="cu-caret">▾</i></button>
+        <button type="button" class="cu-out" id="ckLogout">登出</button>
+      </div>
       <span id="ckSync" class="sync-badge init">◌ 初始化</span>
     </div>
 
@@ -768,7 +785,6 @@
       <!-- 設定 -->
       <section class="app-view hidden" id="viewSettings">
         <div class="view-head"><h2>設定</h2></div>
-        <div class="set-group ck-who"><div class="ck-who-row"><span id="ckWho">—</span><button type="button" class="ghost-btn" id="ckLogout">登出</button></div></div>
         <div class="set-group">
           <div class="set-gh">推估與參數設定</div>
           <button type="button" class="set-item" id="ckPredBtn"><span class="si-ic">🔮</span><span class="si-tx"><b>雞肉推估參數</b><small>多備比例、回算天數、推估方式</small></span><span class="si-ar">›</span></button>
@@ -779,9 +795,9 @@
           <div class="set-gh">月曆顯示</div>
           <button type="button" class="set-item" id="ckTermBtn"><span class="si-ic">🌿</span><span class="si-tx"><b>節氣標記</b><small>選擇月曆上要標示的節氣(只是標示，不影響推估)</small></span><span class="si-ar">›</span></button>
         </div>
-        <div class="set-group">
+        <div class="set-group edit-only">
           <div class="set-gh">供應商管理</div>
-          <button type="button" class="set-item" id="ckSupBtn"><span class="si-ic">🚚</span><span class="si-tx"><b>雞肉批發商</b><small>公休與臨時休市設定</small></span><span class="si-ar">›</span></button>
+          <button type="button" class="set-item edit-only" id="ckSupBtn"><span class="si-ic">🚚</span><span class="si-tx"><b>雞肉批發商</b><small>公休與臨時休市設定</small></span><span class="si-ar">›</span></button>
         </div>
         <div class="set-group edit-only">
           <div class="set-gh">CSV、備份與還原</div>
@@ -853,7 +869,7 @@
         <div class="gd-sec">
           <h4>🧭 各頁在哪裡</h4>
           <div class="gd-tools">
-            <div class="gd-tool"><span class="k">🔑 登入與權限</span><span>用<b>員工編號＋PIN</b>登入(和員工專區同一組)。權限在〈排班後台 → 員工 → 編輯 → 備料後台權限〉設定：<b>管理者</b>可上傳報表、訂購、改設定；<b>檢視者</b>只能查看，不能匯出 CSV 或備份(畫面上方會顯示「👁 檢視模式」)；<b>無</b>則不能登入。業主備用：員工編號留空，輸入排班後台的 PIN。登出在〈設定〉最上面。</span></div>
+            <div class="gd-tool"><span class="k">🔑 登入與權限</span><span>用<b>員工編號＋PIN</b>登入(和員工專區同一組)。權限在〈排班後台 → 員工 → 編輯 → 備料後台權限〉設定：<b>管理者</b>可上傳報表、訂購、改設定；<b>檢視者</b>只能查看，不能匯出 CSV 或備份(畫面上方會顯示「👁 檢視模式」)；<b>無</b>則不能登入。目前登入的人和「登出」在左側選單最下面(手機在上方右邊，點名字)。</span></div>
             <div class="gd-tool"><span class="k">🏠 首頁</span><span>今日建議、訂購雞肉、上傳報表。</span></div>
             <div class="gd-tool"><span class="k">📅 月曆</span><span>雞肉使用／訂購月曆、餅皮月曆、推估準確度。月曆上綠色小標(例如「🍂秋分」)是節氣，只是標示；要標哪些節氣在〈設定 → 節氣標記〉勾選，預設是大暑、秋分、立冬、大寒。</span></div>
             <div class="gd-tool"><span class="k">📋 紀錄</span><span>員工打烊剩餘的填寫紀錄，可切換月份、新增(回填)、更正，會保留修改紀錄。</span></div>
@@ -1095,7 +1111,7 @@
           <div class="pm-hist-title">版本紀錄(點可唯讀查看該版的①＋②)</div>
           <div id="pmHistList"></div>
         </div>
-        <div class="modal-actions"><button class="danger-btn" id="partsReset" style="margin-right:auto">恢復預設值</button><button class="ghost-btn" data-close="partsBackdrop">取消</button><button class="edit-only primary-btn" id="partsSave">儲存設定</button></div>
+        <div class="modal-actions"><button class="edit-only danger-btn" id="partsReset" style="margin-right:auto">恢復預設值</button><button class="ghost-btn" data-close="partsBackdrop">取消</button><button class="edit-only primary-btn" id="partsSave">儲存設定</button></div>
       </div>
     </div>
   </div>
