@@ -206,7 +206,7 @@ function renderStaff(){
   byId("staffPortal").classList.remove("hidden");
   applyStaffBranding();
   byId("staffWelcome").textContent=`${e.name}，你好`;
-  // 餅皮推估分頁：僅「餅皮／管理者」角色可見
+  // 餅皮推估分頁：僅「餅皮／餅皮＋雞肉」角色可見
   const dTab=byId("doughTabBtn");
   if(dTab){
     const show=canDough();
@@ -218,7 +218,7 @@ function renderStaff(){
     }
   }
 
-  // 訂購雞肉分頁：僅「雞肉／管理者」角色可見
+  // 訂購雞肉分頁：僅「雞肉／餅皮＋雞肉」角色可見
   const cTab=byId("chickenTabBtn");
   if(cTab){
     const showC=canChicken();
@@ -618,13 +618,14 @@ function saveStockPart(part){
     .then(()=>{const n=byId("stockSaved");if(n){n.textContent=(part==="chicken"?"🍗 雞肉剩餘":"🍕 餅皮剩餘")+" 已送出";setTimeout(()=>{n.textContent="";},3000);}renderStockCards();})
     .catch(err=>toast("送出失敗："+(err&&err.message||err),"error"));
 }
-/* ---------- 餅皮推估(角色＝餅皮／管理者 才看得到) ---------- */
+/* ---------- 餅皮推估(角色＝餅皮／餅皮＋雞肉 才看得到) ---------- */
 // 推估公式在 js/dough-core.js(與後台共用同一份)；員工頁只提供資料、顯示結果
 const DC=window.DoughCore, {DOUGH_TYPES,DOUGH_LABEL}=DC;
 let pizzaCfg=DC.normalizePizza(null), doughReports={}, doughSubbed=new Set(), doughConfigSubbed=false;
 function myRole(){const e=staffEmployeeId&&employee(staffEmployeeId);return (e&&e.role)||"一般";}
-function canDough(){const r=myRole();return r==="餅皮"||r==="管理者";}
-function canChicken(){const r=myRole();return r==="雞肉"||r==="管理者";}
+// 「餅皮＋雞肉」＝兩者都有(舊資料的「管理者」同義)
+function canDough(){const r=myRole();return r==="餅皮"||r==="餅皮＋雞肉"||r==="管理者";}
+function canChicken(){const r=myRole();return r==="雞肉"||r==="餅皮＋雞肉"||r==="管理者";}
 // 雞肉設定(批發商、推估參數、版本、公斤換算)：與後台同一份 poultry_config
 let chickenCfg=window.ChickenCore?window.ChickenCore.normalizeConfig(null):null;
 // 有新資料時，重畫正在看的餅皮／雞肉分頁
@@ -674,7 +675,7 @@ function renderDoughStaff(){
       <details class="dgs-how"><summary>看怎麼來的</summary>${how}</details></div>`;
   }).join("");
 }
-/* ---------- 訂購雞肉(角色＝雞肉／管理者)：計算在 js/chicken-core.js(與後台共用)，員工只能改公斤 ---------- */
+/* ---------- 訂購雞肉(角色＝雞肉／餅皮＋雞肉)：計算在 js/chicken-core.js(與後台共用)，員工只能改公斤 ---------- */
 const CC=window.ChickenCore;
 let chickenOrders={}, chickenOrderSubbed=new Set(), chickenKgEdit={}, chickenSubmitting=false;
 const ymOfKey=k=>k.slice(0,7);
