@@ -697,7 +697,6 @@
       <input id="pinInput" class="input big-input" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN 碼" style="margin-top:10px" />
       <button id="pinSubmit" class="primary-btn full">進入</button>
       <div id="pinError" class="form-error"></div>
-      <div class="pin-hint">業主備用登入：員工編號留空，輸入業主 PIN</div>
     </div>
   </div>
 
@@ -763,7 +762,7 @@
         <div class="rec-empty" id="recordsMsg"></div>
         <div class="rec-wrap"><table class="rec-tbl" id="recordsTbl"></table></div>
         <div class="rec-cards" id="recordsCards"></div>
-        <div class="view-actions"><button class="ghost-btn" id="recordsExport">⤓ 匯出 CSV</button></div>
+        <div class="view-actions"><button class="edit-only ghost-btn" id="recordsExport">⤓ 匯出 CSV</button></div>
       </section>
 
       <!-- 設定 -->
@@ -784,7 +783,7 @@
           <div class="set-gh">供應商管理</div>
           <button type="button" class="set-item" id="ckSupBtn"><span class="si-ic">🚚</span><span class="si-tx"><b>雞肉批發商</b><small>公休與臨時休市設定</small></span><span class="si-ar">›</span></button>
         </div>
-        <div class="set-group">
+        <div class="set-group edit-only">
           <div class="set-gh">CSV、備份與還原</div>
           <button type="button" class="set-item" id="ckExportCsvBtn"><span class="si-ic">⤓</span><span class="si-tx"><b>匯出 CSV</b><small>每日消耗／訂購明細</small></span><span class="si-ar">›</span></button>
           <button type="button" class="set-item" id="ckBackupBtn"><span class="si-ic">💾</span><span class="si-tx"><b>備份／還原</b><small>整包匯出匯入</small></span><span class="si-ar">›</span></button>
@@ -854,7 +853,7 @@
         <div class="gd-sec">
           <h4>🧭 各頁在哪裡</h4>
           <div class="gd-tools">
-            <div class="gd-tool"><span class="k">🔑 登入與權限</span><span>用<b>員工編號＋PIN</b>登入(和員工專區同一組)。權限在〈排班後台 → 員工 → 編輯 → 備料後台權限〉設定：<b>管理者</b>可上傳報表、訂購、改設定；<b>檢視者</b>只能查看(畫面上方會顯示「👁 檢視模式」)；<b>無</b>則不能登入。業主備用：員工編號留空，輸入排班後台的 PIN。登出在〈設定〉最上面。</span></div>
+            <div class="gd-tool"><span class="k">🔑 登入與權限</span><span>用<b>員工編號＋PIN</b>登入(和員工專區同一組)。權限在〈排班後台 → 員工 → 編輯 → 備料後台權限〉設定：<b>管理者</b>可上傳報表、訂購、改設定；<b>檢視者</b>只能查看，不能匯出 CSV 或備份(畫面上方會顯示「👁 檢視模式」)；<b>無</b>則不能登入。業主備用：員工編號留空，輸入排班後台的 PIN。登出在〈設定〉最上面。</span></div>
             <div class="gd-tool"><span class="k">🏠 首頁</span><span>今日建議、訂購雞肉、上傳報表。</span></div>
             <div class="gd-tool"><span class="k">📅 月曆</span><span>雞肉使用／訂購月曆、餅皮月曆、推估準確度。月曆上綠色小標(例如「🍂秋分」)是節氣，只是標示；要標哪些節氣在〈設定 → 節氣標記〉勾選，預設是大暑、秋分、立冬、大寒。</span></div>
             <div class="gd-tool"><span class="k">📋 紀錄</span><span>員工打烊剩餘的填寫紀錄，可切換月份、新增(回填)、更正，會保留修改紀錄。</span></div>

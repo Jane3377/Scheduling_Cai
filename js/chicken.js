@@ -43,7 +43,9 @@
   // 登入者：{ id, name, access:"edit"|"view", owner:bool }；存 sessionStorage(關掉 App 就要重新登入，與原本相同)
   let prepAuth = null, employees = [];
   const canEdit = () => !!prepAuth && prepAuth.access === "edit";
-  function guardEdit() { if (canEdit()) return true; alert("👁 檢視模式不能修改資料。"); return false; }
+  function guardEdit() { if (canEdit()) return true; alert("👁 檢視模式不能修改或匯出資料。"); return false; }
+  // 後台操作者姓名(記在盤點紀錄、訂購單)：員工登入用本人姓名；業主備用 PIN 記「業主」
+  const actorName = () => (prepAuth && !prepAuth.owner ? prepAuth.name : "業主");
   let viewYM = null;      // 目前顯示的月份 'YYYY-MM'
   let days = {};          // date → 記錄(目前顯示月份)
   let lastParse = null;   // 上傳解析暫存
@@ -1395,14 +1397,15 @@
                                 onD ? Object.fromEntries(SE_DGH.map(([id, key]) => [key, num(id)])) : pick(prev, SE_DGH, hadD));
     const before = Object.assign(pick(prev, SE_CHK, hadC), pick(prev, SE_DGH, hadD));
     if (had && JSON.stringify(after) === JSON.stringify(before)) { hide("stockEditBackdrop"); return; }
-    const now = Date.now(), meta = { byName: "管理者(回填)", at: now, backfill: true };
+    const now = Date.now(), meta = { byName: actorName() + "(回填)", at: now, backfill: true };
+    if (prepAuth && !prepAuth.owner) meta.by = prepAuth.id;
     const patch = {};
     if (onC) SE_CHK.forEach(([, key]) => patch[key] = after[key]);
     if (onD) SE_DGH.forEach(([, key]) => patch[key] = after[key]);
     if (onC && !hadC) patch.chicken = meta;          // 新補填的部分記錄回填者
     if (onD && !hadD) patch.dough = meta;
     if (!had) { patch.byName = meta.byName; patch.at = now; }
-    patch.edits = ((prev.edits) || []).concat({ at: now, byName: "管理者", type: had ? "edit" : "add", before, after });
+    patch.edits = ((prev.edits) || []).concat({ at: now, byName: actorName(), type: had ? "edit" : "add", before, after });
     stockRefOf(ymOf(k)).set({ days: { [k]: patch }, updatedAt: now }, { merge: true })
       .then(() => { hide("stockEditBackdrop"); const ym = ymOf(k); if (!recLiveYMs().includes(ym)) delete recCache[ym]; recYM = ym; openRecords(); })
       .catch((err) => { console.error(err); alert("儲存失敗：" + (err.message || err)); });
@@ -1885,17 +1888,17 @@
     $("supSave").onclick = saveSupSet;
     // 月曆下方工具：匯出 CSV／備份還原／部位對照
     document.querySelectorAll("[data-view]").forEach((b) => b.onclick = () => switchView(b.dataset.view));
-    $("recordsExport").onclick = doRecordsExport;
+    $("recordsExport").onclick = () => { if (guardEdit()) doRecordsExport(); };
     $("seSave").onclick = saveStockEdit;
     $("seDelete").onclick = deleteStockRec;
     $("seChkOn").onchange = seSyncParts; $("seDghOn").onchange = seSyncParts;
     $("seDate").onchange = () => { const v = $("seDate").value; if (v) seLoadDate(v); };
     $("recordsAdd").onclick = openStockAdd;
     $("recPrev").onclick = () => shiftRecMonth(-1); $("recNext").onclick = () => shiftRecMonth(1);
-    $("ckExportCsvBtn").onclick = openCsv;
-    $("csvDownload").onclick = doCsvExport;
-    $("ckBackupBtn").onclick = openBackup;
-    $("backupExport").onclick = doBackupExport;
+    $("ckExportCsvBtn").onclick = () => { if (guardEdit()) openCsv(); };
+    $("csvDownload").onclick = () => { if (guardEdit()) doCsvExport(); };
+    $("ckBackupBtn").onclick = () => { if (guardEdit()) openBackup(); };
+    $("backupExport").onclick = () => { if (guardEdit()) doBackupExport(); };
     $("backupImport").onclick = () => $("backupFile").click();
     $("backupFile").addEventListener("change", (e) => onBackupFile(e.target.files[0]));
     $("ckGuideBtn").onclick = () => show("guideBackdrop");
