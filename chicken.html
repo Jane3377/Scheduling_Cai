@@ -161,6 +161,15 @@
     .ck-bf-banner { background: #eef4ff; border: 1px solid #c9d8f2; color: #2a4a80; border-radius: 12px; padding: 10px 13px; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
     .ck-ordcell .ck-pocan.ck-bf { color: #2a4a80; }
     .ck-supoff { display: block; font-size: 10px; font-weight: 800; color: #8a5a10; background: #fff3d6; border-radius: 6px; padding: 1px 3px; margin-top: 3px; width: fit-content; max-width: 100%; overflow: hidden; white-space: nowrap; letter-spacing: -0.3px; }
+    .ck-term { display: block; font-size: 10px; font-weight: 800; color: #2f6b3a; background: #e5f2e1; border-radius: 6px; padding: 1px 3px; margin-top: 2px; width: fit-content; max-width: 100%; overflow: hidden; white-space: nowrap; }
+    .ck-term .tm-ic { display: none; font-style: normal; margin-right: 2px; }
+    @media (min-width:721px) { .ck-term { font-size: 12.5px; padding: 1px 6px; } .ck-term .tm-ic { display: inline; } }
+    .tm-grp + .tm-grp { margin-top: 12px; }
+    .tm-gh { font-weight: 800; font-size: 14.5px; color: var(--brand-dark); margin-bottom: 6px; }
+    .tm-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+    .tm-opt { display: flex; align-items: center; gap: 7px; border: 1.5px solid #ecdfd4; border-radius: 10px; padding: 9px 10px; font-size: 16px; font-weight: 700; cursor: pointer; background: #fff; }
+    .tm-opt input { width: 19px; height: 19px; accent-color: #2f6b3a; }
+    .tm-opt:has(input:checked) { border-color: #9cc59a; background: #f1f8ef; }
     @media (min-width:721px) { .ck-supoff { font-size: 13px; padding: 2px 6px; letter-spacing: 0; } .ck-ordcell .ck-pocan { font-size: 12.5px; } }
     .employee-cal-day.ck-rest.ck-ordcell { cursor: pointer; }
     .ck-ordcell .ck-pocan { display: block; font-size: 10px; font-weight: 700; color: var(--muted); margin-top: 5px; }
@@ -759,6 +768,10 @@
           <button type="button" class="set-item" id="ckPizzaBtn"><span class="si-ic">🍕</span><span class="si-tx"><b>餅皮推估參數</b><small>最低營業額、比例自動算</small></span><span class="si-ar">›</span></button>
         </div>
         <div class="set-group">
+          <div class="set-gh">月曆顯示</div>
+          <button type="button" class="set-item" id="ckTermBtn"><span class="si-ic">🌿</span><span class="si-tx"><b>節氣標記</b><small>選擇月曆上要標示的節氣(只是標示，不影響推估)</small></span><span class="si-ar">›</span></button>
+        </div>
+        <div class="set-group">
           <div class="set-gh">供應商管理</div>
           <button type="button" class="set-item" id="ckSupBtn"><span class="si-ic">🚚</span><span class="si-tx"><b>雞肉批發商</b><small>公休與臨時休市設定</small></span><span class="si-ar">›</span></button>
         </div>
@@ -833,7 +846,7 @@
           <h4>🧭 各頁在哪裡</h4>
           <div class="gd-tools">
             <div class="gd-tool"><span class="k">🏠 首頁</span><span>今日建議、訂購雞肉、上傳報表。</span></div>
-            <div class="gd-tool"><span class="k">📅 月曆</span><span>雞肉使用／訂購月曆、餅皮月曆、推估準確度。</span></div>
+            <div class="gd-tool"><span class="k">📅 月曆</span><span>雞肉使用／訂購月曆、餅皮月曆、推估準確度。月曆上綠色小標(例如「🍂秋分」)是節氣，只是標示；要標哪些節氣在〈設定 → 節氣標記〉勾選，預設是大暑、秋分、立冬、大寒。</span></div>
             <div class="gd-tool"><span class="k">📋 紀錄</span><span>員工打烊剩餘的填寫紀錄，可切換月份、新增(回填)、更正，會保留修改紀錄。</span></div>
             <div class="gd-tool"><span class="k">⚙️ 設定</span><span>雞肉推估參數、雞肉單位轉換、餅皮推估參數、雞肉批發商、匯出 CSV、備份／還原。</span></div>
           </div>
@@ -1149,6 +1162,17 @@
   </div>
 
   <!-- 比薩餅皮參數設定彈窗 -->
+  <!-- 節氣標記 -->
+  <div id="termBackdrop" class="modal-backdrop hidden">
+    <div class="modal" style="width:min(460px,100%)">
+      <div class="modal-head"><div><h3>🌿 節氣標記</h3><p>勾選的節氣會標在備料後台的月曆上(只是標示，不影響推估)</p></div><button class="icon-btn" data-close="termBackdrop">✕</button></div>
+      <div class="modal-body">
+        <div id="termList"></div>
+        <div class="hint" style="margin-top:10px">日期依天文計算(台灣時間)，每年可能差一天，系統會自動對應；目前涵蓋 2025～2040 年。</div>
+        <div class="modal-actions"><button class="ghost-btn" data-close="termBackdrop">取消</button><button class="primary-btn" id="termSave">儲存</button></div>
+      </div>
+    </div>
+  </div>
   <div id="pizzaBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(480px,100%)">
       <div class="modal-head"><div><h3>🍕 比薩餅皮參數</h3><p>六日／假日推估的底線與拆分；餅皮推估會用到</p></div><button class="icon-btn" data-close="pizzaBackdrop">✕</button></div>
@@ -1210,6 +1234,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/dough-core.js"></script>
   <script src="js/chicken-core.js"></script>
+  <script src="js/solar-terms.js"></script>
   <script src="js/chicken.js"></script>
   <script src="js/update.js"></script>
 </body>

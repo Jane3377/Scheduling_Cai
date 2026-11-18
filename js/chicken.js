@@ -89,6 +89,10 @@
   }
   function isTempRest(k) { return (settings.holidays || []).some((h) => h.date === k); }
   function closedLabel(k) { const h = (settings.holidays || []).find((x) => x.date === k); return (h && (h.note || "").trim()) || (isTempRest(k) ? "臨時公休" : "公休"); }
+  // 節氣標記(只是標示，不影響推估)：勾選哪些存 poultry_config.solarTerms，沒設定過＝預設 4 個
+  const ST = window.SolarTerms;
+  let solarTermsSel = ST ? ST.normalize(undefined) : [];
+  function termTag(k) { const n = ST ? ST.termOf(k) : ""; return (n && solarTermsSel.includes(n)) ? `<span class="ck-term" title="節氣：${n}"><i class="tm-ic">${ST.SEASON[n]}</i>${n}</span>` : ""; }
   function natHoliday(k) { const h = (settings.nationalHolidays || []).find((x) => x.date === k); return h ? (h.name || "國定假日") : ""; }
   function nextBusinessDay(fromKey) {
     const d = parseKey(fromKey);
@@ -311,7 +315,7 @@
     const hasOrder = !!rec.order;
     const dow = parseKey(k).getDay();
     const redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
-    const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
+    const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>${termTag(k)}`;
     const sr = rec.supplyRef, srOrder = sr ? orderForDay(sr.od) : null, st = srOrder ? orderStatus(srOrder) : null;
     const mark = hasOrder ? `<span class="ck-ord-mark" title="已訂購">📝</span>` : "";
     let cls = "employee-cal-day", inner = numHtml, disabled = "";
@@ -339,7 +343,7 @@
   function orderCell(k, dd) {
     const dow = parseKey(k).getDay();
     const redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
-    const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
+    const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>${termTag(k)}`;
     const closed = isClosed(k), o = orderForDay(k), off = supTempOff(k), t = todayKey(), future = k >= t;
     const covered = !off && coveredUseDays(k).length > 0;
     const sup = defSupplier(), offTxt = off ? `${sup ? sup.name : "批發商"}休市${off.note ? "・" + off.note : ""}` : "";
@@ -374,7 +378,7 @@
   }
   function doughCell(k, dd) {
     const dow = parseKey(k).getDay(), redNum = (dow === 0 || dow === 6 || !!natHoliday(k));
-    const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>`;
+    const numHtml = `<span class="day-number${redNum ? " ck-red" : ""}">${dd}</span>${termTag(k)}`;
     if (isClosed(k)) return `<div class="employee-cal-day ck-rest">${numHtml}<span class="ck-tag">${closedLabel(k)}</span></div>`;
     const sold = doughSold(k);   // 已有銷售(報表已上傳)
     let cls = "employee-cal-day ck-dcell", inner = numHtml;
@@ -914,6 +918,7 @@
     bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
     predWindow = (d && WINDOW_OPTIONS.includes(d.predWindow)) ? d.predWindow : 35;
     estMethod = (d && EST_METHODS.includes(d.estMethod)) ? d.estMethod : "avg";
+    if (ST) solarTermsSel = ST.normalize(d && d.solarTerms);
     // 批發商清單：優先讀新版 suppliers；沒有就從舊版 supplierOff 遷移；再沒有就用預設
     suppliers = [];
     if (d && Array.isArray(d.suppliers) && d.suppliers.length) {
@@ -954,6 +959,20 @@
       applyConfig(snap.data());
       render(); refreshHint(); if (orderOpen()) renderOrderForm();
     }, (err) => console.error("config snapshot", err));
+  }
+  /* ---------- 月曆節氣標記(勾選要標的節氣) ---------- */
+  function openTermSet() {
+    const groups = [["🌱 春", 2], ["☀️ 夏", 8], ["🍂 秋", 14], ["❄️ 冬", 20]];   // NAMES 從小寒開始；春＝立春(索引 2)起 6 個
+    $("termList").innerHTML = groups.map(([lab, st]) => `<div class="tm-grp"><div class="tm-gh">${lab}</div><div class="tm-opts">${[0, 1, 2, 3, 4, 5].map((i) => { const n = ST.NAMES[(st + i) % 24]; return `<label class="tm-opt"><input type="checkbox" value="${n}"${solarTermsSel.includes(n) ? " checked" : ""}><span>${n}</span></label>`; }).join("")}</div></div>`).join("");
+    show("termBackdrop");
+  }
+  function saveTermSet() {
+    const list = [...$("termList").querySelectorAll("input:checked")].map((i) => i.value);
+    solarTermsSel = ST.normalize(list); render();
+    if (!db) { hide("termBackdrop"); return; }
+    configRef().set({ solarTerms: solarTermsSel, updatedAt: Date.now() }, { merge: true })
+      .then(() => hide("termBackdrop"))
+      .catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e) + "\n(若顯示權限不足，請先到 Firebase 更新 Firestore 規則，加入 solarTerms)"); });
   }
   /* ---------- 推估設定(緩衝倍率／回算天數／推估方式) ---------- */
   function openPredSet() {
@@ -1735,7 +1754,7 @@
       const out = { type: "poultry-backup", version: 1, exportedAt: new Date().toISOString(), config: null, months: {}, stock: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
-        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory, pizza: data.pizza, pizzaHistory: data.pizzaHistory, predHistory: data.predHistory };
+        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory, pizza: data.pizza, pizzaHistory: data.pizzaHistory, predHistory: data.predHistory, solarTerms: data.solarTerms };
         else if (id.indexOf("poultry_stock_") === 0) out.stock[id.slice("poultry_stock_".length)] = { days: data.days || {} };
         else out.months[id.slice("poultry_".length)] = { days: data.days || {} };
       });
@@ -1760,7 +1779,7 @@
     const writes = [];
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
     if (data.stock) Object.keys(data.stock).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: stockRefOf(ym), data: { days: data.stock[ym].days || {}, updatedAt: Date.now() } }); });
-    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; if (data.config.pizza && typeof data.config.pizza === "object") c.pizza = data.config.pizza; if (Array.isArray(data.config.pizzaHistory)) c.pizzaHistory = data.config.pizzaHistory; if (Array.isArray(data.config.predHistory)) c.predHistory = data.config.predHistory; writes.push({ ref: configRef(), data: c }); }
+    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; if (data.config.pizza && typeof data.config.pizza === "object") c.pizza = data.config.pizza; if (Array.isArray(data.config.pizzaHistory)) c.pizzaHistory = data.config.pizzaHistory; if (Array.isArray(data.config.predHistory)) c.predHistory = data.config.predHistory; if (Array.isArray(data.config.solarTerms)) c.solarTerms = data.config.solarTerms; writes.push({ ref: configRef(), data: c }); }
     let i = 0;
     (function next() {
       if (i >= writes.length) { hide("backupBackdrop"); alert("匯入完成。"); watchMonth(viewYM); return; }
@@ -1811,6 +1830,8 @@
     $("backupImport").onclick = () => $("backupFile").click();
     $("backupFile").addEventListener("change", (e) => onBackupFile(e.target.files[0]));
     $("ckGuideBtn").onclick = () => show("guideBackdrop");
+    $("ckTermBtn").onclick = openTermSet;
+    $("termSave").onclick = saveTermSet;
     $("ckBackfillBtn").onclick = () => {
       if (allowBackfill) { setBackfill(false); return; }
       if (confirm("開啟回填模式？\n\n開啟後可在訂購月曆替「過去的日子」開訂購單(測試或補登用)。\n只在這台裝置有效，測試完請回到這裡關閉。")) setBackfill(true);
