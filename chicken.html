@@ -1068,13 +1068,13 @@
   <!-- 備份／還原彈窗 -->
   <div id="backupBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(440px,100%)">
-      <div class="modal-head"><div><h3>備份／還原</h3><p>把採購雞肉的所有資料整包匯出／匯入</p></div><button class="icon-btn" data-close="backupBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3>備份／還原</h3><p>把備料後台的所有資料整包匯出／匯入</p></div><button class="icon-btn" data-close="backupBackdrop">✕</button></div>
       <div class="modal-body">
-        <p class="bk-note">備份會把<b>所有月份的消耗、叫貨與設定</b>存成一個檔，可保存備用或日後匯入還原。</p>
+        <p class="bk-note">備份會把<b>所有月份的銷售、打烊剩餘、訂購單與設定</b>存成一個檔，可保存備用或日後匯入還原。員工與公休日等資料在排班平台的「完整備份」裡。</p>
         <button type="button" class="bk-btn" id="backupExport">⬇ 匯出備份檔(JSON)</button>
         <button type="button" class="edit-only bk-btn" id="backupImport">⬆ 匯入備份檔…</button>
         <input type="file" id="backupFile" accept=".json,application/json" class="hidden" />
-        <p class="bk-warn">⚠ 匯入會以備份檔內容覆蓋目前的雞肉資料，請確認後再匯入。</p>
+        <p class="bk-warn">⚠ 匯入會以備份檔「完全覆蓋」目前備料後台的資料，備份裡沒有的月份會被刪除，無法復原。</p>
       </div>
     </div>
   </div>

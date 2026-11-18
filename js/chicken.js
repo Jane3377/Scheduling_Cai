@@ -1847,14 +1847,29 @@
     reader.onload = (e) => {
       let data; try { data = JSON.parse(e.target.result); } catch (x) { alert("這不是有效的備份檔(JSON 解析失敗)。"); return; }
       if (!data || data.type !== "poultry-backup" || !data.months) { alert("這不是採購雞肉的備份檔。"); return; }
-      const n = Object.keys(data.months).length, ns = Object.keys(data.stock || {}).length, no = Object.keys(data.orders || {}).length;
-      if (!confirm(`將匯入：銷售 ${n} 個月、打烊剩餘 ${ns} 個月、訂購單 ${no} 個月${data.config ? "＋設定" : ""}，並覆蓋目前備料後台的同月份資料。確定匯入？${data.orders ? "" : "\n(這是舊版備份，沒有訂購單)"}`)) return;
-      doBackupImport(data);
+      if (!db) { alert("尚未連線。"); return; }
+      // 完全覆蓋(比照排班平台)：備份裡沒有的月份會刪除；舊版備份沒有訂購單 → 訂購單維持不動
+      const FP = firebase.firestore.FieldPath.documentId();
+      db.collection(COLL).where(FP, ">=", "poultry_").where(FP, "<", "poultry`").get().then((qs) => {
+        const del = [], lab = { s: "銷售", k: "打烊剩餘", o: "訂購單" }, dl = { s: [], k: [], o: [] };
+        qs.forEach((doc) => {
+          const id = doc.id; let t = null, ym = null;
+          if (id.indexOf("poultry_stock_") === 0) { t = "k"; ym = id.slice(14); if ((data.stock || {})[ym]) t = null; }
+          else if (id.indexOf("poultry_order_") === 0) { ym = id.slice(14); t = (data.orders && !data.orders[ym]) ? "o" : null; }
+          else if (/^poultry_\d{4}-\d{2}$/.test(id)) { ym = id.slice(8); t = data.months[ym] ? null : "s"; }
+          if (t) { del.push(id); dl[t].push(ym); }
+        });
+        const n = Object.keys(data.months).length, ns = Object.keys(data.stock || {}).length, no = Object.keys(data.orders || {}).length;
+        const delTxt = Object.keys(dl).filter((t) => dl[t].length).map((t) => `${lab[t]} ${dl[t].sort().join("、")}`).join("；");
+        if (!confirm(`將以此備份「完全覆蓋」目前備料後台的資料(銷售 ${n} 個月、打烊剩餘 ${ns} 個月、訂購單 ${no} 個月${data.config ? "＋設定" : ""})。` +
+          (delTxt ? `\n備份裡沒有的月份會刪除：${delTxt}` : "") + (data.orders ? "" : "\n(這是舊版備份，沒有訂購單；目前的訂購單維持不動)") + "\n此動作無法復原，確定還原？")) return;
+        doBackupImport(data, del);
+      }).catch((err) => { console.error(err); alert("讀取目前資料失敗：" + (err.message || err)); });
     };
     reader.readAsText(file);
     $("backupFile").value = "";
   }
-  function doBackupImport(data) {
+  function doBackupImport(data, delIds) {
     if (!guardEdit()) return;
     if (!db) { alert("尚未連線。"); return; }
     const writes = [];
@@ -1862,10 +1877,11 @@
     if (data.stock) Object.keys(data.stock).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: stockRefOf(ym), data: { days: data.stock[ym].days || {}, updatedAt: Date.now() } }); });
     if (data.orders) Object.keys(data.orders).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: orderRefOf(ym), data: { orders: data.orders[ym].orders || {}, updatedAt: Date.now() } }); });
     if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; if (data.config.pizza && typeof data.config.pizza === "object") c.pizza = data.config.pizza; if (Array.isArray(data.config.pizzaHistory)) c.pizzaHistory = data.config.pizzaHistory; if (Array.isArray(data.config.predHistory)) c.predHistory = data.config.predHistory; if (Array.isArray(data.config.solarTerms)) c.solarTerms = data.config.solarTerms; writes.push({ ref: configRef(), data: c }); }
+    (delIds || []).forEach((id) => writes.push({ ref: db.collection(COLL).doc(id), del: true }));
     let i = 0;
     (function next() {
-      if (i >= writes.length) { hide("backupBackdrop"); alert("匯入完成。"); watchMonth(viewYM); return; }
-      const batch = db.batch(), chunk = writes.slice(i, i + 400); chunk.forEach((w) => batch.set(w.ref, w.data)); i += chunk.length;
+      if (i >= writes.length) { hide("backupBackdrop"); alert("還原完成。"); watchMonth(viewYM); return; }
+      const batch = db.batch(), chunk = writes.slice(i, i + 400); chunk.forEach((w) => (w.del ? batch.delete(w.ref) : batch.set(w.ref, w.data))); i += chunk.length;
       batch.commit().then(next).catch((err) => { console.error(err); alert("匯入失敗：" + (err.message || err)); });
     })();
   }
