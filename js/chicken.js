@@ -873,6 +873,7 @@
       html += `<button type="button" class="today-card" data-home="dough" data-dk="${dk}">
         <div class="tc-h"><span class="tc-ic">🍕</span><div class="tc-t"><b>餅皮推估</b><small>${mdw(dk)} ${pd.group}${dk !== today ? "・今天公休" : ""}</small></div><span class="tc-ar">›</span></div>
         <div class="tc-nums tc-nums4">${DOUGH_TYPES.map((t) => `<span><i>${DOUGH_LABEL[t]}</i><b class="dg-c">${pd.rec[t]}<small>個</small></b></span>`).join("")}</div>
+        <div class="tc-noleft">※ 建議量未扣剩餘餅皮</div>
       </button>`;
     } else {
       html += `<div class="today-card muted"><div class="tc-h"><span class="tc-ic">🍕</span><div class="tc-t"><b>餅皮推估</b><small>近期沒有營業日</small></div></div></div>`;
@@ -1768,13 +1769,14 @@
     let html = `<div class="dg-sug">
       <div class="dg-sug-h">${p.label}・建議備${frozen ? `<small class="dg-sug-tag">當天的推估(依當時參數，不會變)</small>` : (mode === "current" ? `<small class="dg-sug-tag">依目前設定回推</small>` : "")}</div>
       <div class="dg-sug-n"><span>9吋 <b>${r.n9}</b><small>厚${p.rec.t9} 薄${p.rec.s9}</small></span><span>12吋 <b>${r.n12}</b><small>厚${p.rec.t12} 薄${p.rec.s12}</small></span></div>
+      <div class="dg-noleft">※ 建議量未扣剩餘餅皮</div>
     </div>`;
     // ① 怎麼來的
     html += `<div class="dg-sec-h">${sec()} 怎麼來的</div>
       <table class="ck-items dg-basis"><thead><tr><th></th><th>9厚</th><th>9薄</th><th>12厚</th><th>12薄</th></tr></thead><tbody>
       <tr><td>近 ${p.n || p.N} 個${p.sampleName}平均銷售</td>${DOUGH_TYPES.map((t) => cell(p.avg, t, p.src[t] === "avg")).join("")}</tr>
       ${p.isWeekend ? `<tr><td>最低營業額 ${money(cfgK.minRevenue || 0)} 反推</td>${DOUGH_TYPES.map((t) => cell(p.floor, t, p.src[t] === "floor")).join("")}</tr>` : ""}
-      <tr class="sum"><td>✔ 建議</td>${DOUGH_TYPES.map((t) => `<td>${p.rec[t]}</td>`).join("")}</tr>
+      <tr class="sum"><td>✔ 建議<small class="dg-noleft-s">未扣剩餘餅皮</small></td>${DOUGH_TYPES.map((t) => `<td>${p.rec[t]}</td>`).join("")}</tr>
       </tbody></table>
       <div class="dg-explain">${!p.n ? `還沒有${p.sampleName}的銷售資料${p.isWeekend ? "，暫時只用最低營業額反推。" : "，無法推估。"}`
         : p.isWeekend ? "六日／假日：每一格取「平均銷售」與「最低營業額反推」較大的那個(底色標示採用哪個)。"
