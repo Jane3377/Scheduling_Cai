@@ -10,8 +10,11 @@
 ```
 🔔 打烊囉！請填 11/17(二) 的打烊剩餘
 還沒填：🍗 雞肉、🍕 餅皮
+🇻🇳 Đóng cửa rồi! Vui lòng điền số còn lại ngày 17/11: gà, đế bánh
 👉 https://jane3377.github.io/Scheduling_Cai/index.html?go=stock
 ```
+
+每則訊息都會附一行越南文給越南員工看。
 
 20:20 的追蹤訊息開頭是「⚠️ 再提醒」，只列還沒填的項目。
 

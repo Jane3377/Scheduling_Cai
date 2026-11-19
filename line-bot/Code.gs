@@ -41,15 +41,18 @@ function doGet(e) {
 function text(t) { return ContentService.createTextOutput(t).setMimeType(ContentService.MimeType.TEXT); }
 
 function buildMessage(stage, dk, s) {
-  const miss = [];
-  if (!s.chicken) miss.push("🍗 雞肉");
-  if (!s.dough) miss.push("🍕 餅皮");
-  const day = mdw(dk);
+  const miss = [], missVi = [];
+  if (!s.chicken) { miss.push("🍗 雞肉"); missVi.push("gà"); }
+  if (!s.dough) { miss.push("🍕 餅皮"); missVi.push("đế bánh"); }
+  const day = mdw(dk), dayVi = dmVi(dk);
+  // 中文在前、越南文一行在後(越南員工看得懂)；捷徑用「包含 打烊剩餘」判斷，中文字樣不可拿掉
   if (stage === "first") {
-    return `🔔 打烊囉！請填 ${day} 的打烊剩餘\n還沒填：${miss.join("、")}\n👉 ${CONFIG.STAFF_URL}`;
+    return `🔔 打烊囉！請填 ${day} 的打烊剩餘\n還沒填：${miss.join("、")}\n🇻🇳 Đóng cửa rồi! Vui lòng điền số còn lại ngày ${dayVi}: ${missVi.join(", ")}\n👉 ${CONFIG.STAFF_URL}`;
   }
-  return `⚠️ 再提醒：${day} 的打烊剩餘還沒填\n還沒填：${miss.join("、")}\n明天訂雞肉、備餅皮會用到，請盡快填寫\n👉 ${CONFIG.STAFF_URL}`;
+  return `⚠️ 再提醒：${day} 的打烊剩餘還沒填\n還沒填：${miss.join("、")}\n明天訂雞肉、備餅皮會用到，請盡快填寫\n🇻🇳 Nhắc lại: chưa điền số còn lại ngày ${dayVi}: ${missVi.join(", ")}. Vui lòng điền sớm!\n👉 ${CONFIG.STAFF_URL}`;
 }
+// 越南文日期：日/月，例如 19/11
+function dmVi(dk) { const [, m, d] = dk.split("-").map(Number); return `${d}/${m}`; }
 
 function mdw(dk) {
   const [y, m, d] = dk.split("-").map(Number);

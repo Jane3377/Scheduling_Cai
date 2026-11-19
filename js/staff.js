@@ -1,8 +1,13 @@
 
 const pad=n=>String(n).padStart(2,"0");
 const mins=t=>{const [h,m]=t.split(":").map(Number);return h*60+m};
-const fmtHours=n=>Number.isInteger(n)?`${n} 小時`:`${n.toFixed(1)} 小時`;
-const formatDate=key=>{const d=new Date(key+"T00:00:00");return `${d.getMonth()+1}/${d.getDate()}(${"日一二三四五六"[d.getDay()]})`};
+// 中文／越南文：t() 在 js/staff-i18n.js；餅皮推估、訂購雞肉維持中文(用 formatDateZh)
+const t=(zh,v)=>(window.I18N?I18N.t(zh,v):zh);
+const isVi=()=>!!(window.I18N&&I18N.lang==="vi");
+const fmtHours=n=>t("{n} 小時",{n:Number.isInteger(n)?n:n.toFixed(1)});
+const formatDateZh=key=>{const d=new Date(key+"T00:00:00");return `${d.getMonth()+1}/${d.getDate()}(${"日一二三四五六"[d.getDay()]})`};
+const formatDate=key=>{if(!isVi())return formatDateZh(key);const d=new Date(key+"T00:00:00");return `${I18N.DOW_VI[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`};
+const monthLabel=(y,m)=>isVi()?`Tháng ${m+1}/${y}`:`${y} 年 ${m+1} 月`;
 const toDateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const byId=id=>document.getElementById(id);
 const uid=p=>p+Math.random().toString(36).slice(2,9);
@@ -20,7 +25,7 @@ function persist(){
   const r=Cloud.save(data);
   if(r&&!r.ok){
     const snap=Cloud.snapshotData();if(snap)data=snap;
-    toast(r.reason==="not-ready"?"尚未與雲端同步完成，這次沒有儲存。請等畫面上方顯示「● 已同步」後再試一次。":"目前無法連線雲端，這次沒有儲存，請確認網路後再試。","error");
+    toast(r.reason==="not-ready"?t("尚未與雲端同步完成，這次沒有儲存。請等畫面上方顯示「● 已同步」後再試一次。"):t("目前無法連線雲端，這次沒有儲存，請確認網路後再試。"),"error");
     closeDaySheet();renderStaff();
     return false;
   }
@@ -44,7 +49,7 @@ function staffEnsureMonths(){
 function updateSyncStatus(s){
   const el=byId("syncStatus");if(!el)return;
   const map={init:["◌","初始化"],connecting:["◌","連線中"],synced:["●","已同步"],saving:["◌","儲存中"],offline:["○","離線暫存"],local:["◍","本機模式"],error:["✕","雲端錯誤"]};
-  const m=map[s]||map.local;el.className="sync-badge "+s;el.textContent=`${m[0]} ${m[1]}`;
+  const m=map[s]||map.local;el.className="sync-badge "+s;el.dataset.st=s;el.textContent=`${m[0]} ${t(m[1])}`;
 }
 /* 非阻斷式提示(Toast)：與後台共用同一套樣式；重要/錯誤 10 秒可暫停與手動關 */
 function toastHost(){let h=byId("toastHost");if(!h){h=document.createElement("div");h.id="toastHost";h.className="toast-host";document.body.appendChild(h);}return h;}
@@ -88,7 +93,7 @@ function downloadICS(filename,text){const blob=new Blob([text],{type:"text/calen
 function myUpcoming(){if(!data||!staffEmployeeId)return [];const today=toDateKey(new Date());return data.shifts.filter(s=>s.employeeId===staffEmployeeId&&s.date>=today&&s.published!==false).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));}
 function addAllToCalendar(){
   const ups=myUpcoming();
-  if(!ups.length){toast("目前沒有即將到來的已公布班表可加入行事曆。");return;}
+  if(!ups.length){toast(t("目前沒有即將到來的已公布班表可加入行事曆。"));return;}
   downloadICS(`${(storeCfg().storeName||"班表").trim()}_我的班表.ics`,buildICS(ups));
 }
 function addShiftToCalendar(id){const s=data&&data.shifts.find(x=>x.id===id);if(!s)return;downloadICS(`${(storeCfg().storeName||"班表").trim()}_${s.date}.ics`,buildICS([s]));}
@@ -112,7 +117,7 @@ function renderPublishUpdates(e){
   if(!news.length){el.className="publish-update-banner hidden";el.innerHTML="";return;}
   const ranges=[...new Set(news.slice().sort((a,b)=>a.start.localeCompare(b.start)).map(p=>`${formatDate(p.start)}～${formatDate(p.end)}`))];
   el.className="publish-update-banner";
-  el.innerHTML=`<div class="pub-update-main"><strong>📢 班表已更新</strong><span>${ranges.join("、")} 的班表已公布，記得查看並加入行事曆。</span></div><button type="button" class="ghost-btn small-btn" id="dismissPubBtn">知道了</button>`;
+  el.innerHTML=`<div class="pub-update-main"><strong>${t("📢 班表已更新")}</strong><span>${t("{ranges} 的班表已公布，記得查看並加入行事曆。",{ranges:ranges.join("、")})}</span></div><button type="button" class="ghost-btn small-btn" id="dismissPubBtn">${t("知道了")}</button>`;
   byId("dismissPubBtn").onclick=()=>{localStorage.setItem(seenKey,String(Date.now()));el.className="publish-update-banner hidden";el.innerHTML="";};
 }
 function bizStep(){return Number(storeCfg().timeStep)||30}
@@ -177,8 +182,8 @@ function login(){
   const no=byId("staffNoInput").value.trim().toUpperCase();
   const pin=(byId("staffPinInput")?.value||"").trim();
   const e=data?.employees?.find(x=>x.active&&x.employeeNo.toUpperCase()===no);
-  if(!e){byId("staffLoginError").textContent="找不到此員工編號，如有疑問請洽主管。";return}
-  if((e.pin||"0000")!==pin){byId("staffLoginError").textContent="PIN 碼不正確，如有疑問請洽主管。";return}
+  if(!e){byId("staffLoginError").textContent=t("找不到此員工編號，如有疑問請洽主管。");return}
+  if((e.pin||"0000")!==pin){byId("staffLoginError").textContent=t("PIN 碼不正確，如有疑問請洽主管。");return}
   staffEmployeeId=e.id;sessionStorage.setItem("smartSchedulerStaffId",e.id);byId("staffLoginError").textContent="";
   const pi=byId("staffPinInput");if(pi)pi.value="";
   renderStaff()
@@ -205,7 +210,7 @@ function renderStaff(){
   byId("staffLoginCard").classList.add("hidden");
   byId("staffPortal").classList.remove("hidden");
   applyStaffBranding();
-  byId("staffWelcome").textContent=`${e.name}，你好`;
+  byId("staffWelcome").textContent=t("{name}，你好",{name:e.name});
   // 餅皮推估分頁：僅「餅皮／餅皮＋雞肉」角色可見
   const dTab=byId("doughTabBtn");
   if(dTab){
@@ -243,19 +248,19 @@ function renderStaff(){
 
   byId("nextShiftCard").innerHTML=next?`
     <div>
-      <span class="eyebrow">下一班</span>
+      <span class="eyebrow">${t("下一班")}</span>
       <h2>${formatDate(next.date)}　${next.start}～${next.end}</h2>
-      <p>${worktype(next.workTypeId)?.name||"未命名工作"}${next.note?`・${next.note}`:""}</p>
+      <p>${worktype(next.workTypeId)?.name||t("未命名工作")}${next.note?`・${next.note}`:""}</p>
     </div>
     <div class="next-shift-time">${next.start}</div>
-  `:`<div><span class="eyebrow">下一班</span><h2>目前尚未排班</h2><p>完成排班後會顯示在這裡。</p></div>`;
+  `:`<div><span class="eyebrow">${t("下一班")}</span><h2>${t("目前尚未排班")}</h2><p>${t("完成排班後會顯示在這裡。")}</p></div>`;
 
   renderPublishUpdates(e);
   const shiftItem=(s,withCal)=>{const w=worktype(s.workTypeId),c=w?.color||"#999",br=shiftBreakLabel(s);const subTxt=(s.subWork||"").trim()?`＋${s.subWork.trim()}`:"";
-    const cal=withCal?`<div class="shift-cal"><button type="button" class="cal-mini" onclick="addShiftToCalendar('${s.id}')">📅 加入行事曆</button><a class="cal-mini google" href="${googleCalUrl(s)}" target="_blank" rel="noopener">Google 行事曆</a></div>`:"";
-    return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||"未命名工作"}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span>${br?`<span class="shift-break">休息 ${br}(不計薪)</span>`:""}${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}${cal}</div></div>`};
+    const cal=withCal?`<div class="shift-cal"><button type="button" class="cal-mini" onclick="addShiftToCalendar('${s.id}')">${t("📅 加入行事曆")}</button><a class="cal-mini google" href="${googleCalUrl(s)}" target="_blank" rel="noopener">${t("Google 行事曆")}</a></div>`:"";
+    return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${formatDate(s.date)}｜${w?.name||t("未命名工作")}${subTxt}</strong><span>${s.start}～${s.end}・${t("計薪 {h}",{h:fmtHours(durationHours(s))})}</span>${br?`<span class="shift-break">${t("休息 {br}(不計薪)",{br})}</span>`:""}${s.note?`<span class="shift-note">${t("備註：{note}",{note:s.note})}</span>`:""}${cal}</div></div>`};
   const group=(title,arr,empty,withCal)=>`<div class="shift-group"><div class="shift-group-head">${title}<span>${arr.length}</span></div>${arr.length?arr.map(s=>shiftItem(s,withCal)).join(""):`<div class="empty-state">${empty}</div>`}</div>`;
-  byId("staffShiftList").innerHTML=group("即將到來",upcoming,"目前沒有即將到來的班表",true)+group("已結束",ended,"近三個月沒有已結束的班表",false);
+  byId("staffShiftList").innerHTML=group(t("即將到來"),upcoming,t("目前沒有即將到來的班表"),true)+group(t("已結束"),ended,t("近三個月沒有已結束的班表"),false);
   const calAllBtn=byId("addAllCalBtn");if(calAllBtn)calAllBtn.style.display=upcoming.length?"":"none";
   applyMyView();renderMyCalendar();
 
@@ -269,7 +274,7 @@ function renderStaff(){
   if(activeWindow){
     availEditable=true;
     banner.className="availability-window-banner open";
-    banner.innerHTML=`<strong>${activeWindow.name}已開放填寫可上班時間囉</strong><span>開放填寫：${formatDate(activeWindow.openStart)}～${formatDate(activeWindow.openEnd)}</span><span>可填日期：${formatDate(activeWindow.targetStart)}～${formatDate(activeWindow.targetEnd)}</span>${activeWindow.note?`<small>${activeWindow.note}</small>`:""}`;
+    banner.innerHTML=`<strong>${t("{name}已開放填寫可上班時間囉",{name:activeWindow.name})}</strong><span>${t("開放填寫：{a}～{b}",{a:formatDate(activeWindow.openStart),b:formatDate(activeWindow.openEnd)})}</span><span>${t("可填日期：{a}～{b}",{a:formatDate(activeWindow.targetStart),b:formatDate(activeWindow.targetEnd)})}</span>${activeWindow.note?`<small>${activeWindow.note}</small>`:""}`;
     closed.classList.add("hidden");
     quickBlock.classList.remove("hidden");
     if(selectedAvailabilityDate&&!canFill(selectedAvailabilityDate))selectedAvailabilityDate=null;
@@ -286,9 +291,9 @@ function renderStaff(){
     // 非開放期間：仍顯示月曆，供檢視近期填寫紀錄(唯讀)
     availEditable=false;
     banner.className="availability-window-banner closed";
-    banner.innerHTML=nextWindow?`<strong>目前尚未開放填寫</strong><span>下一次開放：${formatDate(nextWindow.openStart)}～${formatDate(nextWindow.openEnd)}，填寫 ${formatDate(nextWindow.targetStart)}～${formatDate(nextWindow.targetEnd)} 的可上班時間。</span>`:`<strong>目前尚未開放填寫</strong><span>請等待主管公告下一次填寫期間。</span>`;
+    banner.innerHTML=nextWindow?`<strong>${t("目前尚未開放填寫")}</strong><span>${t("下一次開放：{a}～{b}，填寫 {c}～{d} 的可上班時間。",{a:formatDate(nextWindow.openStart),b:formatDate(nextWindow.openEnd),c:formatDate(nextWindow.targetStart),d:formatDate(nextWindow.targetEnd)})}</span>`:`<strong>${t("目前尚未開放填寫")}</strong><span>${t("請等待主管公告下一次填寫期間。")}</span>`;
     closed.classList.remove("hidden");
-    closed.innerHTML="目前非開放填寫期間，以下為你近三個月填寫的紀錄(僅供檢視，無法修改)。";
+    closed.innerHTML=t("目前非開放填寫期間，以下為你近三個月填寫的紀錄(僅供檢視，無法修改)。");
     quickBlock.classList.add("hidden");
     if(sheet)sheet.classList.add("hidden");
     renderAvailabilityCalendar();
@@ -298,7 +303,7 @@ function renderAvailabilityCalendar(){
   staffEnsureMonths();
   const editable=availEditable;
   const y=calendarDate.getFullYear(),m=calendarDate.getMonth();
-  byId("staffCalendarMonthLabel").textContent=`${y} 年 ${m+1} 月`;
+  byId("staffCalendarMonthLabel").textContent=monthLabel(y,m);
   const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
   let html="";
   for(let i=0;i<42;i++){
@@ -307,11 +312,11 @@ function renderAvailabilityCalendar(){
     const inRange=editable&&inTargetRange(key),allowed=editable&&inRange&&!closed;
     const record=data.availability.find(a=>a.employeeId===staffEmployeeId&&a.date===key);
     let cls="pending",summary="";
-    if(closed){cls="closed";summary="公休"} // 公休(每週公休／特定休息日)一律顯示，含超出開放範圍的未來公休
-    else if(record?.unavailable){cls="unavailable";summary="不可排"}
+    if(closed){cls="closed";summary=t("公休")} // 公休(每週公休／特定休息日)一律顯示，含超出開放範圍的未來公休
+    else if(record?.unavailable){cls="unavailable";summary=t("不可排")}
     else if(record){cls="available";summary=(record.start2&&record.end2)?`${record.start}～${record.end}<br>${record.start2}～${record.end2}`:`${record.start}～${record.end}`}
-    else if(isAutoAvail(key)){cls="available is-default";summary="可上班(預設)"}
-    else if(inRange){summary="未填"}
+    else if(isAutoAvail(key)){cls="available is-default";summary=t("可上班(預設)")}
+    else if(inRange){summary=t("未填")}
     const showSummary=closed||(editable?(inRange||isAutoAvail(key)):(!!record||isAutoAvail(key)));
     const dim=editable&&!allowed;
     const clickAttr=allowed?`onclick="selectAvailabilityDate('${key}')"`:(editable?"disabled":"");
@@ -354,7 +359,7 @@ function renderMyCalendar(){
   staffEnsureMonths();
   const grid=byId("myScheduleCalendar");if(!grid)return;
   const y=myCalendarDate.getFullYear(),m=myCalendarDate.getMonth();
-  const lbl=byId("myCalendarMonthLabel");if(lbl)lbl.textContent=`${y} 年 ${m+1} 月`;
+  const lbl=byId("myCalendarMonthLabel");if(lbl)lbl.textContent=monthLabel(y,m);
   const first=new Date(y,m,1),start=new Date(y,m,1-((first.getDay()+6)%7));
   const todayKey=toDateKey(new Date());
   let html="";
@@ -363,10 +368,10 @@ function renderMyCalendar(){
     const key=toDateKey(day),inMonth=day.getMonth()===m,closed=isClosedDay(key);
     const ss=myShiftsOn(key);
     let cls="pending",body="",clickAttr="";
-    if(closed){cls="closed";body='<small>公休</small>';}
+    if(closed){cls="closed";body=`<small>${t("公休")}</small>`;}
     else if(ss.length){
       cls="available";clickAttr=`onclick="selectMyDay('${key}')"`;
-      const lines=ss.slice(0,2).map(s=>{const w=worktype(s.workTypeId);return `<small class="ms-cell"><span class="ms-nm"><i class="ms-dot" style="background:${w?.color||'#999'}"></i>${w?.name||"班"}</span><span class="ms-tm">${s.start}～<wbr>${s.end}</span></small>`}).join("");
+      const lines=ss.slice(0,2).map(s=>{const w=worktype(s.workTypeId);return `<small class="ms-cell"><span class="ms-nm"><i class="ms-dot" style="background:${w?.color||'#999'}"></i>${w?.name||t("班")}</span><span class="ms-tm">${s.start}～<wbr>${s.end}</span></small>`}).join("");
       body=lines+(ss.length>2?`<small class="ms-more">+${ss.length-2}</small>`:"");
     }
     const nh=closed?"":nhName(key);
@@ -382,11 +387,11 @@ function selectMyDay(key){
   const ss=myShiftsOn(key),closed=isClosedDay(key),nh=nhName(key);
   byId("myDayTitle").textContent=formatDate(key);
   let body;
-  if(closed){body=`<div class="empty-state">本日店休(公休)${nh?`・${nh}`:""}</div>`;}
-  else if(!ss.length){body=`<div class="empty-state">這天沒有排班${nh?`(${nh})`:""}。</div>`;}
+  if(closed){body=`<div class="empty-state">${t("本日店休(公休)")}${nh?`・${nh}`:""}</div>`;}
+  else if(!ss.length){body=`<div class="empty-state">${t("這天沒有排班")}${nh?`(${nh})`:""}${isVi()?".":"。"}</div>`;}
   else{
     body=ss.map(s=>{const w=worktype(s.workTypeId),c=w?.color||"#999",br=shiftBreakLabel(s),subTxt=(s.subWork||"").trim()?`＋${s.subWork.trim()}`:"";
-      return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${w?.name||"未命名工作"}${subTxt}</strong><span>${s.start}～${s.end}・計薪 ${fmtHours(durationHours(s))}</span>${br?`<span class="shift-break">休息 ${br}(不計薪)</span>`:""}${s.note?`<span class="shift-note">備註：${s.note}</span>`:""}<div class="shift-cal"><button type="button" class="cal-mini" onclick="addShiftToCalendar('${s.id}')">📅 加入行事曆</button><a class="cal-mini google" href="${googleCalUrl(s)}" target="_blank" rel="noopener">Google 行事曆</a></div></div></div>`;
+      return `<div class="list-item"><div class="list-icon" style="background:${c}22;color:${c}">●</div><div class="list-main"><strong>${w?.name||t("未命名工作")}${subTxt}</strong><span>${s.start}～${s.end}・${t("計薪 {h}",{h:fmtHours(durationHours(s))})}</span>${br?`<span class="shift-break">${t("休息 {br}(不計薪)",{br})}</span>`:""}${s.note?`<span class="shift-note">${t("備註：{note}",{note:s.note})}</span>`:""}<div class="shift-cal"><button type="button" class="cal-mini" onclick="addShiftToCalendar('${s.id}')">${t("📅 加入行事曆")}</button><a class="cal-mini google" href="${googleCalUrl(s)}" target="_blank" rel="noopener">${t("Google 行事曆")}</a></div></div></div>`;
     }).join("");
   }
   byId("myDayBody").innerHTML=body;
@@ -406,10 +411,10 @@ function loadSelectedDay(){
   byId("availabilitySeg2Toggle").checked=has2;
   byId("availabilitySeg2Row").classList.toggle("hidden",!has2);
   const badge=byId("availabilityDayStatus");
-  if(a?.unavailable){badge.textContent="不可排班";badge.className="badge warn"}
-  else if(a){badge.textContent="已填寫";badge.className="badge ok"}
-  else if(isAutoAvail(selectedAvailabilityDate)){badge.textContent="預設可上班(未修改)";badge.className="badge ok"}
-  else{badge.textContent="尚未填寫";badge.className="badge"}
+  if(a?.unavailable){badge.textContent=t("不可排班");badge.className="badge warn"}
+  else if(a){badge.textContent=t("已填寫");badge.className="badge ok"}
+  else if(isAutoAvail(selectedAvailabilityDate)){badge.textContent=t("預設可上班(未修改)");badge.className="badge ok"}
+  else{badge.textContent=t("尚未填寫");badge.className="badge"}
 }
 function flashSaved(msg){byId("availabilitySaved").textContent=msg;setTimeout(()=>byId("availabilitySaved").textContent="",1600)}
 function showToast(msg){
@@ -429,11 +434,11 @@ function quickDaySet(type){
   const label=formatDate(selectedAvailabilityDate);
   upsertAvailability(selectedAvailabilityDate,type==="yes"?{unavailable:false,start:bizStart(),end:bizEnd(),start2:null,end2:null}:{unavailable:true,start:bizStart(),end:bizEnd(),start2:null,end2:null});
   if(!persist())return;
-  renderAvailabilityCalendar();closeDaySheet();showToast(`${label} ${type==="yes"?"整天可上班":"設為不可上班"}，已儲存`);
+  renderAvailabilityCalendar();closeDaySheet();showToast(t(type==="yes"?"{d} 整天可上班，已儲存":"{d} 設為不可上班，已儲存",{d:label}));
 }
 function renderQuickWeekDays(){
   const el=byId("quickWeekDays");if(!el)return;
-  el.innerHTML=[1,2,3,4,5,6,0].map(d=>`<button type="button" class="qw-day" data-d="${d}">${"日一二三四五六"[d]}</button>`).join("");
+  el.innerHTML=[1,2,3,4,5,6,0].map(d=>`<button type="button" class="qw-day" data-d="${d}">${isVi()?I18N.DOW_VI[d]:"日一二三四五六"[d]}</button>`).join("");
   el.querySelectorAll(".qw-day").forEach(b=>b.onclick=()=>{if(b.disabled)return;b.classList.toggle("on");updateQuickWeekPreview()});
 }
 // 店家每週公休日(例如週一)自動排除：快速設定不讓員工選到，避免填了又被系統忽略
@@ -443,7 +448,7 @@ function updateQuickWeekClosedDays(){
     const isClosed=cds.includes(Number(b.dataset.d));
     b.disabled=isClosed;
     b.classList.toggle("qw-closed",isClosed);
-    b.title=isClosed?"店家公休日，無需填寫":"";
+    b.title=isClosed?t("店家公休日，無需填寫"):"";
     if(isClosed)b.classList.remove("on");
   });
 }
@@ -453,26 +458,26 @@ function updateQuickWeekPreview(){
   if(!activeWindow){el.textContent="";return}
   const order=[1,2,3,4,5,6,0];
   const days=[...document.querySelectorAll("#quickWeekDays .qw-day.on")].map(b=>Number(b.dataset.d)).sort((a,b)=>order.indexOf(a)-order.indexOf(b));
-  if(!days.length){el.className="qw-preview hint";el.textContent="先勾選上面的星期，再選時間，按下方按鈕一次套用整月。";return}
-  const names=days.map(d=>"週"+"日一二三四五六"[d]).join("、");
+  if(!days.length){el.className="qw-preview hint";el.textContent=t("先勾選上面的星期，再選時間，按下方按鈕一次套用整月。");return}
+  const names=days.map(d=>isVi()?I18N.DOW_VI[d]:"週"+"日一二三四五六"[d]).join(isVi()?", ":"、");
   const s=byId("quickWeekStart").value,e=byId("quickWeekEnd").value;
   const use2=byId("quickWeekSeg2Toggle").checked;
   const seg2=use2?`、${byId("quickWeekStart2").value}～${byId("quickWeekEnd2").value}`:"";
   el.className="qw-preview";
-  el.textContent=`會把 ${formatDate(activeWindow.targetStart)}～${formatDate(activeWindow.targetEnd)} 的 ${names} 設成 ${s}～${e}${seg2} 可上班，個別日之後還能改。`;
+  el.textContent=t("會把 {a}～{b} 的 {names} 設成 {time} 可上班，個別日之後還能改。",{a:formatDate(activeWindow.targetStart),b:formatDate(activeWindow.targetEnd),names,time:`${s}～${e}${seg2}`});
 }
 // 整週快速套用：把選定星期在本次可填範圍內的每一天設為可上班或不可上班
 function quickWeekApply(type){
   if(!activeWindow)return;
   const days=[...document.querySelectorAll("#quickWeekDays .qw-day.on")].map(b=>Number(b.dataset.d));
-  if(!days.length){toast("請先勾選要套用的星期","error");return}
+  if(!days.length){toast(t("請先勾選要套用的星期"),"error");return}
   const start=byId("quickWeekStart").value,end=byId("quickWeekEnd").value;
-  if(type==="available"&&mins(end)<=mins(start)){toast("最晚可下班必須晚於最早可上班","error");return}
+  if(type==="available"&&mins(end)<=mins(start)){toast(t("最晚可下班必須晚於最早可上班"),"error");return}
   const use2=type==="available"&&byId("quickWeekSeg2Toggle").checked;
   const start2=byId("quickWeekStart2").value,end2=byId("quickWeekEnd2").value;
   if(use2){
-    if(mins(end2)<=mins(start2)){toast("第二時段的結束必須晚於開始","error");return}
-    if(rangesOverlap(start,end,start2,end2)){toast("第一與第二時段不可重疊","error");return}
+    if(mins(end2)<=mins(start2)){toast(t("第二時段的結束必須晚於開始"),"error");return}
+    if(rangesOverlap(start,end,start2,end2)){toast(t("第一與第二時段不可重疊"),"error");return}
   }
   const seg2={start2:use2?start2:null,end2:use2?end2:null};
   const endD=new Date(activeWindow.targetEnd+"T00:00:00");let count=0;
@@ -487,22 +492,22 @@ function quickWeekApply(type){
   // 恢復每週預設：清除星期選取
   document.querySelectorAll("#quickWeekDays .qw-day.on").forEach(b=>b.classList.remove("on"));
   updateQuickWeekPreview();
-  showToast(`已設定 ${count} 天${type==="available"?"可上班":"不可上班"}`);
+  showToast(t(type==="available"?"已設定 {n} 天可上班":"已設定 {n} 天不可上班",{n:count}));
 }
 function saveSelectedDay(){
   if(!activeWindow||!selectedAvailabilityDate||!canFill(selectedAvailabilityDate))return;
   const start=byId("availabilityStart").value,end=byId("availabilityEnd").value;
-  if(mins(end)<=mins(start)){toast("結束時間必須晚於開始時間","error");return}
+  if(mins(end)<=mins(start)){toast(t("結束時間必須晚於開始時間"),"error");return}
   const use2=byId("availabilitySeg2Toggle").checked;
   const start2=byId("availabilityStart2").value,end2=byId("availabilityEnd2").value;
-  if(use2&&mins(end2)<=mins(start2)){toast("第二時段的結束必須晚於開始","error");return}
-  if(use2&&rangesOverlap(start,end,start2,end2)){toast("第一與第二時段不可重疊","error");return}
+  if(use2&&mins(end2)<=mins(start2)){toast(t("第二時段的結束必須晚於開始"),"error");return}
+  if(use2&&rangesOverlap(start,end,start2,end2)){toast(t("第一與第二時段不可重疊"),"error");return}
   let a=data.availability.find(x=>x.employeeId===staffEmployeeId&&x.date===selectedAvailabilityDate);
   if(!a){a={id:uid("a"),employeeId:staffEmployeeId,date:selectedAvailabilityDate};data.availability.push(a)}
   Object.assign(a,{unavailable:false,start,end,start2:use2?start2:null,end2:use2?end2:null}); // 指定時段＝可上班；整天不行請用上方按鈕
   const label=formatDate(selectedAvailabilityDate);
   if(!persist())return;
-  renderAvailabilityCalendar();closeDaySheet();showToast(`${label} 已儲存`);
+  renderAvailabilityCalendar();closeDaySheet();showToast(t("{d} 已儲存",{d:label}));
 }
 /* ---------- 今日打烊剩餘(盤點庫存，寫入獨立文件 poultry_stock_YYYY-MM) ---------- */
 let stockSelDate=null, stockDays={}, stockSubbed=new Set();
@@ -511,7 +516,7 @@ function fmtStockTime(ms){if(!ms)return "";const d=new Date(ms);return `${d.getM
 // 盤點日期固定為「當日」(不再可選前幾天)
 function renderStockToday(){
   stockSelDate=toDateKey(new Date());
-  const el=byId("stockToday");if(el)el.innerHTML=`📅 盤點日期：<b>${formatDate(stockSelDate)}</b>(當日)`;
+  const el=byId("stockToday");if(el)el.innerHTML=t("📅 盤點日期：<b>{d}</b>(當日)",{d:formatDate(stockSelDate)});
 }
 const stockNum=id=>{const el=byId(id);return el?Math.max(0,Math.floor(Number(el.value)||0)):0;};
 // 雞肉／餅皮各自是否已提交(回傳 {by,byName,at} 或 null)；相容舊版合併紀錄
@@ -535,12 +540,12 @@ function renderStockCards(){
   if(cEd&&cLk&&cBd){
     if(cSub){
       cEd.classList.add("hidden");cLk.classList.remove("hidden");
-      cLk.innerHTML=`<div class="sc-done"><b class="ck-leg">腿 ${rec.leg||0}</b>　<b class="ck-fil">排 ${rec.fil||0}</b>　<b class="ck-wing">翅 ${rec.wing||0}</b></div><div class="sc-who">填寫人：<b>${cSub.byName||"？"}</b>・${fmtStockTime(cSub.at)}</div><div class="sc-hint">已提交後不可重複填寫，如需更正請洽主管。</div>`;
-      cBd.textContent="已提交";cBd.className="sc-badge done";
+      cLk.innerHTML=`<div class="sc-done"><b class="ck-leg">${t("腿")} ${rec.leg||0}</b>　<b class="ck-fil">${t("排")} ${rec.fil||0}</b>　<b class="ck-wing">${t("翅")} ${rec.wing||0}</b></div><div class="sc-who">${t("填寫人：")}<b>${cSub.byName||"？"}</b>・${fmtStockTime(cSub.at)}</div><div class="sc-hint">${t("已提交後不可重複填寫，如需更正請洽主管。")}</div>`;
+      cBd.textContent=t("已提交");cBd.className="sc-badge done";
     }else{
       cEd.classList.remove("hidden");cLk.classList.add("hidden");
       ["stockLeg","stockFil","stockWing"].forEach(id=>{const el=byId(id);if(el)el.value="";});
-      cBd.textContent="尚未填寫";cBd.className="sc-badge wait";
+      cBd.textContent=t("尚未填寫||剩餘");cBd.className="sc-badge wait";
     }
   }
   // 餅皮
@@ -548,12 +553,12 @@ function renderStockCards(){
   if(dEd&&dLk&&dBd){
     if(dSub){
       dEd.classList.add("hidden");dLk.classList.remove("hidden");
-      dLk.innerHTML=`<div class="sc-done pz">9吋 厚<b>${rec.t9||0}</b>／薄<b>${rec.s9||0}</b>　·　12吋 厚<b>${rec.t12||0}</b>／薄<b>${rec.s12||0}</b></div><div class="sc-who">填寫人：<b>${dSub.byName||"？"}</b>・${fmtStockTime(dSub.at)}</div><div class="sc-hint">已提交後不可重複填寫，如需更正請洽主管。</div>`;
-      dBd.textContent="已提交";dBd.className="sc-badge done";
+      dLk.innerHTML=`<div class="sc-done pz">${t("9吋")} ${t("厚")}<b>${rec.t9||0}</b>／${t("薄")}<b>${rec.s9||0}</b>　·　${t("12吋")} ${t("厚")}<b>${rec.t12||0}</b>／${t("薄")}<b>${rec.s12||0}</b></div><div class="sc-who">${t("填寫人：")}<b>${dSub.byName||"？"}</b>・${fmtStockTime(dSub.at)}</div><div class="sc-hint">${t("已提交後不可重複填寫，如需更正請洽主管。")}</div>`;
+      dBd.textContent=t("已提交");dBd.className="sc-badge done";
     }else{
       dEd.classList.remove("hidden");dLk.classList.add("hidden");
       ["stockT9","stockS9","stockT12","stockS12"].forEach(id=>{const el=byId(id);if(el)el.value="";});
-      dBd.textContent="尚未填寫";dBd.className="sc-badge wait";
+      dBd.textContent=t("尚未填寫||剩餘");dBd.className="sc-badge wait";
     }
   }
 }
@@ -593,30 +598,30 @@ async function enterStockTab(){
   const rec=stockDays[today];
   if(chickenSub(rec)&&doughSub(rec))return;   // 今天兩項都已填完，只是看紀錄，不用提醒
   if(!hasShiftToday()){
-    const ok=await askStockGuard("📅","你今天沒有排班","系統顯示你今天沒有上班。\n打烊剩餘一般由當天上班的同事填寫。\n確定要由你來填嗎？");
+    const ok=await askStockGuard("📅",t("你今天沒有排班"),t("系統顯示你今天沒有上班。\n打烊剩餘一般由當天上班的同事填寫。\n確定要由你來填嗎？"));
     if(!ok){backToMySchedule();return;}
   }
   if(new Date().getHours()<18){
-    const ok=await askStockGuard("🕕","現在還沒打烊喔","這一頁是填「打烊後」剩下的雞肉和餅皮。\n現在還不到晚上 6 點，數量可能還會變動。\n確定現在就要填嗎？");
+    const ok=await askStockGuard("🕕",t("現在還沒打烊喔"),t("這一頁是填「打烊後」剩下的雞肉和餅皮。\n現在還不到晚上 6 點，數量可能還會變動。\n確定現在就要填嗎？"));
     if(!ok){backToMySchedule();return;}
   }
   try{sessionStorage.setItem(key,"1");}catch(e){}
 }
 // 雞肉／餅皮各自提交；只寫自己那部分＋填寫人時間，merge 不影響另一項
 function saveStockPart(part){
-  const c=stockCol();if(!c){toast("尚未連線，請確認網路後再送出。","error");return;}
+  const c=stockCol();if(!c){toast(t("尚未連線，請確認網路後再送出。"),"error");return;}
   const e=staffEmployeeId&&employee(staffEmployeeId);if(!e)return;
   stockSelDate=toDateKey(new Date());
   const rec=stockDays[stockSelDate]||null;
-  if(part==="chicken"&&chickenSub(rec)){toast("雞肉剩餘今天已提交，不可重複填寫","error");return;}
-  if(part==="dough"&&doughSub(rec)){toast("餅皮剩餘今天已提交，不可重複填寫","error");return;}
+  if(part==="chicken"&&chickenSub(rec)){toast(t("雞肉剩餘今天已提交，不可重複填寫"),"error");return;}
+  if(part==="dough"&&doughSub(rec)){toast(t("餅皮剩餘今天已提交，不可重複填寫"),"error");return;}
   const meta={by:staffEmployeeId,byName:e.name,at:Date.now()};
   const patch=(part==="chicken")
     ? {leg:stockNum("stockLeg"),fil:stockNum("stockFil"),wing:stockNum("stockWing"),chicken:meta,by:staffEmployeeId,byName:e.name,at:meta.at}
     : {t9:stockNum("stockT9"),s9:stockNum("stockS9"),t12:stockNum("stockT12"),s12:stockNum("stockS12"),dough:meta,by:staffEmployeeId,byName:e.name,at:meta.at};
   c.doc("poultry_stock_"+stockSelDate.slice(0,7)).set({days:{[stockSelDate]:patch},updatedAt:Date.now()},{merge:true})
-    .then(()=>{const n=byId("stockSaved");if(n){n.textContent=(part==="chicken"?"🍗 雞肉剩餘":"🍕 餅皮剩餘")+" 已送出";setTimeout(()=>{n.textContent="";},3000);}renderStockCards();})
-    .catch(err=>toast("送出失敗："+(err&&err.message||err),"error"));
+    .then(()=>{const n=byId("stockSaved");if(n){n.textContent=t(part==="chicken"?"🍗 雞肉剩餘 已送出":"🍕 餅皮剩餘 已送出");setTimeout(()=>{n.textContent="";},3000);}renderStockCards();})
+    .catch(err=>toast(t("送出失敗：{e}",{e:(err&&err.message||err)}),"error"));
 }
 /* ---------- 餅皮推估(角色＝餅皮／餅皮＋雞肉 才看得到) ---------- */
 // 推估公式在 js/dough-core.js(與後台共用同一份)；員工頁只提供資料、顯示結果
@@ -652,7 +657,19 @@ function subscribeDough(){
 function initDough(){subscribeDough();renderDoughStaff();}
 // 員工頁餅皮推估：只顯示「當日」(不顯示未來日期)
 // 員工端：未來 2 個營業日的建議量＋可展開「怎麼來的」與參考日子的銷售明細(不顯示營業額)
+// 最近一次有填「餅皮剩餘」的日子(今天以前，含今天)：給員工參考
+function renderDoughLeft(){
+  const el=byId("doughLeftCard");if(!el)return;
+  const today=toDateKey(new Date());
+  const k=Object.keys(stockDays).filter(d=>d<=today&&doughSub(stockDays[d])).sort().pop();
+  if(!k){el.innerHTML="";el.classList.add("hidden");return;}
+  const r=stockDays[k],sub=doughSub(r);
+  el.classList.remove("hidden");
+  el.innerHTML=`<div class="dl-h">📦 最近一次打烊剩餘<small>${formatDateZh(k)}・${sub.byName||"？"}填寫</small></div>
+    <div class="dl-nums">${DOUGH_TYPES.map(t=>`<span><i>${DOUGH_LABEL[t]}</i><b>${Number(r[t])||0}</b></span>`).join("")}</div>`;
+}
 function renderDoughStaff(){
+  renderDoughLeft();
   const box=byId("doughStaffList");if(!box)return;
   const days=nextOpenDaysS(2);
   if(!days.length){box.innerHTML=`<div class="empty-state">近期都公休，沒有餅皮推估。</div>`;return;}
@@ -668,8 +685,8 @@ function renderDoughStaff(){
       <div class="dgs-explain">${!p.n?`還沒有${p.sampleName}的銷售資料${p.isWeekend?"，先用假日最少要備的量。":"。"}`:p.isWeekend?"六日／假日：每一格取「平均賣出」和「假日最少要備」比較多的那個(有底色的是採用的)。":`平日：用近 ${p.n} 個${p.sampleName}的平均賣出量。`}</div>
       ${p.n?`<div class="dgs-sub">參考的 ${p.n} 天實際賣出</div>
       <table class="dgs-tbl"><thead>${head.replace("<th></th>","<th>日期</th>")}</thead><tbody>
-        ${p.samples.map(x=>`<tr><td>${formatDate(x.date)}</td>${cells(x.sold)}</tr>`).join("")}</tbody></table>`:""}`;
-    return `<div class="dgs-card"><div class="dgs-h">${formatDate(k)}${i===0&&k===toDateKey(new Date())?`<span class="dgs-today">今天</span>`:""}<span class="dgs-tag${p.isWeekend?" wk":""}">${p.label}</span></div>
+        ${p.samples.map(x=>`<tr><td>${formatDateZh(x.date)}</td>${cells(x.sold)}</tr>`).join("")}</tbody></table>`:""}`;
+    return `<div class="dgs-card"><div class="dgs-h">${formatDateZh(k)}${i===0&&k===toDateKey(new Date())?`<span class="dgs-today">今天</span>`:""}<span class="dgs-tag${p.isWeekend?" wk":""}">${p.label}</span></div>
       <div class="dgs-nums">${DOUGH_TYPES.map(t=>`<span><i>${DOUGH_LABEL[t]}</i><b>${p.rec?p.rec[t]:0}</b></span>`).join("")}</div>
       ${!p.n?`<div class="dgs-note">同星期資料累積中${p.floor?"・暫用假日最少要備的量":""}</div>`:(anyFloor?`<div class="dgs-note">已套「假日最少要備」</div>`:"")}
       <details class="dgs-how"><summary>看怎麼來的</summary>${how}</details></div>`;
@@ -833,6 +850,17 @@ document.addEventListener("DOMContentLoaded",()=>{
   byId("staffPrevMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()-1);renderAvailabilityCalendar()};
   byId("staffNextMonthBtn").onclick=()=>{calendarDate.setMonth(calendarDate.getMonth()+1);renderAvailabilityCalendar()};
   renderQuickWeekDays();
+  // 中文／越南文切換：寫死的文字由 I18N.applyStatic 換；動態內容重畫一次
+  if(window.I18N){
+    I18N.applyStatic();
+    byId("langBtn")?.addEventListener("click",()=>I18N.setLang(I18N.lang==="vi"?"zh":"vi"));
+    I18N.onChange(()=>{
+      const sb=byId("syncStatus");if(sb&&sb.dataset.st)updateSyncStatus(sb.dataset.st);
+      document.querySelectorAll("#quickWeekDays .qw-day").forEach(b=>{const d=Number(b.dataset.d);b.textContent=isVi()?I18N.DOW_VI[d]:"日一二三四五六"[d];});
+      const le=byId("staffLoginError");if(le)le.textContent="";
+      if(staffEmployeeId&&data){renderStaff();renderStockToday();renderStockCards();if(selectedAvailabilityDate&&!byId("daySheetBackdrop")?.classList.contains("hidden"))loadSelectedDay();}
+    });
+  }
   byId("quickWeekStart").innerHTML=timeOptions(bizStart());
   byId("quickWeekEnd").innerHTML=timeOptions(bizEnd());
   byId("quickWeekStart2").innerHTML=timeOptions("17:00");

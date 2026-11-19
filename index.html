@@ -20,7 +20,7 @@
           <strong id="staffBrandName">蔡叔叔比薩屋｜員工班表系統</strong>
         </div>
       </div>
-      <span id="syncStatus" class="sync-badge init">◌ 初始化</span>
+      <div class="staff-head-right"><button type="button" class="lang-btn" id="langBtn">🇻🇳 Tiếng Việt</button><span id="syncStatus" class="sync-badge init">◌ 初始化</span></div>
     </header>
 
     <section class="staff-shell">
@@ -152,6 +152,7 @@
         </div>
 
         <div class="staff-tab-panel" id="doughPanel">
+          <div class="dough-left-card hidden" id="doughLeftCard"></div>
           <div class="panel">
             <div class="panel-head"><div><h3>🍕 餅皮推估</h3><p>今天起 2 個營業日，建議各做多少片餅皮(9吋/12吋 × 厚片/薄片)。</p></div></div>
             <div id="doughStaffList" class="dough-staff-list"></div>
@@ -251,6 +252,7 @@
   <script src="js/cloud.js"></script>
   <script src="js/dough-core.js"></script>
   <script src="js/chicken-core.js"></script>
+  <script src="js/staff-i18n.js"></script>
   <script src="js/staff.js"></script>
   <script src="js/update.js"></script>
 </body>
