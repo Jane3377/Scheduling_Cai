@@ -681,13 +681,14 @@ function renderDoughStaff(){
     const how=`<table class="dgs-tbl"><thead>${head}</thead><tbody>
         <tr><td>近 ${p.n||p.N} 個${p.sampleName}平均賣出</td>${cells(p.avg,hiAvg)}</tr>
         ${p.isWeekend?`<tr><td>假日最少要備</td>${cells(p.floor,hiFl)}</tr>`:""}
-        <tr class="sum"><td>✔ 建議</td>${cells(p.rec)}</tr></tbody></table>
+        <tr class="sum"><td>✔ 建議<small>未扣剩餘餅皮</small></td>${cells(p.rec)}</tr></tbody></table>
       <div class="dgs-explain">${!p.n?`還沒有${p.sampleName}的銷售資料${p.isWeekend?"，先用假日最少要備的量。":"。"}`:p.isWeekend?"六日／假日：每一格取「平均賣出」和「假日最少要備」比較多的那個(有底色的是採用的)。":`平日：用近 ${p.n} 個${p.sampleName}的平均賣出量。`}</div>
       ${p.n?`<div class="dgs-sub">參考的 ${p.n} 天實際賣出</div>
       <table class="dgs-tbl"><thead>${head.replace("<th></th>","<th>日期</th>")}</thead><tbody>
         ${p.samples.map(x=>`<tr><td>${formatDateZh(x.date)}</td>${cells(x.sold)}</tr>`).join("")}</tbody></table>`:""}`;
     return `<div class="dgs-card"><div class="dgs-h">${formatDateZh(k)}${i===0&&k===toDateKey(new Date())?`<span class="dgs-today">今天</span>`:""}<span class="dgs-tag${p.isWeekend?" wk":""}">${p.label}</span></div>
       <div class="dgs-nums">${DOUGH_TYPES.map(t=>`<span><i>${DOUGH_LABEL[t]}</i><b>${p.rec?p.rec[t]:0}</b></span>`).join("")}</div>
+      <div class="dgs-note dgs-noleft">※ 建議量未扣剩餘餅皮</div>
       ${!p.n?`<div class="dgs-note">同星期資料累積中${p.floor?"・暫用假日最少要備的量":""}</div>`:(anyFloor?`<div class="dgs-note">已套「假日最少要備」</div>`:"")}
       <details class="dgs-how"><summary>看怎麼來的</summary>${how}</details></div>`;
   }).join("");
