@@ -1979,19 +1979,25 @@
     $("ordSupplier").addEventListener("change", (e) => { orderForm.supplier = e.target.value; orderForm.kg = null; applyOrderDefaults(orderForm); renderOrderForm(); });
     $("ordDelivery").addEventListener("change", (e) => {
       const f = orderForm;
-      if (e.target.value === "__other") {   // 其他日期：下單日隔天起 7 天內任選
-        const inp = $("ordDelOther"); inp.min = addDays(f.orderDay, 1); inp.max = addDays(f.orderDay, 7); inp.value = f.deliveryDay || inp.min;
+      if (e.target.value === "__other") {   // 其他日期：下單日隔天起 7 天內，列成按鈕直接點(iPad 不支援程式打開日期選擇器)
         e.target.value = f.deliveryDay;
-        if (inp.showPicker) { try { inp.showPicker(); return; } catch (x) {} }
-        inp.classList.remove("hidden"); inp.focus(); return;
+        const box = $("ordDelPick"), off = supplierOffOf(f.supplier);
+        box.innerHTML = `<div class="dp-h">選擇到貨日(下單隔天起 7 天內)</div><div class="dp-days">` + [1, 2, 3, 4, 5, 6, 7].map((n) => {
+          const k = addDays(f.orderDay, n), tags = [];
+          if (isClosed(k)) tags.push("店休");
+          if (!withSupplierOff(off, () => supplierOpen(k))) tags.push("批發商休");
+          return `<button type="button" class="dp-day${k === f.deliveryDay ? " on" : ""}" data-dk="${k}"><b>${mdw(k)}</b>${tags.length ? `<small>${tags.join("・")}</small>` : ""}</button>`;
+        }).join("") + `</div><button type="button" class="dp-cancel">取消</button>`;
+        box.classList.remove("hidden");
+        box.querySelectorAll(".dp-day").forEach((btn) => btn.onclick = () => {
+          const v = btn.dataset.dk; box.classList.add("hidden");
+          f.deliveryDay = v; f.customDel = !deliveryOptions(f.orderDay, f.supplier).some((o) => o.key === v);
+          resetUseDays(f); f.kg = null; recomputeUseDays(); renderOrderForm();
+        });
+        box.querySelector(".dp-cancel").onclick = () => box.classList.add("hidden");
+        return;
       }
       f.deliveryDay = e.target.value; f.customDel = !deliveryOptions(f.orderDay, f.supplier).some((o) => o.key === f.deliveryDay);
-      resetUseDays(f); f.kg = null; recomputeUseDays(); renderOrderForm();
-    });
-    $("ordDelOther").addEventListener("change", (e) => {
-      const f = orderForm, v = e.target.value; e.target.classList.add("hidden");
-      if (!v || v <= f.orderDay || v > addDays(f.orderDay, 7)) { alert("到貨日請選下單日隔天起 7 天內。"); return; }
-      f.deliveryDay = v; f.customDel = !deliveryOptions(f.orderDay, f.supplier).some((o) => o.key === v);
       resetUseDays(f); f.kg = null; recomputeUseDays(); renderOrderForm();
     });
     $("ordUseBtn").onclick = openUsePicker;
