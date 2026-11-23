@@ -364,7 +364,7 @@
       return `<button type="button" class="employee-cal-day ck-ordcell${k === t ? " ck-today" : ""}" data-date="${k}" disabled>${numHtml}${offTag}</button>`;
     }
     let cls = "employee-cal-day ck-ordcell" + (closed ? " ck-rest" : ""), inner = numHtml + closedTag + offTag;
-    if (o) { const st = orderStatus(o); inner += `<span class="ck-po ${STATUS_CLS[st]}">${esc(o.supplierName || "廠商")}<i>${STATUS_LABEL[st]}</i></span>`; }
+    if (o) { const st = orderStatus(o); inner += `<span class="ck-po ${STATUS_CLS[st]}">${esc(o.supplierName || "廠商")}<i>${STATUS_LABEL[st]}</i></span>${o.special ? `<span class="ck-sp" title="特殊單：${o.deliveryDay ? mdw(o.deliveryDay) + " 到貨" : ""}">特殊</span>` : ""}`; }
     else if (!future) inner += `<span class="ck-pocan ck-bf">🧪回填</span>`;   // 回填模式：過去的日子
     else if (covered) {
       if (k === t) { cls += " ck-today"; inner += `<span class="ck-po ck-posugg">建議下單</span>`; }
@@ -595,7 +595,7 @@
     const od = orderDay || defaultOrderDay();
     if (!existing) existing = orderForDay(od);
     if (existing) {
-      orderForm = { orderDay: od, supplier: existing.supplier || defaultSupplier, deliveryDay: existing.deliveryDay || addDays(od, 1), useDays: (existing.useDays || []).slice(), perDay: JSON.parse(JSON.stringify(existing.perDay || {})), deductStock: existing.deductStock != null && existing.deductStock !== false, kg: existing.orderKg ? Object.assign({}, existing.orderKg) : null, expanded: (existing.useDays || [])[0] || null, exists: true };
+      orderForm = { customDel: !!existing.special || !deliveryOptions(od, existing.supplier || defaultSupplier).some((o) => o.key === existing.deliveryDay), orderDay: od, supplier: existing.supplier || defaultSupplier, deliveryDay: existing.deliveryDay || addDays(od, 1), useDays: (existing.useDays || []).slice(), perDay: JSON.parse(JSON.stringify(existing.perDay || {})), deductStock: existing.deductStock != null && existing.deductStock !== false, kg: existing.orderKg ? Object.assign({}, existing.orderKg) : null, expanded: (existing.useDays || [])[0] || null, exists: true };
     } else {
       // 預設廠商這天不能下單(例如臨時休市)→ 改用第一家這天可下單的廠商
       let sup = defaultSupplier;
@@ -604,6 +604,18 @@
       applyOrderDefaults(orderForm);
     }
     renderOrderForm(); show("orderBackdrop");
+  }
+  // 特殊單：到貨日不是系統建議的(店休日到貨、批發商休息日到貨)或下單日批發商休息 → 提醒，不擋
+  // 換到貨日：使用日改成到貨隔天起的營業日(天數維持原本的)
+  function resetUseDays(f) { const n = Math.max(1, f.useDays.length || 2); f.useDays = candidateUseDays(f.orderDay, f.deliveryDay).slice(0, n); }
+  function isSpecialOrder(f) {
+    return !deliveryOptions(f.orderDay, f.supplier).some((o) => o.key === f.deliveryDay) || !engineDefaults(f.orderDay, f.supplier);
+  }
+  function specialWarn(f) {
+    const out = [], d = f.deliveryDay; if (!d) return out;
+    if (isClosed(d)) out.push(`⚠ ${mdw(d)} 店家公休：請確認當天有人收貨。`);
+    if (!withSupplierOff(supplierOffOf(f.supplier), () => supplierOpen(d))) out.push(`⚠ ${mdw(d)} 批發商休息：請確認批發商當天有送貨。`);
+    return out;
   }
   function renderKgLabels() { PARTS3.forEach((p) => { const el = $(`lblKg${p}`); if (el) el.textContent = partLabel(p); }); }
   function renderStock() {
@@ -641,8 +653,13 @@
     const dl = $("ordDeliverLine"); if (dl) dl.innerHTML = f.useDays.length ? deliverLine(f.deliveryDay, f.useDays.slice().sort(), true) : "";
     $("ordSupplier").innerHTML = suppliers.map((s) => `<option value="${s.id}"${s.id === f.supplier ? " selected" : ""}>${esc(s.name)}</option>`).join("");
     const dOpts = deliveryOptions(f.orderDay, f.supplier);
-    if (!f.locked && !dOpts.some((o) => o.key === f.deliveryDay)) { f.deliveryDay = dOpts[0] ? dOpts[0].key : addDays(f.orderDay, 1); recomputeUseDays(); }
-    $("ordDelivery").innerHTML = (dOpts.length ? dOpts : [{ key: f.deliveryDay, label: mdw(f.deliveryDay) }]).map((o) => `<option value="${o.key}"${o.key === f.deliveryDay ? " selected" : ""}>${o.label}</option>`).join("");
+    if (!f.locked && !f.customDel && !dOpts.some((o) => o.key === f.deliveryDay)) { f.deliveryDay = dOpts[0] ? dOpts[0].key : addDays(f.orderDay, 1); recomputeUseDays(); }
+    // 到貨日選單：系統建議的日子＋(手動選的特殊日期)＋「其他日期…」(偶爾的特殊狀況，例如週日下單、週一店休也收貨)
+    const opts = dOpts.slice();
+    if (f.deliveryDay && !opts.some((o) => o.key === f.deliveryDay)) opts.push({ key: f.deliveryDay, label: `${mdw(f.deliveryDay)}・手動指定` });
+    $("ordDelivery").innerHTML = opts.map((o) => `<option value="${o.key}"${o.key === f.deliveryDay ? " selected" : ""}>${o.label}</option>`).join("") + (f.locked ? "" : `<option value="__other">其他日期…</option>`);
+    const dw = $("ordDelWarn");
+    if (dw) { const w = specialWarn(f); dw.innerHTML = w.join("<br>"); dw.classList.toggle("hidden", !w.length); }
     $("ordUseBtn").innerHTML = f.useDays.length ? `${f.useDays.map((u) => mdw(u)).join("、")}　<span class="cnt">${f.useDays.length} 天</span>` : "請選使用日 ▾";
     // 鎖定：停用所有輸入、換掉底部按鈕
     $("ordSupplier").disabled = f.locked; $("ordDelivery").disabled = f.locked; $("ordUseBtn").disabled = f.locked;
@@ -719,11 +736,17 @@
     else PARTS3.forEach((p) => { $(`orderKg${p}`).value = f.kg[p] != null ? f.kg[p] : 0; });
     renderKgPcs();
   }
+  // 某使用日的日資料(含 supplyRef)；這天是否仍由某張單供應(沒有 supplyRef 的舊資料視為是)
+  const dayRecOf = (u) => predDays[u] || days[u] || null;
+  const ownedBy = (u, od) => { const r = dayRecOf(u), sr = r && r.supplyRef; return !sr || !sr.od || sr.od === od; };
   function saveOrderForm(confirmed) {
     if (!guardEdit()) return;
     const f = orderForm; if (!f || f.locked) return;
     if (!f.useDays.length) { alert("請選擇至少一個使用日"); return; }
     if (!db) { hide("orderBackdrop"); return; }
+    // 使用日已經由別張單供應 → 問要不要改由這張單供應
+    const taken = f.useDays.filter((u) => { const r = dayRecOf(u), sr = r && r.supplyRef; return sr && sr.od && sr.od !== f.orderDay && orderForDay(sr.od); });
+    if (taken.length && !confirm(taken.map((u) => `${mdw(u)} 已經由 ${mdw(dayRecOf(u).supplyRef.od)} 的單供應`).join("\n") + "\n\n要改由這張單供應嗎？(原本那張單不會刪除)")) return;
     const { net, stockRec } = orderTotals();
     const kg = { leg: Number($("orderKgleg").value) || 0, fil: Number($("orderKgfil").value) || 0, wing: Number($("orderKgwing").value) || 0 };
     const sup = suppliers.find((s) => s.id === f.supplier) || defSupplier();
@@ -732,11 +755,12 @@
     const order = { supplier: f.supplier, supplierName: sup.name, orderDay: f.orderDay, deliveryDay: f.deliveryDay, useDays: f.useDays.slice(), perDay: perDay, deductStock: (f.deductStock && stockRec) ? { leg: stockRec.leg, fil: stockRec.fil, wing: stockRec.wing, date: stockRec.date } : null, totalPieces: net, orderKg: kg, kgPieces: Object.fromEntries(PARTS3.map((p) => [p, kgToPieces(kg[p], p)])), status: confirmed ? "ordered" : "draft", createdAt: (prev && prev.createdAt) || Date.now(), updatedAt: Date.now() };
     if (confirmed) { order.orderedAt = Date.now(); order.orderedBy = prepAuth && !prepAuth.owner ? { id: prepAuth.id, name: prepAuth.name, via: "admin" } : { name: "後台管理者", via: "admin" }; }
     if (f.orderDay < todayKey()) order.backfill = true;   // 回填模式補建的過去訂購單
+    if (isSpecialOrder(f)) order.special = true;           // 特殊單(手動指定到貨日／批發商休息日下單)：訂購月曆標「特殊」
     const DEL = firebase.firestore.FieldValue.delete();
     const writes = [{ ref: orderRefOf(ordYm), data: { orders: { [f.orderDay]: order }, updatedAt: Date.now() } }];
     const dayPatch = {}, put = (ym, day, obj) => { (dayPatch[ym] = dayPatch[ym] || {})[day] = obj; };
     f.useDays.forEach((u) => put(ymOf(u), u, { order: perDay[u], orderKg: kg, supplyRef: { ym: ordYm, od: f.orderDay } }));
-    if (prev && Array.isArray(prev.useDays)) prev.useDays.filter((u) => !f.useDays.includes(u)).forEach((u) => put(ymOf(u), u, { order: DEL, orderKg: DEL, supplyRef: DEL }));
+    if (prev && Array.isArray(prev.useDays)) prev.useDays.filter((u) => !f.useDays.includes(u) && ownedBy(u, f.orderDay)).forEach((u) => put(ymOf(u), u, { order: DEL, orderKg: DEL, supplyRef: DEL }));
     Object.keys(dayPatch).forEach((ym) => writes.push({ ref: monthRefOf(ym), data: { days: dayPatch[ym], updatedAt: Date.now() } }));
     Promise.all(writes.map((w) => w.ref.set(w.data, { merge: true })))
       .then(() => { hide("orderBackdrop"); Object.keys(dayPatch).forEach((ym) => { if (ym !== viewYM) watchMonth(viewYM); }); })
@@ -754,7 +778,7 @@
     const ordYm = ymOf(f.orderDay), DEL = firebase.firestore.FieldValue.delete();
     const writes = [{ ref: orderRefOf(ordYm), data: { orders: { [f.orderDay]: DEL }, updatedAt: Date.now() } }];
     const dayPatch = {};
-    (prev.useDays || []).forEach((u) => { (dayPatch[ymOf(u)] = dayPatch[ymOf(u)] || {})[u] = { order: DEL, orderKg: DEL, supplyRef: DEL }; });
+    (prev.useDays || []).filter((u) => ownedBy(u, f.orderDay)).forEach((u) => { (dayPatch[ymOf(u)] = dayPatch[ymOf(u)] || {})[u] = { order: DEL, orderKg: DEL, supplyRef: DEL }; });   // 已改由別張單供應的日子不動
     Object.keys(dayPatch).forEach((ym) => writes.push({ ref: monthRefOf(ym), data: { days: dayPatch[ym], updatedAt: Date.now() } }));
     Promise.all(writes.map((w) => w.ref.set(w.data, { merge: true }))).then(() => hide("orderBackdrop")).catch((e) => { console.error(e); alert("刪除失敗：" + (e.message || e)); });
   }
@@ -820,7 +844,7 @@
           t += row("d3-ord d3-tot", `實際叫貨(隻)<small class="ck-adj">${kg ? "整張單 " + PARTS3.map((pp) => `${CC.PART_NAME[pp]} ${kg[pp] || 0}`).join("・") + " 公斤換算" : "公斤換算"}${act.multi ? `・一批 ${(so && so.useDays || []).length || "多"} 天，依需求比例分到的量` : ""}</small>`, act.alloc);
           t += row("d3-ord", `比應訂<small class="ck-adj">正＝多訂、負＝少訂</small>`, sub(act.alloc, act.need), sgn);
         } else t += row("d3-ord d3-tot", "訂購量", o);
-        if (sr) { const st = so ? orderStatus(so) : null; t += msg("d3-ord", `📦 ${mdw(sr.od)} 訂購${so && so.status === "ordered" ? `・${orderedByText(so)}` : ""}${st ? `・${STATUS_LABEL[st]}` : ""}`); }
+        if (sr) { const st = so ? orderStatus(so) : null; t += msg("d3-ord", `📦 ${mdw(sr.od)} 訂購${so && so.special ? "(特殊單・" + (so.deliveryDay ? mdw(so.deliveryDay) + " 到貨" : "") + ")" : ""}${so && so.status === "ordered" ? `・${orderedByText(so)}` : ""}${st ? `・${STATUS_LABEL[st]}` : ""}`); }
       }
       // ③ 實際
       if (u || act) {
@@ -986,7 +1010,7 @@
     predUnsubs.forEach((u) => u && u()); predUnsubs = []; predMonthData = {};
     if (!db) return;
     const tm = ymOf(todayKey());
-    [tm, addMonthYM(tm, -1), addMonthYM(tm, -2)].forEach((ym) => {
+    [addMonthYM(tm, 1), tm, addMonthYM(tm, -1), addMonthYM(tm, -2)].forEach((ym) => {   // 含下個月(跨月的使用日也要知道由哪張單供應)
       const u = monthRefOf(ym).onSnapshot((snap) => {
         const d = snap.data(); predMonthData[ym] = (d && d.days) || {};
         predDays = {}; Object.values(predMonthData).forEach((m) => Object.assign(predDays, m));
@@ -1953,7 +1977,23 @@
     // 叫貨單：三個選擇器＋逐日表＋確認/刪除
     // 換廠商：到貨日、使用日改用該廠商的休息日重新帶預設(之後仍可自己改)
     $("ordSupplier").addEventListener("change", (e) => { orderForm.supplier = e.target.value; orderForm.kg = null; applyOrderDefaults(orderForm); renderOrderForm(); });
-    $("ordDelivery").addEventListener("change", (e) => { orderForm.deliveryDay = e.target.value; orderForm.kg = null; recomputeUseDays(); renderOrderForm(); });
+    $("ordDelivery").addEventListener("change", (e) => {
+      const f = orderForm;
+      if (e.target.value === "__other") {   // 其他日期：下單日隔天起 7 天內任選
+        const inp = $("ordDelOther"); inp.min = addDays(f.orderDay, 1); inp.max = addDays(f.orderDay, 7); inp.value = f.deliveryDay || inp.min;
+        e.target.value = f.deliveryDay;
+        if (inp.showPicker) { try { inp.showPicker(); return; } catch (x) {} }
+        inp.classList.remove("hidden"); inp.focus(); return;
+      }
+      f.deliveryDay = e.target.value; f.customDel = !deliveryOptions(f.orderDay, f.supplier).some((o) => o.key === f.deliveryDay);
+      resetUseDays(f); f.kg = null; recomputeUseDays(); renderOrderForm();
+    });
+    $("ordDelOther").addEventListener("change", (e) => {
+      const f = orderForm, v = e.target.value; e.target.classList.add("hidden");
+      if (!v || v <= f.orderDay || v > addDays(f.orderDay, 7)) { alert("到貨日請選下單日隔天起 7 天內。"); return; }
+      f.deliveryDay = v; f.customDel = !deliveryOptions(f.orderDay, f.supplier).some((o) => o.key === v);
+      resetUseDays(f); f.kg = null; recomputeUseDays(); renderOrderForm();
+    });
     $("ordUseBtn").onclick = openUsePicker;
     $("useDaySave").onclick = confirmUsePicker;
     $("ordConfirmBtn").onclick = () => saveOrderForm(true);

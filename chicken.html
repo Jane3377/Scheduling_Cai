@@ -181,6 +181,11 @@
     .ps-solo:has(input:checked) { border-color: #d9a689; background: #fff6ec; }
     .ps-warn { margin-top: 8px; background: #fff3d6; border: 1px solid #f0d58a; color: #7a5410; border-radius: 10px; padding: 8px 10px; font-size: 13.5px; font-weight: 700; line-height: 1.5; }
     .ps-warn.hidden { display: none; }
+    .ord-delwarn { margin: -2px 0 10px; background: #fff3d6; border: 1px solid #f0d58a; color: #7a5410; border-radius: 10px; padding: 8px 10px; font-size: 13.5px; font-weight: 700; line-height: 1.5; }
+    .ord-delwarn.hidden { display: none; }
+    #ordDelOther { margin-top: 6px; }
+    .ck-sp { display: block; width: fit-content; margin-top: 3px; font-size: 10px; font-weight: 800; color: #fff; background: #b5492d; border-radius: 6px; padding: 1px 5px; }
+    @media (min-width:721px) { .ck-sp { font-size: 12px; padding: 1px 7px; } }
     .pin-hint { margin-top: 14px; font-size: 13px; color: var(--muted); }
     .ck-ro-banner { background: #eef3fb; border: 1.5px solid #c9d8ef; color: #2c4a73; border-radius: 12px; padding: 10px 14px; font-size: 15px; font-weight: 800; margin-bottom: 14px; }
     body.ck-readonly .edit-only { display: none !important; }
@@ -913,6 +918,7 @@
             <li><b>預估</b>＝基準 × 多備比例(1.00～1.30)，<b>四捨五入到整數隻</b>。</li>
             <li><b>參數版本</b>：用<b>下單日當天有效</b>的推估參數版本計算，之後改參數不會改到過去的預估。〈推估準確度〉才用目前設定。</li>
             <li><b>下單／到貨／使用日</b>(預設，可自己改)：批發商有上班才能下單；到貨日要店有營業、批發商有上班，且前一天批發商也有上班(前一天下單、隔天到)；使用日要店有營業，且至少在到貨隔天(醃一天)。</li>
+            <li><b>特殊單</b>(偶爾)：到貨日選單最下面「其他日期…」可選下單日隔天起 7 天內任一天，例如週日下單、週一店休也收貨。選到店休日或批發商休息日會跳黃色提醒(請確認有人收貨／批發商有送貨)，不會擋。使用日會從到貨隔天重新帶入。使用日已經由別張單供應時，存檔前會問要不要改由這張單供應(原本那張單不刪)。訂購月曆的下單日會標「特殊」。</li>
             <li><b>訂購數量</b>：
               <div class="gd-f">合計需求＝各使用日需求加總<br>扣剩餘＝下單日當天有打烊剩餘就用當天(打烊後下單)；否則用前一個營業日的打烊剩餘(開店前／營業中下單，或下單日店休)<br>下單日是今天、已過 20:00 但還沒填當天剩餘 → 不扣，提醒先填<br>該用的那天沒有紀錄 → 不扣(不當作 0)，另外列出最近一筆的日期參考<br>要訂＝合計需求 − 剩餘(最少 0)</div></li>
             <li><b>公斤換算</b>：
@@ -976,7 +982,8 @@
           <div class="ord-sec-h"><b class="ord-step">①</b> 訂購資訊</div>
           <div class="ord-sel"><span class="ord-k">下單日</span><div class="ord-selwrap"><span class="ord-val" id="ordOrderDay"></span></div></div>
           <div class="ord-sel"><span class="ord-k">批發商</span><div class="ord-selwrap"><select class="input" id="ordSupplier"></select></div></div>
-          <div class="ord-sel"><span class="ord-k">到貨日</span><div class="ord-selwrap"><select class="input" id="ordDelivery"></select></div></div>
+          <div class="ord-sel"><span class="ord-k">到貨日</span><div class="ord-selwrap"><select class="input" id="ordDelivery"></select><input type="date" class="input hidden" id="ordDelOther" aria-label="選擇到貨日" /></div></div>
+          <div class="ord-delwarn hidden" id="ordDelWarn"></div>
           <div class="ord-sel"><span class="ord-k">使用日</span><button type="button" class="ord-usebtn" id="ordUseBtn">請選使用日 ▾</button></div>
           <div class="ord-deliver" id="ordDeliverLine"></div>
         </section>
