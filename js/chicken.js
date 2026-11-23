@@ -1715,7 +1715,7 @@
   function chkAccRows() {
     const t = todayKey(), from = dateMinus(t, 13);
     return Object.keys(predDays).filter((k) => k >= from && k <= t && chickenActual(k)).sort((a, b) => (a < b ? 1 : -1)).map((k) => {
-      const p = predict(k, k), act = chickenActual(k), v = {};
+      const p = predict(k, accOd(k)), act = chickenActual(k), v = {};
       if (p.n) PARTS3.forEach((pt) => { v[pt] = chkVerdict(p.rec[pt], Number(act[pt]) || 0); });
       return { k, p, act, v, ok: !!p.n };
     });
@@ -1741,13 +1741,16 @@
     }).join("");
     $("chkAccList").querySelectorAll("button[data-cad]").forEach((b) => b.onclick = () => openChkAccDetail(b.dataset.cad));
   }
+  // 準確度站在「下單日」推估(跟實際下單時一樣，只用下單日之前的資料)，參數用目前設定：
+  // 有訂購單 → 那張單的下單日；沒有 → 系統預設下單日；都找不到 → 當天
+  function accOd(k) { const r = predDays[k] || days[k], sr = r && r.supplyRef; return (sr && sr.od) || orderDayFor(k) || k; }
   // 推估準確度的每日明細：只看「目前設定的推估 vs 實際用」(評估參數)；當天叫貨、可用量交給每日明細(三段對照)
   function openChkAccDetail(k) {
-    const p = predict(k, k), act = chickenActual(k);
+    const od = accOd(k), p = predict(k, od), act = chickenActual(k);
     $("chkAccDetTitle").textContent = fmtFull(k);
     const row = (label, o, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${label}</td>${PARTS3.map((pt) => o ? `<td>${Math.round(Number(o[pt]) || 0)}</td>` : `<td class="ck-muted">—</td>`).join("")}</tr>`;
     const diffRow = (label, a, b) => `<tr class="sum"><td>${label}</td>${PARTS3.map((pt) => (a && b) ? diffCell(Math.round((Number(a[pt]) || 0) - (Number(b[pt]) || 0))) : `<td class="ck-muted">—</td>`).join("")}</tr>`;
-    let html = `<div class="dg-det-sub">${chkSetting()}<br>${p.group ? `日型：${p.group}` : ""}${p.n ? `・參考 ${p.n} 個同日型的日子(這天之前的近 ${predWindow} 天)` : "・此日型資料不足"}</div>`;
+    let html = `<div class="dg-det-sub">${chkSetting()}<br>${p.group ? `日型：${p.group}` : ""}${p.n ? `・參考 ${p.n} 個同日型的日子(${od !== k ? mdw(od) + " 下單日" : "這天"}之前的近 ${predWindow} 天)` : "・此日型資料不足"}</div>`;
     html += `<table class="ck-items"><thead><tr><th></th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>
       ${row(`基準<small class="ck-adj">${CC.predWhy(p).replace(/・多備 ×[\d.]+$/, "")}</small>`, p.n ? p.avg : null)}
       ${row(`🔮 推估(×${bufferFactor})`, p.n ? p.rec : null)}
