@@ -54,6 +54,7 @@
   const EST_METHODS = ["avg", "median", "weighted", "max"];
   const METHOD_LABEL = { avg: "平均", median: "中位數", weighted: "近期加權", max: "同型日最大" }; // 推估方式標籤
   let predWindow = 35, estMethod = "avg"; // 可在「推估設定」調整，存 poultry_config
+  let soloDays = [5];   // 單獨推估的星期(週一～五，預設週五)；存 poultry_config.soloDays
   // 批發商(可多家)：每家各自「每週固定休(0=日…6=六)＋臨時休市日」，並指定一家為預設
   // 存 poultry_config.suppliers / defaultSupplier；舊版單一 supplierOff 會自動遷移成「A 廠商」
   const DEFAULT_SUPPLIERS = [{ id: "a", name: "A 廠商", weekdays: [0], dates: [] }];
@@ -160,7 +161,7 @@
   const predict = (targetKey, asOf, P) => CC.predict(targetKey, asOf || null, P || null, chkCtx());
 
   // 雞肉推估參數版本：predHistory [{date, pred}]，date "" ＝最初版本(第一次修改前的設定)；沒有紀錄＝一直是目前設定
-  const curPred = () => ({ bufferFactor, predWindow, estMethod });
+  const curPred = () => ({ bufferFactor, predWindow, estMethod, soloDays: soloDays.slice() });
   const predAt = (k) => CC.predAt(k, chkCtx());
   const predLabel = CC.predLabel;
   // 某使用日「當時的預估」：以下單日(有訂購單用它的下單日，否則推算的下單日)當天有效的參數版本、
@@ -654,12 +655,12 @@
     renderOrderSum();
     renderKgLabels();
   }
-  // 日型標籤(顯示用)：平日／週五／週六／週日／國定假日／公休
+  // 日型標籤(顯示用)：平日／單獨推估的星期(如週二、週五)／週六／週日／國定假日／公休
   function dayTypeLabel(k) {
     if (isClosed(k)) return "公休";
     if (natHoliday(k)) return "國定假日";
     const d = parseKey(k).getDay();
-    return d === 0 ? "週日" : d === 6 ? "週六" : d === 5 ? "週五" : "平日";
+    return d === 0 ? "週日" : d === 6 ? "週六" : soloDays.includes(d) ? "週" + DOW[d] : "平日";
   }
   function refLine(tag, pill, o, fillKey, unit) {
     return `<div class="oref-row"><span class="oref-tag">${tag}${pill ? (unit ? `<small class="oref-why">${pill}</small>` : `<span class="oref-pill">${pill}</span>`) : ""}</span><span class="oref-n">${unit ? numsPcsHTML(o) : numsHTML(o)}</span></div>`;   // 只供參考，不再提供「帶入」(需求預設已是預估值)
@@ -792,34 +793,68 @@
     const nat = natHoliday(k);
     if (nat) html += `<div class="ck-holi-line">📌 國定假日：${nat}</div>`;
     if (isBiz && (est || o || u)) {
-      html += `<div class="cmp-h">預估 vs 訂購 vs 實際賣</div>`;
-      html += `<table class="ck-items" style="margin-bottom:6px"><thead><tr><th></th><th>🍗 腿(隻)</th><th>🥩 排(隻)</th><th>🪽 翅(隻)</th></tr></thead><tbody>`;
+      // 三段對照：① 預估(下單時算的，固定)② 訂購(實際叫貨)③ 實際(事後檢討：前一營業日剩餘＋這天分到的叫貨)
       const act = o ? orderActualFor(k, rec) : null;
-      const row3 = (label, obj) => `<tr><td>${label}</td>${cell(obj, "leg")}${cell(obj, "fil")}${cell(obj, "wing")}</tr>`;
-      html += row3(`預估 ${mdw(k)} ${p.group || ""}<small class="ck-adj">${CC.predWhy(p)}${pa.frozen ? `(${mdw(pa.od)} 下單時)` : ""}</small>`, est);
+      const c3 = (obj, f) => PARTS3.map((pp) => obj ? `<td>${f ? f(obj[pp], pp) : obj[pp]}</td>` : `<td class="ck-muted">—</td>`).join("");
+      const sgn = (v) => `<span class="${v < 0 ? "d3-neg" : v > 0 ? "d3-pos" : "d3-mut"}">${v > 0 ? "+" : ""}${v}</span>`;
+      const row = (cls, label, obj, f) => `<tr class="${cls}"><td>${label}</td>${c3(obj, f)}</tr>`;
+      const head = (cls, title, sub, extra) => `<tr class="d3-h ${cls}"><td colspan="4"><span class="d3-t">${title}</span>${sub ? `<small>${sub}</small>` : ""}${extra || ""}</td></tr>`;
+      const msg = (cls, t) => `<tr class="${cls} d3-msg"><td colspan="4">${t}</td></tr>`;
+      const sub = (a2, b2) => { const r = {}; PARTS3.forEach((pp) => r[pp] = Math.round((Number(a2[pp]) || 0) - (Number(b2[pp]) || 0))); return r; };
+      let t = `<table class="ck-items d3"><thead><tr><th></th><th>🍗 腿(隻)</th><th>🥩 排(隻)</th><th>🪽 翅(隻)</th></tr></thead><tbody>`;
+      // ① 預估
+      t += head("d3-pred", "① 預估", pa.frozen ? `${mdw(pa.od)} 下單時算的・之後不會變` : "依目前設定");
+      if (est) t += row("d3-pred", `預估需求 ${mdw(k)} ${p.group || ""}<small class="ck-adj">${CC.predWhy(p)}</small>`, est);
+      else t += msg("d3-pred", `預估需求：${p.group || ""}資料累積中`);
       if (act) {
         const dm = act.demand, same = est && PARTS3.every((pp) => Math.round(Number(dm[pp]) || 0) === Math.round(Number(est[pp]) || 0));
-        if (!same) html += row3(`訂購需求<small class="ck-adj">(訂購時填的，與預估不同)</small>`, dm);
-        if (act.hasStock) {
-          const neg = {}; PARTS3.forEach((pp) => neg[pp] = "−" + act.used[pp]);
-          html += row3(`扣掉的剩餘<small class="ck-adj">(${act.stockDate ? mdw(act.stockDate) + " 打烊" : "下單時"})</small>`, neg);
-          html += row3("應訂(隻)", act.need);
+        if (!same) t += row("d3-pred", `訂購需求<small class="ck-adj">訂購時填的，與預估不同</small>`, dm);
+        if (act.hasStock) t += row("d3-pred", `扣下單時的剩餘<small class="ck-adj">${act.stockDate ? mdw(act.stockDate) + " 打烊(當時最新的)" : "下單時"}</small>`, act.used, (v) => "−" + v);
+        t += row("d3-pred d3-tot", "應訂(隻)", act.need);
+      }
+      // ② 訂購
+      const sr = rec.supplyRef, so = sr ? orderForDay(sr.od) : null, kg = rec.orderKg;
+      if (o) {
+        t += head("d3-ord", "② 訂購", "", sr ? `<button type="button" class="ck-srcbtn" id="detailGoOrder">看這批 ›</button>` : "");
+        if (act) {
+          t += row("d3-ord d3-tot", `實際叫貨(隻)<small class="ck-adj">${kg ? "整張單 " + PARTS3.map((pp) => `${CC.PART_NAME[pp]} ${kg[pp] || 0}`).join("・") + " 公斤換算" : "公斤換算"}${act.multi ? `・一批 ${(so && so.useDays || []).length || "多"} 天，依需求比例分到的量` : ""}</small>`, act.alloc);
+          t += row("d3-ord", `比應訂<small class="ck-adj">正＝多訂、負＝少訂</small>`, sub(act.alloc, act.need), sgn);
+        } else t += row("d3-ord d3-tot", "訂購量", o);
+        if (sr) { const st = so ? orderStatus(so) : null; t += msg("d3-ord", `📦 ${mdw(sr.od)} 訂購${so && so.status === "ordered" ? `・${orderedByText(so)}` : ""}${st ? `・${STATUS_LABEL[st]}` : ""}`); }
+      }
+      // ③ 實際
+      if (u || act) {
+        t += head("d3-act", "③ 實際", "事後檢討");
+        const pb = CC.prevBizDay(k, chkCtx()), pr = pb && CC.hasChickenRec(stockDays[pb]) ? stockDays[pb] : null;
+        const prev = pr ? { leg: Number(pr.leg) || 0, fil: Number(pr.fil) || 0, wing: Number(pr.wing) || 0 } : null;
+        if (prev) t += row("d3-act", `前一營業日剩餘<small class="ck-adj">${mdw(pb)} 打烊</small>`, prev);
+        else t += msg("d3-act", `前一營業日剩餘：${pb ? mdw(pb) + " " : ""}沒有打烊剩餘紀錄，無法計算實際可用`);
+        const alloc = act ? act.alloc : null;
+        if (alloc) t += row("d3-act", `＋ 實際叫貨(公斤換算)<small class="ck-adj">這天分到的量</small>`, alloc);
+        const avail = prev ? (alloc ? { leg: prev.leg + alloc.leg, fil: prev.fil + alloc.fil, wing: prev.wing + alloc.wing } : prev) : null;
+        if (avail) t += row("d3-act d3-tot", "＝ 實際可用", avail);
+        t += row("d3-act", "實際賣", u);
+        if (est && u) t += row("d3-act d3-tot", `差額(預估−賣)<small class="ck-adj">預估準不準：正＝估多、負＝估少</small>`, sub(est, u), sgn);
+        if (avail && u) {
+          const left = sub(avail, u);
+          t += row("d3-act d3-tot", `差額(可用−賣)<small class="ck-adj">夠不夠：正＝有剩、負＝不夠</small>`, left, sgn);
+          // 盤點核對：帳上應剩 vs 這天打烊實際盤點
+          const cr = CC.hasChickenRec(stockDays[k]) ? stockDays[k] : null;
+          if (cr) {
+            const cnt = { leg: Number(cr.leg) || 0, fil: Number(cr.fil) || 0, wing: Number(cr.wing) || 0 }, gap = sub(cnt, left);
+            t += row("d3-act d3-chk", `帳上應剩<small class="ck-adj">＝ 差額(可用−賣)</small>`, left);
+            t += row("d3-act d3-chk", `實際盤點<small class="ck-adj">${mdw(k)} 打烊${cr.byName ? "・" + esc(cr.byName) : ""}</small>`, cnt);
+            t += row("d3-act d3-chk d3-tot", "盤點差", gap, sgn);
+            const less = PARTS3.filter((pp) => gap[pp] < 0).map((pp) => `${CC.PART_NAME[pp]}少了 ${-gap[pp]} 隻`), more = PARTS3.filter((pp) => gap[pp] > 0).map((pp) => `${CC.PART_NAME[pp]}多了 ${gap[pp]} 隻`);
+            if (less.length) t += msg("d3-act d3-chk", `⚠ ${less.join("、")}：可能是損耗(員工餐、報廢)或盤點填錯。`);
+            if (more.length) t += msg("d3-act d3-chk", `⚠ ${more.join("、")}：盤點比帳上多，可能是前一營業日少算或填錯。`);
+          }
         }
-        html += row3(`實際叫貨<small class="ck-adj">(公斤換算)</small>`, act.alloc);
-        if (act.hasStock) html += row3(`可用量<small class="ck-adj">(叫貨＋剩餘)</small>`, act.avail);
-      } else if (o) html += row3("訂購量", o);
-      html += row3("實際賣", u);
-      const avail = act ? act.avail : o;
-      if (avail && u) html += `<tr class="sum"><td>差額(${act ? "可用" : "叫"}−賣)</td>${diffCell(Math.round(avail.leg - u.leg))}${diffCell(Math.round(avail.fil - u.fil))}${diffCell(Math.round(avail.wing - u.wing))}</tr>`;
-      html += `</tbody></table>`;
-      // 供應來源：這天的貨來自哪一張叫貨單
-      const sr = rec.supplyRef, so = sr ? orderForDay(sr.od) : null;
-      if (sr) { const st = so ? orderStatus(so) : null; html += `<div class="ck-srcline">📦 這天的貨來自 <b>${mdw(sr.od)} 訂購</b>${st ? `(${STATUS_LABEL[st]})` : ""}${so && so.status === "ordered" ? `<small class="ck-by">${orderedByText(so)}</small>` : ""}<button type="button" class="ck-srcbtn" id="detailGoOrder">看這批 ›</button></div>`; }
-      const kg = rec.orderKg;
-      if (kg) html += `<div class="ck-kgline">📦 這批訂購(整張單)：${PARTS3.map((pp) => `${PART_EMO[pp]} ${partLabel(pp)} <b>${kg[pp]}</b> 公斤`).join("・")}</div>`;
-      if (!o) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未訂購。</div>`;
-      else if (!u) html += `<div class="hint" style="margin:-2px 2px 12px">這天尚未上傳銷售，無法比對。${act && act.multi ? "實際叫貨已依各使用日應訂比例分攤。" : ""}</div>`;
-      else html += `<div class="hint" style="margin:-2px 2px 12px">${act ? `差額＝${act.hasStock ? "可用量" : "實際叫貨"}−實際賣${act.multi ? "(整張單的叫貨依各使用日應訂比例分攤)" : ""}` : "差額＝訂購量−實際賣"}：正＝有剩、負＝不夠。</div>`;
+      }
+      t += `</tbody></table>`;
+      html += t;
+      if (!o) html += `<div class="hint" style="margin:2px 2px 12px">這天尚未訂購。</div>`;
+      else if (!u) html += `<div class="hint" style="margin:2px 2px 12px">這天尚未上傳銷售，還無法比對實際賣。</div>`;
     }
     if (hasSales) html += `<div class="cmp-h">當日銷售明細(換算消耗)</div>` + itemTable(rec.sales, rec.parts, rec.map);
     else if (isBiz) html += `<div class="empty-state">這天尚未上傳銷售。</div>`;
@@ -988,6 +1023,7 @@
     bufferFactor = (d && typeof d.bufferFactor === "number" && d.bufferFactor > 0) ? d.bufferFactor : 1.0;
     predWindow = (d && WINDOW_OPTIONS.includes(d.predWindow)) ? d.predWindow : 35;
     estMethod = (d && EST_METHODS.includes(d.estMethod)) ? d.estMethod : "avg";
+    soloDays = CC.normSolo(d && d.soloDays);
     if (ST) solarTermsSel = ST.normalize(d && d.solarTerms);
     // 批發商清單：優先讀新版 suppliers；沒有就從舊版 supplierOff 遷移；再沒有就用預設
     suppliers = [];
@@ -1050,8 +1086,20 @@
     $("psBuffer").value = Number(bufferFactor).toFixed(2);   // 對應 1.00 / 1.05 / … / 1.30
     $("psWindow").value = String(predWindow);
     $("psMethod").value = estMethod;
+    $("psSolo").innerHTML = [1, 2, 3, 4, 5].map((w) => `<label class="ps-solo"><input type="checkbox" value="${w}"${soloDays.includes(w) ? " checked" : ""}><span>${DOW[w]}</span></label>`).join("");
+    $("psSolo").querySelectorAll("input").forEach((i) => i.onchange = renderSoloHint);
+    $("psWindow").onchange = renderSoloHint;
+    renderSoloHint();
     renderPredHist();
     show("predBackdrop");
+  }
+  // 有單獨推估的星期、回算天數又少於 28 天 → 提醒樣本太少(只提醒，不自動改)
+  function renderSoloHint() {
+    const el = $("psSoloHint"); if (!el) return;
+    const sel = [...$("psSolo").querySelectorAll("input:checked")].map((i) => Number(i.value)), win = Number($("psWindow").value) || 35;
+    const per = Math.floor(win / 7);
+    el.innerHTML = sel.length && win < 28 ? `⚠ ${sel.map((w) => "週" + DOW[w]).join("、")}在近 ${win} 天內各只有約 ${per} 天資料，數字容易忽高忽低，建議回算天數選 28 天以上(可自行決定)。` : "";
+    el.classList.toggle("hidden", !el.innerHTML);
   }
   function renderPredHist() {
     const box = $("psHist"); if (!box) return;
@@ -1064,13 +1112,16 @@
     let buf = Number($("psBuffer").value) || 1.0; if (!(buf >= 1 && buf <= 1.3)) buf = 1.0;
     const win = WINDOW_OPTIONS.includes(Number($("psWindow").value)) ? Number($("psWindow").value) : 35;
     const m = EST_METHODS.includes($("psMethod").value) ? $("psMethod").value : "avg";
-    const old = curPred(), neu = { bufferFactor: buf, predWindow: win, estMethod: m };
-    const changed = old.bufferFactor !== neu.bufferFactor || old.predWindow !== neu.predWindow || old.estMethod !== neu.estMethod;
-    bufferFactor = buf; predWindow = win; estMethod = m;
+    const solo = CC.normSolo([...$("psSolo").querySelectorAll("input:checked")].map((i) => Number(i.value)));
+    const old = curPred(), neu = { bufferFactor: buf, predWindow: win, estMethod: m, soloDays: solo };
+    const changed = old.bufferFactor !== neu.bufferFactor || old.predWindow !== neu.predWindow || old.estMethod !== neu.estMethod || String(old.soloDays) !== String(solo);
+    bufferFactor = buf; predWindow = win; estMethod = m; soloDays = solo;
     hide("predBackdrop");
     render(); refreshHint(); if (orderOpen()) renderOrderForm();
     if (!db) return;
     configRef().set({ bufferFactor: buf, predWindow: win, estMethod: m, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("儲存失敗：" + (e.message || e)); });
+    // 單獨推估的星期另外存(Firestore 規則還沒加 soloDays 時，不影響上面三個參數)
+    configRef().set({ soloDays: solo, updatedAt: Date.now() }, { merge: true }).catch((e) => { console.error(e); alert("「單獨推估的星期」沒有存成功，請到 Firebase 更新 Firestore 規則(加入 soloDays)後再存一次：" + (e.message || e)); });
     if (!changed) return;
     // 版本紀錄另外存(規則未更新時不影響參數本身的儲存)：第一次修改先記下原本的設定當「最初版本」；同一天改多次只留最後一次
     const t = todayKey(), hist = predHistory.length ? predHistory.slice() : [{ date: "", pred: old }];
@@ -1834,7 +1885,7 @@
       const out = { type: "poultry-backup", version: 2, exportedAt: new Date().toISOString(), config: null, months: {}, stock: {}, orders: {} };
       qs.forEach((doc) => {
         const id = doc.id, data = doc.data() || {};
-        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory, pizza: data.pizza, pizzaHistory: data.pizzaHistory, predHistory: data.predHistory, solarTerms: data.solarTerms };
+        if (id === "poultry_config") out.config = { bufferFactor: data.bufferFactor, predWindow: data.predWindow, estMethod: data.estMethod, supplierOff: data.supplierOff, suppliers: data.suppliers, defaultSupplier: data.defaultSupplier, parts: data.parts, purchase: data.purchase, partsHistory: data.partsHistory, pizza: data.pizza, pizzaHistory: data.pizzaHistory, predHistory: data.predHistory, solarTerms: data.solarTerms, soloDays: data.soloDays };
         else if (id.indexOf("poultry_stock_") === 0) out.stock[id.slice("poultry_stock_".length)] = { days: data.days || {} };
         else if (id.indexOf("poultry_order_") === 0) out.orders[id.slice("poultry_order_".length)] = { orders: data.orders || {} };
         else if (/^poultry_\d{4}-\d{2}$/.test(id)) out.months[id.slice("poultry_".length)] = { days: data.days || {} };
@@ -1878,7 +1929,7 @@
     Object.keys(data.months).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: monthRefOf(ym), data: { days: data.months[ym].days || {}, updatedAt: Date.now() } }); });
     if (data.stock) Object.keys(data.stock).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: stockRefOf(ym), data: { days: data.stock[ym].days || {}, updatedAt: Date.now() } }); });
     if (data.orders) Object.keys(data.orders).forEach((ym) => { if (/^\d{4}-\d{2}$/.test(ym)) writes.push({ ref: orderRefOf(ym), data: { orders: data.orders[ym].orders || {}, updatedAt: Date.now() } }); });
-    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; if (data.config.pizza && typeof data.config.pizza === "object") c.pizza = data.config.pizza; if (Array.isArray(data.config.pizzaHistory)) c.pizzaHistory = data.config.pizzaHistory; if (Array.isArray(data.config.predHistory)) c.predHistory = data.config.predHistory; if (Array.isArray(data.config.solarTerms)) c.solarTerms = data.config.solarTerms; writes.push({ ref: configRef(), data: c }); }
+    if (data.config) { const c = { updatedAt: Date.now() }; if (typeof data.config.bufferFactor === "number") c.bufferFactor = data.config.bufferFactor; if (WINDOW_OPTIONS.includes(data.config.predWindow)) c.predWindow = data.config.predWindow; if (EST_METHODS.includes(data.config.estMethod)) c.estMethod = data.config.estMethod; if (data.config.supplierOff && typeof data.config.supplierOff === "object") c.supplierOff = data.config.supplierOff; if (Array.isArray(data.config.suppliers)) c.suppliers = data.config.suppliers; if (typeof data.config.defaultSupplier === "string") c.defaultSupplier = data.config.defaultSupplier; if (data.config.parts) c.parts = data.config.parts; if (data.config.purchase) c.purchase = data.config.purchase; if (Array.isArray(data.config.partsHistory)) c.partsHistory = data.config.partsHistory; if (data.config.pizza && typeof data.config.pizza === "object") c.pizza = data.config.pizza; if (Array.isArray(data.config.pizzaHistory)) c.pizzaHistory = data.config.pizzaHistory; if (Array.isArray(data.config.predHistory)) c.predHistory = data.config.predHistory; if (Array.isArray(data.config.solarTerms)) c.solarTerms = data.config.solarTerms; if (Array.isArray(data.config.soloDays)) c.soloDays = data.config.soloDays; writes.push({ ref: configRef(), data: c }); }
     (delIds || []).forEach((id) => writes.push({ ref: db.collection(COLL).doc(id), del: true }));
     let i = 0;
     (function next() {

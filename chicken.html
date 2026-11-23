@@ -50,6 +50,20 @@
     .kg-pcs { display: block; text-align: center; font-size: 13px; color: #5a524c; font-weight: 700; margin-top: 4px; line-height: 1.35; }
     .kg-pcs b { font-size: 15px; color: var(--ink); } .kg-pcs em { display: block; font-style: normal; color: #b7791f; } .kg-pcs em.lack { color: var(--danger); }
     .ck-adj { display: block; font-size: 11.5px; color: var(--muted); font-weight: 600; }
+    /* 每日明細：① 預估(藍)② 訂購(橘)③ 實際(綠) 三段 */
+    table.ck-items.d3 { margin-bottom: 8px; border-collapse: separate; border-spacing: 0; }
+    table.ck-items.d3 tr.d3-h td { padding: 9px 10px; font-size: 14.5px; text-align: left; border-bottom: 0; }
+    table.ck-items.d3 tr.d3-h .d3-t { font-weight: 900; }
+    table.ck-items.d3 tr.d3-h small { margin-left: 8px; font-size: 12px; font-weight: 700; opacity: .85; }
+    table.ck-items.d3 tr.d3-h .ck-srcbtn { float: right; margin: -3px 0; }
+    tr.d3-h.d3-pred td { background: #eef3fb; color: #2c4a73; } tr.d3-pred td:first-child { border-left: 4px solid #b7cbe8; }
+    tr.d3-h.d3-ord td { background: #fff3e3; color: #8a4a12; } tr.d3-ord td:first-child { border-left: 4px solid #f0c48f; }
+    tr.d3-h.d3-act td { background: #ecf6ea; color: #2f6b3a; } tr.d3-act td:first-child { border-left: 4px solid #a9d1a3; }
+    table.ck-items.d3 tr.d3-h + tr td, table.ck-items.d3 tr.d3-msg td { }
+    table.ck-items.d3 tr.d3-tot td { font-weight: 900; font-size: 14.5px; }
+    table.ck-items.d3 tr.d3-msg td { text-align: left; font-size: 12.5px; color: #6b5a4c; font-weight: 600; white-space: normal; }
+    table.ck-items.d3 tr.d3-chk td { background: #fafaf7; }
+    .d3-pos { color: var(--ok); } .d3-neg { color: var(--danger); } .d3-mut { color: var(--muted); }
     .ord-cell.kg input { border-color: #d9a689; background: #fffdfb; box-shadow: 0 0 0 3px rgba(217,166,137,.14); }
     /* 將記錄 */
     .will-save { margin-top: 14px; border: 1px solid #cfe6d7; border-radius: 12px; background: #f3faf5; padding: 11px 13px; }
@@ -161,6 +175,12 @@
     .ck-bf-banner { background: #eef4ff; border: 1px solid #c9d8f2; color: #2a4a80; border-radius: 12px; padding: 10px 13px; font-size: 14px; font-weight: 700; margin-bottom: 10px; }
     .ck-ordcell .ck-pocan.ck-bf { color: #2a4a80; }
     .ck-supoff { display: block; font-size: 10px; font-weight: 800; color: #8a5a10; background: #fff3d6; border-radius: 6px; padding: 1px 3px; margin-top: 3px; width: fit-content; max-width: 100%; overflow: hidden; white-space: nowrap; letter-spacing: -0.3px; }
+    .ps-solos { display: flex; gap: 8px; margin: 8px 0 4px; }
+    .ps-solo { display: flex; align-items: center; justify-content: center; gap: 4px; flex: 1; border: 1.5px solid #ecdfd4; border-radius: 10px; padding: 8px 0; font-size: 16px; font-weight: 800; cursor: pointer; background: #fff; }
+    .ps-solo input { width: 17px; height: 17px; accent-color: var(--brand); }
+    .ps-solo:has(input:checked) { border-color: #d9a689; background: #fff6ec; }
+    .ps-warn { margin-top: 8px; background: #fff3d6; border: 1px solid #f0d58a; color: #7a5410; border-radius: 10px; padding: 8px 10px; font-size: 13.5px; font-weight: 700; line-height: 1.5; }
+    .ps-warn.hidden { display: none; }
     .pin-hint { margin-top: 14px; font-size: 13px; color: var(--muted); }
     .ck-ro-banner { background: #eef3fb; border: 1.5px solid #c9d8ef; color: #2c4a73; border-radius: 12px; padding: 10px 14px; font-size: 15px; font-weight: 800; margin-bottom: 14px; }
     body.ck-readonly .edit-only { display: none !important; }
@@ -850,7 +870,7 @@
         <div class="gd-sec">
           <h4>🔮 推估怎麼來的</h4>
           <div class="gd-tools">
-            <div class="gd-tool"><span class="k">雞肉</span><span>平日(二三四)／週五／假日(六日＋國定)分開，取「回算天數」內同日型實際用掉的量，用平均等方法算，再乘上多備比例。都在〈設定 → 雞肉推估參數〉。</span></div>
+            <div class="gd-tool"><span class="k">雞肉</span><span>假日(六日＋國定)、單獨推估的星期(預設週五，可再勾例如週二會員日)、其餘平日分開，取「回算天數」內同日型實際用掉的量，用平均等方法算，再乘上多備比例。都在〈設定 → 雞肉推估參數〉。</span></div>
             <div class="gd-tool"><span class="k">餅皮</span><span>取近幾次同星期的平均賣出量(預設 2 次)。六日／假日另外用「最低營業額」反推最少要備，兩者取多的。都在〈設定 → 餅皮推估參數〉。</span></div>
             <div class="gd-tool"><span class="k">推估準確度</span><span>〈月曆〉上方的「📊 雞肉推估準確度」和「🍕 餅皮推估準確度」，用<b>目前的參數設定</b>回推近 14 天，和實際比較，用來評估要不要調參數。每天要備多少請看首頁卡片，或月曆點那一天。</span></div>
           </div>
@@ -886,7 +906,7 @@
           <h5>🍗 雞肉推估</h5>
           <ol class="gd-rules">
             <li><b>實際用量</b>：上傳報表時，依〈雞肉單位轉換〉把每個品項的份數換成腿／排／翅(份數 × 每份幾支)，存成那天的實際用量。</li>
-            <li><b>日型</b>：六日與有營業的國定假日＝<b>假日</b>；週五＝<b>週五</b>；其他營業日(二三四)＝<b>平日</b>。公休不推估。三種日型分開算。</li>
+            <li><b>日型</b>：六日與有營業的國定假日＝<b>假日</b>；〈雞肉推估參數〉勾選「單獨推估」的星期(預設週五)各自一組，例如勾了週二就有<b>週二</b>；其他營業日＝<b>平日</b>。公休不推估。各日型分開算。單獨推估的星期也有版本紀錄，改了不影響過去的預估。</li>
             <li><b>取樣</b>：從<b>下單日</b>往回「回算天數」(14～60 天)，<b>不含下單日當天</b>，挑同日型、有上傳報表的日子。下單日在未來時，用今天往回。</li>
             <li><b>基準</b>(腿、排、翅各自算)：
               <div class="gd-f">平均＝加總 ÷ 天數<br>中位數＝由小到大排，取中間值(偶數天取中間兩天的平均)<br>近期加權＝越新越重：最新的乘 N、次新乘 N−1…最舊乘 1，加總後 ÷ 權重總和<br>同型日最大＝取最大值</div></li>
@@ -897,8 +917,8 @@
               <div class="gd-f">合計需求＝各使用日需求加總<br>扣剩餘＝下單日當天有打烊剩餘就用當天(打烊後下單)；否則用前一個營業日的打烊剩餘(開店前／營業中下單，或下單日店休)<br>下單日是今天、已過 20:00 但還沒填當天剩餘 → 不扣，提醒先填<br>該用的那天沒有紀錄 → 不扣(不當作 0)，另外列出最近一筆的日期參考<br>要訂＝合計需求 − 剩餘(最少 0)</div></li>
             <li><b>公斤換算</b>：
               <div class="gd-f">建議公斤＝隻數 × 每支克數 ÷ 1000，<b>四捨五入到整數公斤</b>(至少 1 公斤)<br>公斤換回隻數＝公斤 × 1000 ÷ 每支克數，<b>無條件捨去</b>(保守不高估)</div></li>
-            <li><b>日期明細的順序</b>(跟訂購的想法一樣)：預估要用 → 扣掉的剩餘 → 應訂 → 實際叫貨 → 可用量 → 實際賣 → 差額。
-              <div class="gd-f">扣掉的剩餘：依日期先用，第一個使用日先扣，不夠才扣下一天<br>應訂＝需求 − 扣掉的剩餘<br>實際叫貨＝公斤換回的總隻數，多個使用日時<b>依各天應訂比例分攤</b>(累計後四捨五入，各天加總剛好等於總隻數)<br>可用量＝實際叫貨 ＋ 扣掉的剩餘<br>差額＝可用量 − 實際賣：正＝有剩、負＝不夠</div></li>
+            <li><b>日期明細(三段對照)</b>：
+              <div class="gd-f"><b>① 預估</b>(下單時算的，之後不會變)：預估需求 → 扣下單時的剩餘(依日期先用，第一個使用日先扣，不夠才扣下一天) → 應訂＝需求 − 扣掉的剩餘<br><b>② 訂購</b>：實際叫貨＝公斤換回的隻數；一張單用多天時<b>依各天應訂比例分攤</b>(累計後四捨五入，各天加總剛好等於總隻數)。比應訂＝實際叫貨 − 應訂<br><b>③ 實際</b>(事後檢討)：實際可用＝<b>前一營業日打烊剩餘</b> ＋ 這天分到的實際叫貨(各使用日分開醃，前一天的剩餘只含那天那份)<br>差額(預估−賣)：正＝估多、負＝估少<br>差額(可用−賣)：正＝有剩、負＝不夠<br>盤點核對：帳上應剩＝差額(可用−賣)，和這天打烊盤點比，差多少就列出來(可能是損耗或盤點填錯)<br>前一營業日沒有剩餘紀錄 → 不算實際可用(不當作 0)</div></li>
             <li><b>推估準確度</b>：近 14 天，用<b>目前設定</b>、只用那天之前的資料回推。差額＝推估 − 實際用(四捨五入)：小於 0＝<b>估少</b>；多出超過實際用的 15%＝<b>估多</b>；其餘＝<b>差不多</b>。腿、排、翅分開判斷。</li>
           </ol>
 
@@ -1008,7 +1028,13 @@
         </div>
         <div class="ps-row">
           <div class="ps-k">📅 回算天數 <select class="ps-sel" id="psWindow"><option value="14">14 天</option><option value="21">21 天</option><option value="28">28 天</option><option value="35">35 天</option><option value="42">42 天</option><option value="49">49 天</option><option value="56">56 天</option><option value="60">60 天</option></select></div>
-          <div class="ps-d">取樣「今天往回幾天」內的<b>同型日</b>(平日／週五／假日分開算)。14～60 天、每 7 天一階；短＝反映近況、長＝較穩。</div>
+          <div class="ps-d">取樣「今天往回幾天」內的<b>同型日</b>(假日、單獨推估的星期、其餘平日分開算)。14～60 天、每 7 天一階；短＝反映近況、長＝較穩。</div>
+        </div>
+        <div class="ps-row">
+          <div class="ps-k">🗓 單獨推估的星期</div>
+          <div class="ps-solos" id="psSolo"></div>
+          <div class="ps-d">勾選的星期<b>自己成一組</b>推估，不跟其他平日混在一起(例如週二會員日)。六日、國定假日固定是「假日」。預設只勾週五。</div>
+          <div class="ps-warn hidden" id="psSoloHint"></div>
         </div>
         <div class="ps-row">
           <div class="ps-k">📈 推估方式 <select class="ps-sel" id="psMethod"><option value="avg">平均</option><option value="median">中位數</option><option value="weighted">近期加權</option><option value="max">同型日最大</option></select></div>
@@ -1037,7 +1063,7 @@
   <!-- 點某天明細彈窗 -->
   <div id="detailBackdrop" class="modal-backdrop hidden">
     <div class="modal" style="width:min(520px,100%)">
-      <div class="modal-head"><div><h3 id="detailTitle"></h3><p>預估／實際叫貨／實際賣 對比</p></div><button class="icon-btn" data-close="detailBackdrop">✕</button></div>
+      <div class="modal-head"><div><h3 id="detailTitle"></h3><p>① 預估 → ② 訂購 → ③ 實際　三段對照</p></div><button class="icon-btn" data-close="detailBackdrop">✕</button></div>
       <div class="modal-body">
         <div id="detailBody"></div>
         <div class="modal-actions"><button class="ghost-btn" id="detailEditOrder">📝 訂購雞肉</button><button class="primary-btn" data-close="detailBackdrop">關閉</button></div>
