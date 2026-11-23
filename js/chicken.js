@@ -807,7 +807,7 @@
   function cell(obj, k) { return obj ? `<td>${obj[k]}</td>` : `<td class="ck-muted">—</td>`; }
   function diffCell(v) { const c = v < 0 ? "var(--danger)" : v > 0 ? "var(--ok)" : "var(--muted)"; return `<td style="color:${c};font-weight:800">${v > 0 ? "+" : ""}${v}</td>`; }
   function openDetail(k) {
-    const rec = days[k] || {};
+    const rec = days[k] || predDays[k] || {};   // 從準確度點過來時，這天可能不在月曆目前顯示的月份
     const hasSales = !!(rec.sales && Object.keys(rec.sales).length && rec.parts);
     const o = rec.order || null, u = hasSales ? rec.parts : null;
     const pa = predictAsOrdered(k, rec), p = pa.p, est = (p.n && p.rec) ? p.rec : null;   // 當時的預估(下單日版本，固定)
@@ -1741,8 +1741,9 @@
     }).join("");
     $("chkAccList").querySelectorAll("button[data-cad]").forEach((b) => b.onclick = () => openChkAccDetail(b.dataset.cad));
   }
+  // 推估準確度的每日明細：只看「目前設定的推估 vs 實際用」(評估參數)；當天叫貨、可用量交給每日明細(三段對照)
   function openChkAccDetail(k) {
-    const p = predict(k, k), act = chickenActual(k), rec = predDays[k] || {}, oa = rec.order ? orderActualFor(k, rec) : null, ord = oa ? oa.alloc : rec.order, st = stockDays[k];
+    const p = predict(k, k), act = chickenActual(k);
     $("chkAccDetTitle").textContent = fmtFull(k);
     const row = (label, o, cls) => `<tr${cls ? ` class="${cls}"` : ""}><td>${label}</td>${PARTS3.map((pt) => o ? `<td>${Math.round(Number(o[pt]) || 0)}</td>` : `<td class="ck-muted">—</td>`).join("")}</tr>`;
     const diffRow = (label, a, b) => `<tr class="sum"><td>${label}</td>${PARTS3.map((pt) => (a && b) ? diffCell(Math.round((Number(a[pt]) || 0) - (Number(b[pt]) || 0))) : `<td class="ck-muted">—</td>`).join("")}</tr>`;
@@ -1750,15 +1751,13 @@
     html += `<table class="ck-items"><thead><tr><th></th><th>腿(隻)</th><th>排(隻)</th><th>翅(隻)</th></tr></thead><tbody>
       ${row(`基準<small class="ck-adj">${CC.predWhy(p).replace(/・多備 ×[\d.]+$/, "")}</small>`, p.n ? p.avg : null)}
       ${row(`🔮 推估(×${bufferFactor})`, p.n ? p.rec : null)}
-      ${row(oa ? "📦 實際叫貨(公斤換算)" : "📦 實際訂購", ord || null)}
-      ${oa && oa.hasStock ? row("＋扣掉的剩餘", oa.used) : ""}
       ${row("🍗 實際用", act)}
-      ${row("打烊剩餘", hasChickenRec(st) ? st : null)}
-      ${diffRow("差額(估−用)", p.n ? p.rec : null, act)}
-      ${ord ? diffRow(oa ? "差額(可用−用)" : "差額(訂−用)", oa ? oa.avail : ord, act) : ""}
+      ${diffRow(`差額(推估−實際用)<small class="ck-adj">正＝估多、負＝估少</small>`, p.n ? p.rec : null, act)}
       </tbody></table>
-      <div class="hint" style="margin:8px 2px">差額正＝多、負＝不夠。「推估」用目前設定回推；${oa ? `「實際叫貨」是當時訂購公斤換算的隻數${oa.multi ? "(依各使用日需求比例分攤)" : ""}，可用＝實際叫貨${oa.hasStock ? "＋扣掉的庫存" : ""}` : `「實際訂購」是當時存下的訂購量${ord ? "" : "(這天沒有訂購紀錄)"}`}。</div>`;
+      <button type="button" class="ca-godetail" id="chkAccGoDetail">看這天的訂購與實際 ›</button>
+      <div class="hint" style="margin:8px 2px">推估用<b>目前設定</b>回推，用來評估參數準不準；當天實際叫貨、可用量請看每日明細。</div>`;
     $("chkAccDetBody").innerHTML = html;
+    $("chkAccGoDetail").onclick = () => { hide("chkAccDetBackdrop"); hide("chkAccBackdrop"); openDetail(k); };
     show("chkAccDetBackdrop");
   }
 
